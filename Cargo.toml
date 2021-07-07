@@ -29,8 +29,12 @@ overflow-checks = true
 [features]
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all instantiate/execute/query exports
+library = []
 
 [dependencies]
+cw20 = { version = "0.6.2" }
+cw20-base = { version = "0.6.2", features = ["library"] }
 cosmwasm-std = { version = "0.14.0" }
 cosmwasm-storage = { version = "0.14.0" }
 cw-storage-plus = "0.6.0"
@@ -40,3 +44,4 @@ thiserror = { version = "1.0.24" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.14.0" }
+cw-multi-test = { version = "0.6.1" }

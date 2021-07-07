@@ -3,13 +3,22 @@
   "title": "QueryMsg",
   "anyOf": [
     {
+      "description": "Implements CW20. Returns the current balance of the given address, 0 if unset.",
       "type": "object",
       "required": [
-        "get_count"
+        "balance"
       ],
       "properties": {
-        "get_count": {
-          "type": "object"
+        "balance": {
+          "type": "object",
+          "required": [
+            "address"
+          ],
+          "properties": {
+            "address": {
+              "type": "string"
+            }
+          }
         }
       },
       "additionalProperties": false
