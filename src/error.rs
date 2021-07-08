@@ -1,7 +1,7 @@
 use cosmwasm_std::{StdError, Uint128};
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
@@ -31,6 +31,9 @@ pub enum ContractError {
         available: Uint128,
     },
 
+    #[error("NoLiquidityError")]
+    NoLiquidityError {},
+
     #[error("MinNativeError")]
     MinNative {
         requested: Uint128,
@@ -45,4 +48,7 @@ pub enum ContractError {
 
     #[error("IncorrectNativeDenom")]
     IncorrectNativeDenom { provided: String, required: String },
+
+    #[error("SwapMinError")]
+    SwapMinError { min: Uint128, available: Uint128 },
 }
