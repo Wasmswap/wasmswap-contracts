@@ -72,3 +72,6 @@ jobs:
         with:
           command: schema
           args: --locked
+
+      - name: Check for schema changes
+        run: [ -z "$(git status --porcelain)" ] || exit 1
