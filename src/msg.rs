@@ -38,6 +38,12 @@ pub enum QueryMsg {
         address: String,
     },
     Info {},
+    NativeForTokenPrice {
+        native_amount: Uint128,
+    },
+    TokenForNativePrice {
+        token_amount: Uint128
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -46,3 +52,14 @@ pub struct InfoResponse {
     pub native_denom: String,
     pub token_supply: Uint128,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct NativeForTokenPriceResponse {
+    pub token_amount: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TokenForNativePriceResponse {
+    pub native_amount: Uint128,
+}
+
