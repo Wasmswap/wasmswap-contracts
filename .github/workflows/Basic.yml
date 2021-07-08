@@ -64,12 +64,12 @@ jobs:
           command: clippy
           args: -- -D warnings
 
-      - name: Generate Schema
+      - name: Generate schema
         uses: actions-rs/cargo@v1
         with:
           command: schema
           args: --locked
-      
-      - name: Check for schema changes
-        run: [ -z "$(git status --porcelain)" ] || exit 1
+          
+      - name: Unapplied schema changes
+        uses: UnicornGlobal/has-changes-action@v1.0.11
 
