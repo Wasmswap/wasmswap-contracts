@@ -42,7 +42,7 @@ pub enum QueryMsg {
         native_amount: Uint128,
     },
     TokenForNativePrice {
-        token_amount: Uint128
+        token_amount: Uint128,
     },
 }
 
@@ -62,4 +62,3 @@ pub struct NativeForTokenPriceResponse {
 pub struct TokenForNativePriceResponse {
     pub native_amount: Uint128,
 }
-

@@ -3,7 +3,10 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use amm::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, NativeForTokenPriceResponse, TokenForNativePriceResponse};
+use amm::msg::{
+    ExecuteMsg, InfoResponse, InstantiateMsg, NativeForTokenPriceResponse, QueryMsg,
+    TokenForNativePriceResponse,
+};
 use amm::state::State;
 use cw20::BalanceResponse;
 
