@@ -682,7 +682,7 @@ mod tests {
             min_token: Uint128(1),
         };
         let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-        assert_eq!(err, ContractError::InsufficientLiquidityError { requested: Uint128(26), available: Uint128(13)});
+        assert_eq!(err, ContractError::InsufficientLiquidityError { requested: Uint128(26), available: Uint128(25)});
 
         // Remove rest of liquidity
         let info = mock_info("anyone", &vec![]);
@@ -766,7 +766,7 @@ mod tests {
         assert_eq!(res.attributes[1].value, "7");
 
         let info = get_info(deps.as_ref());
-        assert_eq!( info.native_supply, Uint128(120);
+        assert_eq!( info.native_supply, Uint128(120));
         assert_eq!(info.token_supply, Uint128(84));
 
         // min_token error
