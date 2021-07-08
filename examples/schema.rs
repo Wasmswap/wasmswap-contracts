@@ -3,7 +3,10 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use amm::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg};
+use amm::msg::{
+    ExecuteMsg, InfoResponse, InstantiateMsg, NativeForTokenPriceResponse, QueryMsg,
+    TokenForNativePriceResponse,
+};
 use amm::state::State;
 use cw20::BalanceResponse;
 
@@ -19,4 +22,6 @@ fn main() {
     export_schema(&schema_for!(State), &out_dir);
     export_schema(&schema_for!(BalanceResponse), &out_dir);
     export_schema(&schema_for!(InfoResponse), &out_dir);
+    export_schema(&schema_for!(NativeForTokenPriceResponse), &out_dir);
+    export_schema(&schema_for!(TokenForNativePriceResponse), &out_dir);
 }

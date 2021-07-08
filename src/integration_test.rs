@@ -268,7 +268,7 @@ fn swap_tokens_happy_path() {
     let funds = coins(2000, NATIVE_TOKEN_DENOM);
     router.set_bank_balance(&buyer, funds).unwrap();
 
-    let add_liquidity_msg = ExecuteMsg::NativeForTokenSwapInput {
+    let add_liquidity_msg = ExecuteMsg::NativeForTokenSwap {
         min_token: Uint128(9),
     };
     let res = router
@@ -305,7 +305,7 @@ fn swap_tokens_happy_path() {
     let balance: BalanceResponse = from_binary(&query_res).unwrap();
     assert_eq!(balance.amount.amount, Uint128(1990));
 
-    let swap_msg = ExecuteMsg::NativeForTokenSwapInput {
+    let swap_msg = ExecuteMsg::NativeForTokenSwap {
         min_token: Uint128(7),
     };
     let res = router
@@ -355,7 +355,7 @@ fn swap_tokens_happy_path() {
         .unwrap();
     println!("{:?}", res.attributes);
 
-    let swap_msg = ExecuteMsg::TokenForNativeSwapInput {
+    let swap_msg = ExecuteMsg::TokenForNativeSwap {
         token_amount: Uint128(16),
         min_native: Uint128(19),
     };
