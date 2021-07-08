@@ -21,10 +21,10 @@ pub enum ExecuteMsg {
         min_native: Uint128,
         min_token: Uint128,
     },
-    NativeForTokenSwapInput {
+    NativeForTokenSwap {
         min_token: Uint128,
     },
-    TokenForNativeSwapInput {
+    TokenForNativeSwap {
         token_amount: Uint128,
         min_native: Uint128,
     },
