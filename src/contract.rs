@@ -9,7 +9,7 @@ use cw20_base::contract::{
 use cw20_base::state::{BALANCES as LIQUIDITY_BALANCES, TOKEN_INFO as LIQUIDITY_INFO};
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, NativeForTokenPriceResponse, TokenForNativePriceResponse};
 use crate::state::{State, STATE};
 
 // Note, you can use StdResult in some functions where you do not
@@ -100,7 +100,7 @@ fn get_token_amount(
     liquidity_supply: Uint128,
     token_supply: Uint128,
     native_supply: Uint128,
-) -> Result<Uint128, ContractError> {
+) -> Result<Uint128, StdError> {
     if liquidity_supply == Uint128(0) {
         Ok(max_token)
     } else {
@@ -458,6 +458,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Balance { address } => to_binary(&query_balance(deps, address)?),
         QueryMsg::Info {} => to_binary(&query_info(deps)?),
+        QueryMsg::NativeForTokenPrice {native_amount} => to_binary(&query_native_for_token_price(deps, native_amount)?),
+        QueryMsg::TokenForNativePrice {token_amount} => to_binary(&query_token_for_native_price(deps, token_amount)?),
     }
 }
 
@@ -470,11 +472,23 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
     })
 }
 
+pub fn query_native_for_token_price(deps: Deps, native_amount: Uint128) -> StdResult<NativeForTokenPriceResponse> {
+    let state = STATE.load(deps.storage)?;
+    let token_amount = get_input_price(native_amount, state.native_supply.amount, state.token_supply).unwrap();
+    Ok(NativeForTokenPriceResponse{token_amount})
+}
+
+pub fn query_token_for_native_price(deps: Deps, token_amount: Uint128) -> StdResult<TokenForNativePriceResponse> {
+    let state = STATE.load(deps.storage)?;
+    let native_amount = get_input_price(token_amount, state.token_supply, state.native_supply.amount).unwrap();
+    Ok(TokenForNativePriceResponse{native_amount})
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, Addr};
+    use cosmwasm_std::{coins, Addr, from_binary};
 
     fn get_info(deps: Deps) -> InfoResponse {
         query_info(deps).unwrap()
@@ -774,5 +788,37 @@ mod tests {
                 available: Uint128(6)
             }
         );
+    }
+
+    #[test]
+    fn query_price() {
+        let mut deps = mock_dependencies(&coins(2, "token"));
+
+        let msg = InstantiateMsg {
+            native_denom: "test".to_string(),
+            token_address: Addr::unchecked("asdf"),
+        };
+        let info = mock_info("creator", &coins(2, "token"));
+        let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        // Add initial liquidity
+        let info = mock_info("anyone", &coins(100, "test"));
+        let msg = ExecuteMsg::AddLiquidity {
+            min_liquidity: Uint128(100),
+            max_token: Uint128(50),
+        };
+        let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        // Query Native for Token Price
+        let msg = QueryMsg::NativeForTokenPrice {native_amount:Uint128(10)};
+        let data = query(deps.as_ref(), mock_env(), msg).unwrap();
+        let res: NativeForTokenPriceResponse = from_binary(&data).unwrap();
+        assert_eq!(Uint128(4), res.token_amount);
+
+        // Query Token for Native Price
+        let msg = QueryMsg::TokenForNativePrice {token_amount:Uint128(10)};
+        let data = query(deps.as_ref(), mock_env(), msg).unwrap();
+        let res: TokenForNativePriceResponse = from_binary(&data).unwrap();
+        assert_eq!(Uint128(16), res.native_amount);
     }
 }
