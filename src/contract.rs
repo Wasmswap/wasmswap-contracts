@@ -188,11 +188,11 @@ pub fn execute_add_liquidity(
     })
 }
 
-fn check_denom(actual_denom: &String, given_denom: &String) -> Result<(), ContractError>{
+fn check_denom(actual_denom: &str, given_denom: &str) -> Result<(), ContractError>{
     if actual_denom != given_denom {
         return Err(ContractError::IncorrectNativeDenom {
-            provided: actual_denom.clone(),
-            required: given_denom.clone(),
+            provided: actual_denom.to_string(),
+            required: given_denom.to_string(),
         });
     };
     Ok(())
@@ -302,11 +302,11 @@ fn get_cw20_transfer_to_msg(recipient: &Addr, token_addr: &Addr, token_amount: U
     Ok(cw20_transfer_cosmos_msg)
 }
 
-fn get_bank_transfer_to_msg(recipient: &Addr, denom: &String, native_amount: Uint128) -> CosmosMsg {
+fn get_bank_transfer_to_msg(recipient: &Addr, denom: &str, native_amount: Uint128) -> CosmosMsg {
     let transfer_bank_msg = cosmwasm_std::BankMsg::Send {
         to_address: recipient.into(),
         amount: vec![Coin {
-            denom: denom.into(),
+            denom: denom.to_string(),
             amount: native_amount,
         }],
     };
