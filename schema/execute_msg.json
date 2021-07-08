@@ -57,16 +57,40 @@
     {
       "type": "object",
       "required": [
-        "native_for_token_swap_input"
+        "native_for_token_swap"
       ],
       "properties": {
-        "native_for_token_swap_input": {
+        "native_for_token_swap": {
           "type": "object",
           "required": [
             "min_token"
           ],
           "properties": {
             "min_token": {
+              "$ref": "#/definitions/Uint128"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "token_for_native_swap"
+      ],
+      "properties": {
+        "token_for_native_swap": {
+          "type": "object",
+          "required": [
+            "min_native",
+            "token_amount"
+          ],
+          "properties": {
+            "min_native": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "token_amount": {
               "$ref": "#/definitions/Uint128"
             }
           }
