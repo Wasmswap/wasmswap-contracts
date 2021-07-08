@@ -80,14 +80,14 @@ pub fn execute(
 }
 
 fn get_liquidity_amount(
-    native_token_amount: Uint128,
+    native_amount: Uint128,
     liquidity_supply: Uint128,
     native_supply: Uint128,
 ) -> Result<Uint128, ContractError> {
     if liquidity_supply == Uint128(0) {
-        Ok(native_token_amount)
+        Ok(native_amount)
     } else {
-        Ok(native_token_amount
+        Ok(native_amount
             .checked_mul(liquidity_supply)
             .map_err(StdError::overflow)?
             .checked_div(native_supply)
@@ -97,7 +97,7 @@ fn get_liquidity_amount(
 
 fn get_token_amount(
     max_token: Uint128,
-    native_token_amount: Uint128,
+    native_amount: Uint128,
     liquidity_supply: Uint128,
     token_supply: Uint128,
     native_supply: Uint128,
@@ -105,7 +105,7 @@ fn get_token_amount(
     if liquidity_supply == Uint128(0) {
         Ok(max_token)
     } else {
-        Ok(native_token_amount
+        Ok(native_amount
             .checked_mul(token_supply)
             .map_err(StdError::overflow)?
             .checked_div(native_supply)
@@ -521,6 +521,24 @@ mod tests {
         // we can just call .unwrap() to assert this was a success
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(0, res.messages.len());
+    }
+
+    #[test]
+    fn test_get_liquidity_amount(){
+        let liquidity = get_liquidity_amount(Uint128(100), Uint128(0), Uint128(0)).unwrap();
+        assert_eq!(Uint128(100), liquidity);
+
+        let liquidity = get_liquidity_amount(Uint128(100), Uint128(50), Uint128(25)).unwrap();
+        assert_eq!(Uint128(200), liquidity);
+    }
+
+    #[test]
+    fn test_get_token_amount(){
+        let liquidity = get_token_amount(Uint128(100), Uint128(50), Uint128(0), Uint128(0), Uint128(0)).unwrap();
+        assert_eq!(Uint128(100), liquidity);
+
+        let liquidity = get_token_amount(Uint128(200), Uint128(50), Uint128(50), Uint128(100), Uint128(25)).unwrap();
+        assert_eq!(Uint128(201), liquidity);
     }
 
     #[test]
