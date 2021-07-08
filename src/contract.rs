@@ -520,25 +520,25 @@ mod tests {
 
         // we can just call .unwrap() to assert this was a success
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(0, res.messages.len());
+        assert_eq!(res.messages.len(), 0);
     }
 
     #[test]
     fn test_get_liquidity_amount(){
         let liquidity = get_liquidity_amount(Uint128(100), Uint128(0), Uint128(0)).unwrap();
-        assert_eq!(Uint128(100), liquidity);
+        assert_eq!( liquidity, Uint128(100));
 
         let liquidity = get_liquidity_amount(Uint128(100), Uint128(50), Uint128(25)).unwrap();
-        assert_eq!(Uint128(200), liquidity);
+        assert_eq!(liquidity, Uint128(200));
     }
 
     #[test]
     fn test_get_token_amount(){
         let liquidity = get_token_amount(Uint128(100), Uint128(50), Uint128(0), Uint128(0), Uint128(0)).unwrap();
-        assert_eq!(Uint128(100), liquidity);
+        assert_eq!(liquidity, Uint128(100));
 
         let liquidity = get_token_amount(Uint128(200), Uint128(50), Uint128(50), Uint128(100), Uint128(25)).unwrap();
-        assert_eq!(Uint128(201), liquidity);
+        assert_eq!(liquidity, Uint128(201));
     }
 
     #[test]
@@ -560,14 +560,14 @@ mod tests {
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-        assert_eq!(3, res.attributes.len());
-        assert_eq!("2", res.attributes[0].value);
-        assert_eq!("1", res.attributes[1].value);
-        assert_eq!("2", res.attributes[2].value);
+        assert_eq!(res.attributes.len(), 3);
+        assert_eq!(res.attributes[0].value, "2");
+        assert_eq!(res.attributes[1].value,"1");
+        assert_eq!(res.attributes[2].value, "2");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(Uint128(2), info.native_supply);
-        assert_eq!(Uint128(1), info.token_supply);
+        assert_eq!(info.native_supply, Uint128(2));
+        assert_eq!(info.token_supply, Uint128(1));
 
         // Add more liquidity
         let info = mock_info("anyone", &coins(4, "test"));
@@ -577,14 +577,14 @@ mod tests {
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-        assert_eq!(3, res.attributes.len());
-        assert_eq!("4", res.attributes[0].value);
-        assert_eq!("3", res.attributes[1].value);
-        assert_eq!("4", res.attributes[2].value);
+        assert_eq!(res.attributes.len(), 3);
+        assert_eq!(res.attributes[0].value, "4");
+        assert_eq!( res.attributes[1].value, "3");
+        assert_eq!(res.attributes[2].value, "4");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(Uint128(6), info.native_supply);
-        assert_eq!(Uint128(4), info.token_supply);
+        assert_eq!(info.native_supply, Uint128(6));
+        assert_eq!(info.token_supply, Uint128(4));
 
         // Too low max_token
         let info = mock_info("anyone", &coins(100, "test"));
@@ -633,14 +633,14 @@ mod tests {
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-        assert_eq!(3, res.attributes.len());
-        assert_eq!("100", res.attributes[0].value);
-        assert_eq!("50", res.attributes[1].value);
-        assert_eq!("100", res.attributes[2].value);
+        assert_eq!(res.attributes.len(), 3);
+        assert_eq!(res.attributes[0].value, "100");
+        assert_eq!(res.attributes[1].value, "50");
+        assert_eq!(res.attributes[2].value, "100");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(Uint128(100), info.native_supply);
-        assert_eq!(Uint128(50), info.token_supply);
+        assert_eq!(info.native_supply, Uint128(100));
+        assert_eq!(info.token_supply, Uint128(50));
 
         // Remove half liquidity
         let info = mock_info("anyone", &vec![]);
@@ -650,13 +650,13 @@ mod tests {
             min_token: Uint128(25),
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!("50", res.attributes[0].value);
-        assert_eq!("50", res.attributes[1].value);
-        assert_eq!("25", res.attributes[2].value);
+        assert_eq!( res.attributes[0].value, "50");
+        assert_eq!(res.attributes[1].value, "50");
+        assert_eq!(res.attributes[2].value, "25");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(Uint128(50), info.native_supply);
-        assert_eq!(Uint128(25), info.token_supply);
+        assert_eq!(info.native_supply, Uint128(50));
+        assert_eq!(info.token_supply, Uint128(25));
 
         // Remove half again with not proper division
         let info = mock_info("anyone", &vec![]);
@@ -666,13 +666,13 @@ mod tests {
             min_token: Uint128(12),
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!("25", res.attributes[0].value);
-        assert_eq!("25", res.attributes[1].value);
-        assert_eq!("12", res.attributes[2].value);
+        assert_eq!(res.attributes[0].value, "25");
+        assert_eq!(res.attributes[1].value, "25");
+        assert_eq!(res.attributes[2].value, "12");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(Uint128(25), info.native_supply);
-        assert_eq!(Uint128(13), info.token_supply);
+        assert_eq!(info.native_supply, Uint128(25));
+        assert_eq!(info.token_supply, Uint128(13));
 
         // Remove more than owned
         let info = mock_info("anyone", &vec![]);
@@ -692,21 +692,21 @@ mod tests {
             min_token: Uint128(1),
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!("25", res.attributes[0].value);
-        assert_eq!("25", res.attributes[1].value);
-        assert_eq!("13", res.attributes[2].value);
+        assert_eq!(res.attributes[0].value, "25");
+        assert_eq!( res.attributes[1].value, "25");
+        assert_eq!(res.attributes[2].value, "13");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(Uint128(0), info.native_supply);
-        assert_eq!(Uint128(0), info.token_supply);
+        assert_eq!(info.native_supply, Uint128(0));
+        assert_eq!(info.token_supply, Uint128(0));
     }
 
     #[test]
     fn test_get_input_price() {
         // Base case
         assert_eq!(
-            Uint128(9),
-            get_input_price(Uint128(10), Uint128(100), Uint128(100)).unwrap()
+            get_input_price(Uint128(10), Uint128(100), Uint128(100)).unwrap(),
+            Uint128(9)
         );
 
         // No input supply error
@@ -747,13 +747,13 @@ mod tests {
             min_token: Uint128(9),
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(2, res.attributes.len());
-        assert_eq!("10", res.attributes[0].value);
-        assert_eq!("9", res.attributes[1].value);
+        assert_eq!( res.attributes.len(),2);
+        assert_eq!(res.attributes[0].value, "10");
+        assert_eq!(res.attributes[1].value, "9");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(Uint128(110), info.native_supply);
-        assert_eq!(Uint128(91), info.token_supply);
+        assert_eq!(info.native_supply, Uint128(110));
+        assert_eq!(info.token_supply, Uint128(91));
 
         // Second purchase at higher price
         let info = mock_info("anyone", &coins(10, "test"));
@@ -761,13 +761,13 @@ mod tests {
             min_token: Uint128(7),
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(2, res.attributes.len());
-        assert_eq!("10", res.attributes[0].value);
-        assert_eq!("7", res.attributes[1].value);
+        assert_eq!( res.attributes.len(), 2);
+        assert_eq!(res.attributes[0].value, "10");
+        assert_eq!(res.attributes[1].value, "7");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(Uint128(120), info.native_supply);
-        assert_eq!(Uint128(84), info.token_supply);
+        assert_eq!( info.native_supply, Uint128(120);
+        assert_eq!(info.token_supply, Uint128(84));
 
         // min_token error
         let info = mock_info("anyone", &coins(10, "test"));
@@ -810,13 +810,13 @@ mod tests {
             min_native: Uint128(9),
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(2, res.attributes.len());
-        assert_eq!("10", res.attributes[0].value);
-        assert_eq!("9", res.attributes[1].value);
+        assert_eq!( res.attributes.len(), 2);
+        assert_eq!(res.attributes[0].value, "10");
+        assert_eq!(res.attributes[1].value, "9");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(Uint128(110), info.token_supply);
-        assert_eq!(Uint128(91), info.native_supply);
+        assert_eq!(info.token_supply, Uint128(110));
+        assert_eq!(info.native_supply, Uint128(91));
 
         // Second purchase at higher price
         let info = mock_info("anyone", &vec![]);
@@ -825,13 +825,13 @@ mod tests {
             min_native: Uint128(7),
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(2, res.attributes.len());
-        assert_eq!("10", res.attributes[0].value);
-        assert_eq!("7", res.attributes[1].value);
+        assert_eq!(res.attributes.len(), 2);
+        assert_eq!( res.attributes[0].value, "10");
+        assert_eq!( res.attributes[1].value, "7");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(Uint128(120), info.token_supply);
-        assert_eq!(Uint128(84), info.native_supply);
+        assert_eq!(info.token_supply, Uint128(120));
+        assert_eq!(info.native_supply, Uint128(84));
 
         // min_token error
         let info = mock_info("anyone", &vec![]);
@@ -874,7 +874,7 @@ mod tests {
         };
         let data = query(deps.as_ref(), mock_env(), msg).unwrap();
         let res: NativeForTokenPriceResponse = from_binary(&data).unwrap();
-        assert_eq!(Uint128(4), res.token_amount);
+        assert_eq!( res.token_amount, Uint128(4));
 
         // Query Token for Native Price
         let msg = QueryMsg::TokenForNativePrice {
@@ -882,6 +882,6 @@ mod tests {
         };
         let data = query(deps.as_ref(), mock_env(), msg).unwrap();
         let res: TokenForNativePriceResponse = from_binary(&data).unwrap();
-        assert_eq!(Uint128(16), res.native_amount);
+        assert_eq!( res.native_amount, Uint128(16));
     }
 }
