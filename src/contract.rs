@@ -592,8 +592,8 @@ mod tests {
             min_liquidity: Uint128(100),
             max_token: Uint128(1),
         };
-        let res = execute(deps.as_mut(), mock_env(), info, msg);
-        assert!(res.is_err());
+        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+        assert_eq!(err, ContractError::MaxTokenError {max_token: Uint128(1), tokens_required:Uint128(67)});
 
         // Too high min liquidity
         let info = mock_info("anyone", &coins(100, "test"));
@@ -601,8 +601,8 @@ mod tests {
             min_liquidity: Uint128(500),
             max_token: Uint128(500),
         };
-        let res = execute(deps.as_mut(), mock_env(), info, msg);
-        assert!(res.is_err());
+        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+        assert_eq!(err, ContractError::MinLiquidityError {min_liquidity:Uint128(500),liquidity_available:Uint128(100)});
 
         // Incorrect native denom throws error
         let info = mock_info("anyone", &coins(100, "wrong"));
@@ -610,8 +610,8 @@ mod tests {
             min_liquidity: Uint128(1),
             max_token: Uint128(500),
         };
-        let res = execute(deps.as_mut(), mock_env(), info, msg);
-        assert!(res.is_err());
+        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+        assert_eq!(err, ContractError::IncorrectNativeDenom { provided: "wrong".to_string(), required: "test".to_string() })
     }
 
     #[test]
@@ -681,8 +681,8 @@ mod tests {
             min_native: Uint128(1),
             min_token: Uint128(1),
         };
-        let res = execute(deps.as_mut(), mock_env(), info, msg);
-        assert!(res.is_err());
+        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+        assert_eq!(err, ContractError::InsufficientLiquidityError { requested: Uint128(26), available: Uint128(13)});
 
         // Remove rest of liquidity
         let info = mock_info("anyone", &vec![]);
@@ -710,13 +710,16 @@ mod tests {
         );
 
         // No input supply error
-        assert!(get_input_price(Uint128(10), Uint128(0), Uint128(100)).is_err());
+        let err = get_input_price(Uint128(10), Uint128(0), Uint128(100)).unwrap_err();
+        assert_eq!(err, ContractError::NoLiquidityError {});
 
         // No output supply error
-        assert!(get_input_price(Uint128(10), Uint128(100), Uint128(0)).is_err());
+        let err = get_input_price(Uint128(10), Uint128(100), Uint128(0)).unwrap_err();
+        assert_eq!(err, ContractError::NoLiquidityError {});
 
         // No supply error
-        assert!(get_input_price(Uint128(10), Uint128(0), Uint128(0)).is_err());
+        let err = get_input_price(Uint128(10), Uint128(0), Uint128(0)).unwrap_err();
+        assert_eq!(err, ContractError::NoLiquidityError {});
     }
 
     #[test]
