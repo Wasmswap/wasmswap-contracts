@@ -547,6 +547,10 @@ mod tests {
         assert_eq!("1", res.attributes[1].value);
         assert_eq!("2", res.attributes[2].value);
 
+        let info = get_info(deps.as_ref());
+        assert_eq!(Uint128(2), info.native_supply);
+        assert_eq!(Uint128(1), info.token_supply);
+
         // Add more liquidity
         let info = mock_info("anyone", &coins(4, "test"));
         let msg = ExecuteMsg::AddLiquidity {
@@ -559,6 +563,10 @@ mod tests {
         assert_eq!("4", res.attributes[0].value);
         assert_eq!("3", res.attributes[1].value);
         assert_eq!("4", res.attributes[2].value);
+
+        let info = get_info(deps.as_ref());
+        assert_eq!(Uint128(6), info.native_supply);
+        assert_eq!(Uint128(4), info.token_supply);
 
         // Too low max_token
         let info = mock_info("anyone", &coins(100, "test"));
@@ -612,6 +620,10 @@ mod tests {
         assert_eq!("50", res.attributes[1].value);
         assert_eq!("100", res.attributes[2].value);
 
+        let info = get_info(deps.as_ref());
+        assert_eq!(Uint128(100), info.native_supply);
+        assert_eq!(Uint128(50), info.token_supply);
+
         // Remove half liquidity
         let info = mock_info("anyone", &vec![]);
         let msg = ExecuteMsg::RemoveLiquidity {
@@ -624,6 +636,10 @@ mod tests {
         assert_eq!("50", res.attributes[1].value);
         assert_eq!("25", res.attributes[2].value);
 
+        let info = get_info(deps.as_ref());
+        assert_eq!(Uint128(50), info.native_supply);
+        assert_eq!(Uint128(25), info.token_supply);
+
         // Remove half again with not proper division
         let info = mock_info("anyone", &vec![]);
         let msg = ExecuteMsg::RemoveLiquidity {
@@ -635,6 +651,10 @@ mod tests {
         assert_eq!("25", res.attributes[0].value);
         assert_eq!("25", res.attributes[1].value);
         assert_eq!("12", res.attributes[2].value);
+
+        let info = get_info(deps.as_ref());
+        assert_eq!(Uint128(25), info.native_supply);
+        assert_eq!(Uint128(13), info.token_supply);
 
         // Remove more than owned
         let info = mock_info("anyone", &vec![]);
@@ -657,6 +677,10 @@ mod tests {
         assert_eq!("25", res.attributes[0].value);
         assert_eq!("25", res.attributes[1].value);
         assert_eq!("13", res.attributes[2].value);
+
+        let info = get_info(deps.as_ref());
+        assert_eq!(Uint128(0), info.native_supply);
+        assert_eq!(Uint128(0), info.token_supply);
     }
 
     #[test]
