@@ -3,6 +3,7 @@ use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
+    // trigger actions
     #[error("{0}")]
     Std(#[from] StdError),
 
