@@ -14,7 +14,6 @@ use crate::msg::{
     TokenForNativePriceResponse,
 };
 use crate::state::{State, STATE};
-use std::ops::Add;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -127,7 +126,7 @@ pub fn execute_add_liquidity(
 
     let liquidity = LIQUIDITY_INFO.load(deps.storage)?;
 
-    check_denom(info.funds[0].denom.into(), state.native_denom.into())?;
+    check_denom(&info.funds[0].denom, &state.native_denom)?;
 
     let liquidity_amount = get_liquidity_amount(
         info.funds[0].clone().amount,
@@ -157,7 +156,7 @@ pub fn execute_add_liquidity(
         });
     }
 
-    let cw20_transfer_cosmos_msg = get_cw20_transfer_from_msg(&info.sender, &_env.contract.address, &state.token_address, token_amount);
+    let cw20_transfer_cosmos_msg = get_cw20_transfer_from_msg(&info.sender, &_env.contract.address, &state.token_address, token_amount)?;
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.token_supply += token_amount;
@@ -189,17 +188,17 @@ pub fn execute_add_liquidity(
     })
 }
 
-fn check_denom(actual_denom: String, given_denom: String) -> Result<(), ContractError>{
+fn check_denom(actual_denom: &String, given_denom: &String) -> Result<(), ContractError>{
     if actual_denom != given_denom {
         return Err(ContractError::IncorrectNativeDenom {
-            provided: actual_denom,
-            required: given_denom
+            provided: actual_denom.clone(),
+            required: given_denom.clone(),
         });
     };
     Ok(())
 }
 
-fn get_cw20_transfer_from_msg(owner: &Addr, recipient: &Addr, token_addr: &Addr, token_amount: Uint128) -> CosmosMsg {
+fn get_cw20_transfer_from_msg(owner: &Addr, recipient: &Addr, token_addr: &Addr, token_amount: Uint128) -> StdResult<CosmosMsg> {
 // create transfer cw20 msg
     let transfer_cw20_msg = Cw20ExecuteMsg::TransferFrom {
         owner: owner.into(),
@@ -212,7 +211,7 @@ fn get_cw20_transfer_from_msg(owner: &Addr, recipient: &Addr, token_addr: &Addr,
         send: vec![],
     };
     let cw20_transfer_cosmos_msg: CosmosMsg = exec_cw20_transfer.into();
-    cw20_transfer_cosmos_msg
+    Ok(cw20_transfer_cosmos_msg)
 }
 
 pub fn execute_remove_liquidity(
@@ -272,7 +271,7 @@ pub fn execute_remove_liquidity(
 
     let transfer_bank_cosmos_msg = get_bank_transfer_to_msg(&info.sender, &state.native_denom, native_amount);
 
-    let cw20_transfer_cosmos_msg = get_cw20_transfer_to_msg(&info.sender, &state.token_address, token_amount);
+    let cw20_transfer_cosmos_msg = get_cw20_transfer_to_msg(&info.sender, &state.token_address, token_amount)?;
 
     execute_burn(deps, _env, info, amount)?;
 
@@ -288,7 +287,7 @@ pub fn execute_remove_liquidity(
     })
 }
 
-fn get_cw20_transfer_to_msg(recipient: &Addr, token_addr: &Addr, token_amount: Uint128) -> CosmosMsg {
+fn get_cw20_transfer_to_msg(recipient: &Addr, token_addr: &Addr, token_amount: Uint128) -> StdResult<CosmosMsg> {
 // create transfer cw20 msg
     let transfer_cw20_msg = Cw20ExecuteMsg::Transfer {
         recipient: recipient.into(),
@@ -300,7 +299,7 @@ fn get_cw20_transfer_to_msg(recipient: &Addr, token_addr: &Addr, token_amount: U
         send: vec![],
     };
     let cw20_transfer_cosmos_msg: CosmosMsg = exec_cw20_transfer.into();
-    cw20_transfer_cosmos_msg
+    Ok(cw20_transfer_cosmos_msg)
 }
 
 fn get_bank_transfer_to_msg(recipient: &Addr, denom: &String, native_amount: Uint128) -> CosmosMsg {
@@ -350,7 +349,7 @@ pub fn execute_native_for_token_swap(
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
 
-    check_denom(info.funds[0].denom.into(), state.native_denom.into())?;
+    check_denom(&info.funds[0].denom, &state.native_denom)?;
 
     let native_amount = info.funds[0].amount;
 
@@ -367,7 +366,7 @@ pub fn execute_native_for_token_swap(
         });
     }
 
-    let cw20_transfer_cosmos_msg = get_cw20_transfer_to_msg(&info.sender, &state.token_address, token_amount);
+    let cw20_transfer_cosmos_msg = get_cw20_transfer_to_msg(&info.sender, &state.token_address, token_bought)?;
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.token_supply = state
@@ -412,10 +411,10 @@ pub fn execute_token_for_native_swap(
     }
 
     // Transfer tokens to contract
-    let cw20_transfer_cosmos_msg = get_cw20_transfer_from_msg(&info.sender, &_env.contract.address, &state.token_address, token_amount);
+    let cw20_transfer_cosmos_msg = get_cw20_transfer_from_msg(&info.sender, &_env.contract.address, &state.token_address, token_amount)?;
 
     // Send native tokens to buyer
-    let transfer_bank_cosmos_msg = get_bank_transfer_to_msg(&info.sender, &state.native_denom, native_amount);
+    let transfer_bank_cosmos_msg = get_bank_transfer_to_msg(&info.sender, &state.native_denom, native_bought);
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.token_supply = state
