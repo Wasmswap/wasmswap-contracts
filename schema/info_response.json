@@ -5,6 +5,8 @@
   "required": [
     "native_denom",
     "native_reserve",
+    "token_address",
+    "token_denom",
     "token_reserve"
   ],
   "properties": {
@@ -13,6 +15,12 @@
     },
     "native_reserve": {
       "$ref": "#/definitions/Uint128"
+    },
+    "token_address": {
+      "type": "string"
+    },
+    "token_denom": {
+      "type": "string"
     },
     "token_reserve": {
       "$ref": "#/definitions/Uint128"

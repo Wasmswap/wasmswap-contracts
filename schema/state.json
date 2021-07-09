@@ -6,6 +6,7 @@
     "native_denom",
     "native_reserve",
     "token_address",
+    "token_denom",
     "token_reserve"
   ],
   "properties": {
@@ -17,6 +18,9 @@
     },
     "token_address": {
       "$ref": "#/definitions/Addr"
+    },
+    "token_denom": {
+      "type": "string"
     },
     "token_reserve": {
       "$ref": "#/definitions/Uint128"
