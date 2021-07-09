@@ -4,7 +4,8 @@
   "type": "object",
   "required": [
     "native_denom",
-    "token_address"
+    "token_address",
+    "token_denom"
   ],
   "properties": {
     "native_denom": {
@@ -12,6 +13,9 @@
     },
     "token_address": {
       "$ref": "#/definitions/Addr"
+    },
+    "token_denom": {
+      "type": "string"
     }
   },
   "definitions": {

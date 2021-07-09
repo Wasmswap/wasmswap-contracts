@@ -71,6 +71,7 @@ fn amm_add_and_remove_liquidity() {
     let amm_id = router.store_code(contract_amm());
     let msg = InstantiateMsg {
         native_denom: NATIVE_TOKEN_DENOM.to_string(),
+        token_denom: "coin".to_string(),
         token_address: cash_addr.clone(),
     };
     let amm_addr = router
@@ -217,6 +218,7 @@ fn swap_tokens_happy_path() {
     let amm_id = router.store_code(contract_amm());
     let msg = InstantiateMsg {
         native_denom: NATIVE_TOKEN_DENOM.to_string(),
+        token_denom: "coin".to_string(),
         token_address: cash_addr.clone(),
     };
     let amm_addr = router
