@@ -21,10 +21,10 @@ pub enum ExecuteMsg {
         min_native: Uint128,
         min_token: Uint128,
     },
-    NativeForTokenSwap {
+    SwapNativeForToken {
         min_token: Uint128,
     },
-    TokenForNativeSwap {
+    SwapTokenForNative {
         token_amount: Uint128,
         min_native: Uint128,
     },
@@ -48,9 +48,9 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InfoResponse {
-    pub native_supply: Uint128,
+    pub native_reserve: Uint128,
     pub native_denom: String,
-    pub token_supply: Uint128,
+    pub token_reserve: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

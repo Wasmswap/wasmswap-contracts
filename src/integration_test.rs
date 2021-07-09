@@ -261,14 +261,14 @@ fn swap_tokens_happy_path() {
     println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.native_supply, Uint128(100));
-    assert_eq!(info.token_supply, Uint128(100));
+    assert_eq!(info.native_reserve, Uint128(100));
+    assert_eq!(info.token_reserve, Uint128(100));
 
     let buyer = Addr::unchecked("buyer");
     let funds = coins(2000, NATIVE_TOKEN_DENOM);
     router.set_bank_balance(&buyer, funds).unwrap();
 
-    let add_liquidity_msg = ExecuteMsg::NativeForTokenSwap {
+    let add_liquidity_msg = ExecuteMsg::SwapNativeForToken {
         min_token: Uint128(9),
     };
     let res = router
@@ -285,8 +285,8 @@ fn swap_tokens_happy_path() {
     println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.native_supply, Uint128(110));
-    assert_eq!(info.token_supply, Uint128(91));
+    assert_eq!(info.native_reserve, Uint128(110));
+    assert_eq!(info.token_reserve, Uint128(91));
 
     // ensure balances updated
     let buyer_balance = cash.balance(&router, buyer.clone()).unwrap();
@@ -305,7 +305,7 @@ fn swap_tokens_happy_path() {
     let balance: BalanceResponse = from_binary(&query_res).unwrap();
     assert_eq!(balance.amount.amount, Uint128(1990));
 
-    let swap_msg = ExecuteMsg::NativeForTokenSwap {
+    let swap_msg = ExecuteMsg::SwapNativeForToken {
         min_token: Uint128(7),
     };
     let res = router
@@ -322,8 +322,8 @@ fn swap_tokens_happy_path() {
     println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.native_supply, Uint128(120));
-    assert_eq!(info.token_supply, Uint128(84));
+    assert_eq!(info.native_reserve, Uint128(120));
+    assert_eq!(info.token_reserve, Uint128(84));
 
     // ensure balances updated
     let buyer_balance = cash.balance(&router, buyer.clone()).unwrap();
@@ -355,7 +355,7 @@ fn swap_tokens_happy_path() {
         .unwrap();
     println!("{:?}", res.attributes);
 
-    let swap_msg = ExecuteMsg::TokenForNativeSwap {
+    let swap_msg = ExecuteMsg::SwapTokenForNative {
         token_amount: Uint128(16),
         min_native: Uint128(19),
     };
@@ -365,8 +365,8 @@ fn swap_tokens_happy_path() {
     println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.native_supply, Uint128(101));
-    assert_eq!(info.token_supply, Uint128(100));
+    assert_eq!(info.native_reserve, Uint128(101));
+    assert_eq!(info.token_reserve, Uint128(100));
 
     // ensure balances updated
     let buyer_balance = cash.balance(&router, buyer.clone()).unwrap();

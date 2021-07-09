@@ -4,21 +4,21 @@
   "type": "object",
   "required": [
     "native_denom",
-    "native_supply",
+    "native_reserve",
     "token_address",
-    "token_supply"
+    "token_reserve"
   ],
   "properties": {
     "native_denom": {
       "type": "string"
     },
-    "native_supply": {
+    "native_reserve": {
       "$ref": "#/definitions/Uint128"
     },
     "token_address": {
       "$ref": "#/definitions/Addr"
     },
-    "token_supply": {
+    "token_reserve": {
       "$ref": "#/definitions/Uint128"
     }
   },

@@ -25,10 +25,10 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let state = State {
-        native_supply: Uint128(0),
+        native_reserve: Uint128(0),
         native_denom: msg.native_denom,
         token_address: msg.token_address,
-        token_supply: Uint128(0),
+        token_reserve: Uint128(0),
     };
     STATE.save(deps.storage, &state)?;
 
@@ -69,10 +69,10 @@ pub fn execute(
             min_native,
             min_token,
         } => execute_remove_liquidity(deps, info, _env, amount, min_native, min_token),
-        ExecuteMsg::NativeForTokenSwap { min_token } => {
+        ExecuteMsg::SwapNativeForToken { min_token } => {
             execute_native_for_token_swap(deps, info, _env, min_token)
         }
-        ExecuteMsg::TokenForNativeSwap {
+        ExecuteMsg::SwapTokenForNative {
             token_amount,
             min_native,
         } => execute_token_for_native_swap(deps, info, _env, token_amount, min_native),
@@ -82,7 +82,7 @@ pub fn execute(
 fn get_liquidity_amount(
     native_amount: Uint128,
     liquidity_supply: Uint128,
-    native_supply: Uint128,
+    native_reserve: Uint128,
 ) -> Result<Uint128, ContractError> {
     if liquidity_supply == Uint128(0) {
         Ok(native_amount)
@@ -90,7 +90,7 @@ fn get_liquidity_amount(
         Ok(native_amount
             .checked_mul(liquidity_supply)
             .map_err(StdError::overflow)?
-            .checked_div(native_supply)
+            .checked_div(native_reserve)
             .map_err(StdError::divide_by_zero)?)
     }
 }
@@ -99,16 +99,16 @@ fn get_token_amount(
     max_token: Uint128,
     native_amount: Uint128,
     liquidity_supply: Uint128,
-    token_supply: Uint128,
-    native_supply: Uint128,
+    token_reserve: Uint128,
+    native_reserve: Uint128,
 ) -> Result<Uint128, StdError> {
     if liquidity_supply == Uint128(0) {
         Ok(max_token)
     } else {
         Ok(native_amount
-            .checked_mul(token_supply)
+            .checked_mul(token_reserve)
             .map_err(StdError::overflow)?
-            .checked_div(native_supply)
+            .checked_div(native_reserve)
             .map_err(StdError::divide_by_zero)?
             .checked_add(Uint128(1))
             .map_err(StdError::overflow)?)
@@ -131,15 +131,15 @@ pub fn execute_add_liquidity(
     let liquidity_amount = get_liquidity_amount(
         info.funds[0].clone().amount,
         liquidity.total_supply,
-        state.native_supply,
+        state.native_reserve,
     )?;
 
     let token_amount = get_token_amount(
         max_token,
         info.funds[0].clone().amount,
         liquidity.total_supply,
-        state.token_supply,
-        state.native_supply,
+        state.token_reserve,
+        state.native_reserve,
     )?;
 
     if liquidity_amount < min_liquidity {
@@ -164,8 +164,8 @@ pub fn execute_add_liquidity(
     )?;
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.token_supply += token_amount;
-        state.native_supply += info.funds[0].amount;
+        state.token_reserve += token_amount;
+        state.native_reserve += info.funds[0].amount;
         Ok(state)
     })?;
 
@@ -244,7 +244,7 @@ pub fn execute_remove_liquidity(
     }
 
     let native_amount = amount
-        .checked_mul(state.native_supply)
+        .checked_mul(state.native_reserve)
         .map_err(StdError::overflow)?
         .checked_div(token.total_supply)
         .map_err(StdError::divide_by_zero)?;
@@ -256,7 +256,7 @@ pub fn execute_remove_liquidity(
     }
 
     let token_amount = amount
-        .checked_mul(state.token_supply)
+        .checked_mul(state.token_reserve)
         .map_err(StdError::overflow)?
         .checked_div(token.total_supply)
         .map_err(StdError::divide_by_zero)?;
@@ -268,12 +268,12 @@ pub fn execute_remove_liquidity(
     }
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.token_supply = state
-            .token_supply
+        state.token_reserve = state
+            .token_reserve
             .checked_sub(token_amount)
             .map_err(StdError::overflow)?;
-        state.native_supply = state
-            .native_supply
+        state.native_reserve = state
+            .native_reserve
             .checked_sub(native_amount)
             .map_err(StdError::overflow)?;
         Ok(state)
@@ -333,10 +333,10 @@ fn get_bank_transfer_to_msg(recipient: &Addr, denom: &str, native_amount: Uint12
 
 fn get_input_price(
     input_amount: Uint128,
-    input_supply: Uint128,
-    output_supply: Uint128,
+    input_reserve: Uint128,
+    output_reserve: Uint128,
 ) -> Result<Uint128, ContractError> {
-    if input_supply == Uint128(0) || output_supply == Uint128(0) {
+    if input_reserve == Uint128(0) || output_reserve == Uint128(0) {
         return Err(ContractError::NoLiquidityError {});
     };
 
@@ -344,9 +344,9 @@ fn get_input_price(
         .checked_mul(Uint128(997))
         .map_err(StdError::overflow)?;
     let numerator = input_amount_with_fee
-        .checked_mul(output_supply)
+        .checked_mul(output_reserve)
         .map_err(StdError::overflow)?;
-    let denominator = input_supply
+    let denominator = input_reserve
         .checked_mul(Uint128(1000))
         .map_err(StdError::overflow)?
         .checked_add(input_amount_with_fee)
@@ -369,7 +369,7 @@ pub fn execute_native_for_token_swap(
 
     let native_amount = info.funds[0].amount;
 
-    let token_bought = get_input_price(native_amount, state.native_supply, state.token_supply)?;
+    let token_bought = get_input_price(native_amount, state.native_reserve, state.token_reserve)?;
 
     if min_token > token_bought {
         return Err(ContractError::SwapMinError {
@@ -382,12 +382,12 @@ pub fn execute_native_for_token_swap(
         get_cw20_transfer_to_msg(&info.sender, &state.token_address, token_bought)?;
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.token_supply = state
-            .token_supply
+        state.token_reserve = state
+            .token_reserve
             .checked_sub(token_bought)
             .map_err(StdError::overflow)?;
-        state.native_supply = state
-            .native_supply
+        state.native_reserve = state
+            .native_reserve
             .checked_add(native_amount)
             .map_err(StdError::overflow)?;
         Ok(state)
@@ -413,7 +413,7 @@ pub fn execute_token_for_native_swap(
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
 
-    let native_bought = get_input_price(token_amount, state.token_supply, state.native_supply)?;
+    let native_bought = get_input_price(token_amount, state.token_reserve, state.native_reserve)?;
 
     if min_native > native_bought {
         return Err(ContractError::SwapMinError {
@@ -435,12 +435,12 @@ pub fn execute_token_for_native_swap(
         get_bank_transfer_to_msg(&info.sender, &state.native_denom, native_bought);
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.token_supply = state
-            .token_supply
+        state.token_reserve = state
+            .token_reserve
             .checked_add(token_amount)
             .map_err(StdError::overflow)?;
-        state.native_supply = state
-            .native_supply
+        state.native_reserve = state
+            .native_reserve
             .checked_sub(native_bought)
             .map_err(StdError::overflow)?;
         Ok(state)
@@ -474,9 +474,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
     let state = STATE.load(deps.storage)?;
     Ok(InfoResponse {
-        native_supply: state.native_supply,
+        native_reserve: state.native_reserve,
         native_denom: state.native_denom,
-        token_supply: state.token_supply,
+        token_reserve: state.token_reserve,
     })
 }
 
@@ -486,7 +486,7 @@ pub fn query_native_for_token_price(
 ) -> StdResult<NativeForTokenPriceResponse> {
     let state = STATE.load(deps.storage)?;
     let token_amount =
-        get_input_price(native_amount, state.native_supply, state.token_supply).unwrap();
+        get_input_price(native_amount, state.native_reserve, state.token_reserve).unwrap();
     Ok(NativeForTokenPriceResponse { token_amount })
 }
 
@@ -496,7 +496,7 @@ pub fn query_token_for_native_price(
 ) -> StdResult<TokenForNativePriceResponse> {
     let state = STATE.load(deps.storage)?;
     let native_amount =
-        get_input_price(token_amount, state.token_supply, state.native_supply).unwrap();
+        get_input_price(token_amount, state.token_reserve, state.native_reserve).unwrap();
     Ok(TokenForNativePriceResponse { native_amount })
 }
 
@@ -582,8 +582,8 @@ mod tests {
         assert_eq!(res.attributes[2].value, "2");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_supply, Uint128(2));
-        assert_eq!(info.token_supply, Uint128(1));
+        assert_eq!(info.native_reserve, Uint128(2));
+        assert_eq!(info.token_reserve, Uint128(1));
 
         // Add more liquidity
         let info = mock_info("anyone", &coins(4, "test"));
@@ -599,8 +599,8 @@ mod tests {
         assert_eq!(res.attributes[2].value, "4");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_supply, Uint128(6));
-        assert_eq!(info.token_supply, Uint128(4));
+        assert_eq!(info.native_reserve, Uint128(6));
+        assert_eq!(info.token_reserve, Uint128(4));
 
         // Too low max_token
         let info = mock_info("anyone", &coins(100, "test"));
@@ -673,8 +673,8 @@ mod tests {
         assert_eq!(res.attributes[2].value, "100");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_supply, Uint128(100));
-        assert_eq!(info.token_supply, Uint128(50));
+        assert_eq!(info.native_reserve, Uint128(100));
+        assert_eq!(info.token_reserve, Uint128(50));
 
         // Remove half liquidity
         let info = mock_info("anyone", &vec![]);
@@ -689,8 +689,8 @@ mod tests {
         assert_eq!(res.attributes[2].value, "25");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_supply, Uint128(50));
-        assert_eq!(info.token_supply, Uint128(25));
+        assert_eq!(info.native_reserve, Uint128(50));
+        assert_eq!(info.token_reserve, Uint128(25));
 
         // Remove half again with not proper division
         let info = mock_info("anyone", &vec![]);
@@ -705,8 +705,8 @@ mod tests {
         assert_eq!(res.attributes[2].value, "12");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_supply, Uint128(25));
-        assert_eq!(info.token_supply, Uint128(13));
+        assert_eq!(info.native_reserve, Uint128(25));
+        assert_eq!(info.token_reserve, Uint128(13));
 
         // Remove more than owned
         let info = mock_info("anyone", &vec![]);
@@ -737,8 +737,8 @@ mod tests {
         assert_eq!(res.attributes[2].value, "13");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_supply, Uint128(0));
-        assert_eq!(info.token_supply, Uint128(0));
+        assert_eq!(info.native_reserve, Uint128(0));
+        assert_eq!(info.token_reserve, Uint128(0));
     }
 
     #[test]
@@ -749,15 +749,15 @@ mod tests {
             Uint128(9)
         );
 
-        // No input supply error
+        // No input reserve error
         let err = get_input_price(Uint128(10), Uint128(0), Uint128(100)).unwrap_err();
         assert_eq!(err, ContractError::NoLiquidityError {});
 
-        // No output supply error
+        // No output reserve error
         let err = get_input_price(Uint128(10), Uint128(100), Uint128(0)).unwrap_err();
         assert_eq!(err, ContractError::NoLiquidityError {});
 
-        // No supply error
+        // No reserve error
         let err = get_input_price(Uint128(10), Uint128(0), Uint128(0)).unwrap_err();
         assert_eq!(err, ContractError::NoLiquidityError {});
     }
@@ -783,7 +783,7 @@ mod tests {
 
         // Swap tokens
         let info = mock_info("anyone", &coins(10, "test"));
-        let msg = ExecuteMsg::NativeForTokenSwap {
+        let msg = ExecuteMsg::SwapNativeForToken {
             min_token: Uint128(9),
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -792,12 +792,12 @@ mod tests {
         assert_eq!(res.attributes[1].value, "9");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_supply, Uint128(110));
-        assert_eq!(info.token_supply, Uint128(91));
+        assert_eq!(info.native_reserve, Uint128(110));
+        assert_eq!(info.token_reserve, Uint128(91));
 
         // Second purchase at higher price
         let info = mock_info("anyone", &coins(10, "test"));
-        let msg = ExecuteMsg::NativeForTokenSwap {
+        let msg = ExecuteMsg::SwapNativeForToken {
             min_token: Uint128(7),
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -806,12 +806,12 @@ mod tests {
         assert_eq!(res.attributes[1].value, "7");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_supply, Uint128(120));
-        assert_eq!(info.token_supply, Uint128(84));
+        assert_eq!(info.native_reserve, Uint128(120));
+        assert_eq!(info.token_reserve, Uint128(84));
 
         // min_token error
         let info = mock_info("anyone", &coins(10, "test"));
-        let msg = ExecuteMsg::NativeForTokenSwap {
+        let msg = ExecuteMsg::SwapNativeForToken {
             min_token: Uint128(100),
         };
         let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
@@ -845,7 +845,7 @@ mod tests {
 
         // Swap tokens
         let info = mock_info("anyone", &vec![]);
-        let msg = ExecuteMsg::TokenForNativeSwap {
+        let msg = ExecuteMsg::SwapTokenForNative {
             token_amount: Uint128(10),
             min_native: Uint128(9),
         };
@@ -855,12 +855,12 @@ mod tests {
         assert_eq!(res.attributes[1].value, "9");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.token_supply, Uint128(110));
-        assert_eq!(info.native_supply, Uint128(91));
+        assert_eq!(info.token_reserve, Uint128(110));
+        assert_eq!(info.native_reserve, Uint128(91));
 
         // Second purchase at higher price
         let info = mock_info("anyone", &vec![]);
-        let msg = ExecuteMsg::TokenForNativeSwap {
+        let msg = ExecuteMsg::SwapTokenForNative {
             token_amount: Uint128(10),
             min_native: Uint128(7),
         };
@@ -870,12 +870,12 @@ mod tests {
         assert_eq!(res.attributes[1].value, "7");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.token_supply, Uint128(120));
-        assert_eq!(info.native_supply, Uint128(84));
+        assert_eq!(info.token_reserve, Uint128(120));
+        assert_eq!(info.native_reserve, Uint128(84));
 
         // min_token error
         let info = mock_info("anyone", &vec![]);
-        let msg = ExecuteMsg::TokenForNativeSwap {
+        let msg = ExecuteMsg::SwapTokenForNative {
             token_amount: Uint128(10),
             min_native: Uint128(100),
         };
