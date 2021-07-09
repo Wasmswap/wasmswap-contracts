@@ -53,7 +53,7 @@ pub struct InfoResponse {
     pub native_denom: String,
     pub token_reserve: Uint128,
     pub token_denom: String,
-    pub token_address: String
+    pub token_address: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
