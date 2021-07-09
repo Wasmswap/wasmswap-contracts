@@ -10,6 +10,7 @@ pub struct State {
     pub native_denom: String,
 
     pub token_address: Addr,
+    pub token_denom: String,
     pub token_reserve: Uint128,
 }
 

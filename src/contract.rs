@@ -28,6 +28,7 @@ pub fn instantiate(
         native_reserve: Uint128(0),
         native_denom: msg.native_denom,
         token_address: msg.token_address,
+        token_denom: msg.token_denom,
         token_reserve: Uint128(0),
     };
     STATE.save(deps.storage, &state)?;
@@ -477,6 +478,8 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
         native_reserve: state.native_reserve,
         native_denom: state.native_denom,
         token_reserve: state.token_reserve,
+        token_denom: state.token_denom,
+        token_address: state.token_address.into(),
     })
 }
 
@@ -516,13 +519,21 @@ mod tests {
 
         let msg = InstantiateMsg {
             native_denom: "test".to_string(),
-            token_address: Addr::unchecked("asdf"),
+            token_denom: "coin".to_string(),
+            token_address: Addr::unchecked("token_address"),
         };
         let info = mock_info("creator", &coins(1000, "earth"));
 
         // we can just call .unwrap() to assert this was a success
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(res.messages.len(), 0);
+
+        let info = query_info(deps.as_ref()).unwrap();
+        assert_eq!(info.native_reserve, Uint128(0));
+        assert_eq!(info.native_denom, "test");
+        assert_eq!(info.token_reserve, Uint128(0));
+        assert_eq!(info.token_denom, "coin");
+        assert_eq!(info.token_address, "token_address")
     }
 
     #[test]
@@ -563,6 +574,7 @@ mod tests {
 
         let msg = InstantiateMsg {
             native_denom: "test".to_string(),
+            token_denom: "coin".to_string(),
             token_address: Addr::unchecked("asdf"),
         };
         let info = mock_info("creator", &coins(2, "token"));
@@ -654,6 +666,7 @@ mod tests {
 
         let msg = InstantiateMsg {
             native_denom: "test".to_string(),
+            token_denom: "coin".to_string(),
             token_address: Addr::unchecked("asdf"),
         };
         let info = mock_info("creator", &coins(2, "token"));
@@ -768,6 +781,7 @@ mod tests {
 
         let msg = InstantiateMsg {
             native_denom: "test".to_string(),
+            token_denom: "coin".to_string(),
             token_address: Addr::unchecked("asdf"),
         };
         let info = mock_info("creator", &coins(2, "token"));
@@ -830,6 +844,7 @@ mod tests {
 
         let msg = InstantiateMsg {
             native_denom: "test".to_string(),
+            token_denom: "coin".to_string(),
             token_address: Addr::unchecked("asdf"),
         };
         let info = mock_info("creator", &coins(2, "token"));
@@ -895,6 +910,7 @@ mod tests {
 
         let msg = InstantiateMsg {
             native_denom: "test".to_string(),
+            token_denom: "coin".to_string(),
             token_address: Addr::unchecked("asdf"),
         };
         let info = mock_info("creator", &coins(2, "token"));
