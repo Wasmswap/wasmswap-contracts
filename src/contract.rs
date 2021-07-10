@@ -686,7 +686,19 @@ mod tests {
                 provided: "wrong".to_string(),
                 required: "test".to_string()
             }
-        )
+        );
+
+        // Expired Message
+        let info = mock_info("anyone", &coins(100, "test"));
+        let mut env = mock_env();
+        env.block.height=20;
+        let msg = ExecuteMsg::AddLiquidity {
+            min_liquidity: Uint128(100),
+            max_token: Uint128(50),
+            expiration: Some(Expiration::AtHeight(19))
+        };
+        let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
+        assert_eq!(err, ContractError::MsgExpirationError {})
     }
 
     #[test]
@@ -786,6 +798,19 @@ mod tests {
         let info = get_info(deps.as_ref());
         assert_eq!(info.native_reserve, Uint128(0));
         assert_eq!(info.token_reserve, Uint128(0));
+
+        // Expired Message
+        let info = mock_info("anyone", &coins(100, "test"));
+        let mut env = mock_env();
+        env.block.height=20;
+        let msg = ExecuteMsg::RemoveLiquidity {
+            amount: Uint128(25),
+            min_native: Uint128(1),
+            min_token: Uint128(1),
+            expiration: Some(Expiration::AtHeight(19))
+        };
+        let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
+        assert_eq!(err, ContractError::MsgExpirationError {})
     }
 
     #[test]
@@ -874,6 +899,17 @@ mod tests {
                 available: Uint128(6)
             }
         );
+
+        // Expired Message
+        let info = mock_info("anyone", &coins(100, "test"));
+        let mut env = mock_env();
+        env.block.height=20;
+        let msg = ExecuteMsg::SwapNativeForToken {
+            min_token: Uint128(100),
+            expiration: Some(Expiration::AtHeight(19))
+        };
+        let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
+        assert_eq!(err, ContractError::MsgExpirationError {})
     }
 
     #[test]
@@ -944,6 +980,19 @@ mod tests {
                 available: Uint128(6)
             }
         );
+
+        // Expired Message
+        let info = mock_info("anyone", &coins(100, "test"));
+        let mut env = mock_env();
+        env.block.height=20;
+        let msg = ExecuteMsg::SwapTokenForNative {
+            token_amount: Uint128(10),
+            min_native: Uint128(100),
+            expiration: Some(Expiration::AtHeight(19))
+        };
+        let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
+        assert_eq!(err, ContractError::MsgExpirationError {})
+
     }
 
     #[test]
