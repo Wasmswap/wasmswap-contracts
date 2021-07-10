@@ -17,22 +17,22 @@ pub enum ExecuteMsg {
     AddLiquidity {
         min_liquidity: Uint128,
         max_token: Uint128,
-        expiration: Option<Expiration>
+        expiration: Option<Expiration>,
     },
     RemoveLiquidity {
         amount: Uint128,
         min_native: Uint128,
         min_token: Uint128,
-        expiration: Option<Expiration>
+        expiration: Option<Expiration>,
     },
     SwapNativeForToken {
         min_token: Uint128,
-        expiration: Option<Expiration>
+        expiration: Option<Expiration>,
     },
     SwapTokenForNative {
         token_amount: Uint128,
         min_native: Uint128,
-        expiration: Option<Expiration>
+        expiration: Option<Expiration>,
     },
 }
 

@@ -1,5 +1,8 @@
-use cosmwasm_std::{attr, entry_point, to_binary, Addr, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, BlockInfo};
-use cw20::{Cw20ExecuteMsg, MinterResponse, Expiration};
+use cosmwasm_std::{
+    attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
+};
+use cw20::{Cw20ExecuteMsg, Expiration, MinterResponse};
 use cw20_base::contract::{
     execute_burn, execute_mint, instantiate as cw20_instantiate, query_balance,
 };
@@ -67,11 +70,12 @@ pub fn execute(
             amount,
             min_native,
             min_token,
-            expiration
+            expiration,
         } => execute_remove_liquidity(deps, info, _env, amount, min_native, min_token, expiration),
-        ExecuteMsg::SwapNativeForToken { min_token, expiration } => {
-            execute_native_for_token_swap(deps, info, _env, min_token, expiration)
-        }
+        ExecuteMsg::SwapNativeForToken {
+            min_token,
+            expiration,
+        } => execute_native_for_token_swap(deps, info, _env, min_token, expiration),
         ExecuteMsg::SwapTokenForNative {
             token_amount,
             min_native,
@@ -80,14 +84,17 @@ pub fn execute(
     }
 }
 
-fn check_expiration (expiration: &Option<Expiration>, block: &BlockInfo) -> Result<(), ContractError> {
+fn check_expiration(
+    expiration: &Option<Expiration>,
+    block: &BlockInfo,
+) -> Result<(), ContractError> {
     match expiration {
         Some(e) => {
             if e.is_expired(block) {
-                return Err(ContractError::MsgExpirationError{})
+                return Err(ContractError::MsgExpirationError {});
             }
             Ok(())
-        },
+        }
         None => Ok(()),
     }
 }
@@ -691,11 +698,11 @@ mod tests {
         // Expired Message
         let info = mock_info("anyone", &coins(100, "test"));
         let mut env = mock_env();
-        env.block.height=20;
+        env.block.height = 20;
         let msg = ExecuteMsg::AddLiquidity {
             min_liquidity: Uint128(100),
             max_token: Uint128(50),
-            expiration: Some(Expiration::AtHeight(19))
+            expiration: Some(Expiration::AtHeight(19)),
         };
         let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
         assert_eq!(err, ContractError::MsgExpirationError {})
@@ -802,12 +809,12 @@ mod tests {
         // Expired Message
         let info = mock_info("anyone", &coins(100, "test"));
         let mut env = mock_env();
-        env.block.height=20;
+        env.block.height = 20;
         let msg = ExecuteMsg::RemoveLiquidity {
             amount: Uint128(25),
             min_native: Uint128(1),
             min_token: Uint128(1),
-            expiration: Some(Expiration::AtHeight(19))
+            expiration: Some(Expiration::AtHeight(19)),
         };
         let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
         assert_eq!(err, ContractError::MsgExpirationError {})
@@ -903,10 +910,10 @@ mod tests {
         // Expired Message
         let info = mock_info("anyone", &coins(100, "test"));
         let mut env = mock_env();
-        env.block.height=20;
+        env.block.height = 20;
         let msg = ExecuteMsg::SwapNativeForToken {
             min_token: Uint128(100),
-            expiration: Some(Expiration::AtHeight(19))
+            expiration: Some(Expiration::AtHeight(19)),
         };
         let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
         assert_eq!(err, ContractError::MsgExpirationError {})
@@ -984,15 +991,14 @@ mod tests {
         // Expired Message
         let info = mock_info("anyone", &coins(100, "test"));
         let mut env = mock_env();
-        env.block.height=20;
+        env.block.height = 20;
         let msg = ExecuteMsg::SwapTokenForNative {
             token_amount: Uint128(10),
             min_native: Uint128(100),
-            expiration: Some(Expiration::AtHeight(19))
+            expiration: Some(Expiration::AtHeight(19)),
         };
         let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
         assert_eq!(err, ContractError::MsgExpirationError {})
-
     }
 
     #[test]
