@@ -2,6 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Uint128};
+use cw20::Expiration;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -16,18 +17,22 @@ pub enum ExecuteMsg {
     AddLiquidity {
         min_liquidity: Uint128,
         max_token: Uint128,
+        expiration: Option<Expiration>,
     },
     RemoveLiquidity {
         amount: Uint128,
         min_native: Uint128,
         min_token: Uint128,
+        expiration: Option<Expiration>,
     },
     SwapNativeForToken {
         min_token: Uint128,
+        expiration: Option<Expiration>,
     },
     SwapTokenForNative {
         token_amount: Uint128,
         min_native: Uint128,
+        expiration: Option<Expiration>,
     },
 }
 
