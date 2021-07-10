@@ -51,4 +51,7 @@ pub enum ContractError {
 
     #[error("SwapMinError")]
     SwapMinError { min: Uint128, available: Uint128 },
+
+    #[error("MsgExpirationError")]
+    MsgExpirationError { },
 }

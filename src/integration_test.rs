@@ -102,6 +102,7 @@ fn amm_add_and_remove_liquidity() {
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
         min_liquidity: Uint128(100),
         max_token: Uint128(100),
+        expiration: None,
     };
     let res = router
         .execute_contract(
@@ -139,6 +140,7 @@ fn amm_add_and_remove_liquidity() {
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
         min_liquidity: Uint128(50),
         max_token: Uint128(51),
+        expiration: None,
     };
     let res = router
         .execute_contract(
@@ -165,6 +167,7 @@ fn amm_add_and_remove_liquidity() {
         amount: Uint128(50),
         min_native: Uint128(50),
         min_token: Uint128(50),
+        expiration: None,
     };
     let res = router
         .execute_contract(
@@ -248,6 +251,7 @@ fn swap_tokens_happy_path() {
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
         min_liquidity: Uint128(100),
         max_token: Uint128(100),
+        expiration: None,
     };
     let res = router
         .execute_contract(
@@ -272,6 +276,7 @@ fn swap_tokens_happy_path() {
 
     let add_liquidity_msg = ExecuteMsg::SwapNativeForToken {
         min_token: Uint128(9),
+        expiration: None,
     };
     let res = router
         .execute_contract(
@@ -309,6 +314,7 @@ fn swap_tokens_happy_path() {
 
     let swap_msg = ExecuteMsg::SwapNativeForToken {
         min_token: Uint128(7),
+        expiration: None,
     };
     let res = router
         .execute_contract(
@@ -360,6 +366,7 @@ fn swap_tokens_happy_path() {
     let swap_msg = ExecuteMsg::SwapTokenForNative {
         token_amount: Uint128(16),
         min_native: Uint128(19),
+        expiration: None,
     };
     let res = router
         .execute_contract(buyer.clone(), amm_addr.clone(), &swap_msg, &vec![])
