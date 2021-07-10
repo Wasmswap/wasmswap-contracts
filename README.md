@@ -1,115 +1,74 @@
-# CosmWasm Starter Pack
+# Crustacean Swap
 
-This is a template to build smart contracts in Rust to run inside a
-[Cosmos SDK](https://github.com/cosmos/cosmos-sdk) module on all chains that enable it.
-To understand the framework better, please read the overview in the
-[cosmwasm repo](https://github.com/CosmWasm/cosmwasm/blob/master/README.md),
-and dig into the [cosmwasm docs](https://www.cosmwasm.com).
-This assumes you understand the theory and just want to get coding.
+This contract is an automatic market maker (AMM) heavily inspired by Uniswap v1 for the cosmwasm smart contract engine.
 
-## Creating a new repo from template
+This project is currently in beta and is unaudited so please use at your own risk.
 
-Assuming you have a recent version of rust and cargo (v1.51.0+) installed
-(via [rustup](https://rustup.rs/)),
-then the following should get you a new repo to start a contract:
+This contract allows you to swap native cosmos coins for cw20 tokens. Liquidity providers can add liquidity to the market and receive a 0.03% fee on every transaction.
 
-First, install
-[cargo-generate](https://github.com/ashleygwilliams/cargo-generate).
-Unless you did that before, run this line now:
+# Usage
 
-```sh
-cargo install cargo-generate --features vendored-openssl
-```
+The following instructions are written for the Juno testnet, however this contract can be run on any cosmwasm enabled chain.
 
-Now, use it to create your new contract.
-Go to the folder in which you want to place it and run:
+## Deploy
+```junod tx wasm instantiate 20 '{"native_denom": "<native_denom>", "token_address":"<cw20_contract_address>", "token_denom": "<token_denom>"}'  --from <key> --label="<label>" --gas="auto" --chain-id="lucina"```
 
+## Execute Messages
 
-**0.14 (latest)**
+### Add Liquidity
 
-```sh
-cargo generate --git https://github.com/CosmWasm/cosmwasm-template.git --name PROJECT_NAME
-````
+This message adds liquidity to the pool and give the caller proportional ownership of pool funds. Funds need to be deposited at the current ratio of the pools reserves, ie if the pool currently has 100 native tokens and 300 cw20 tokens the caller needs to deposit at a ratio of 1 to 3. Max token should be set a little higher than expected in case there are any changes in the pool reserves.
 
-**0.13**
+```junod tx wasm execute <cw20_contract_address> '{"increase_allowance":{"amount":"<max_token>","spender":"<contract_address>"}}' --from <key> --chain-id="lucina"```
 
-```sh
-cargo generate --git https://github.com/CosmWasm/cosmwasm-template.git --branch 0.13 --name PROJECT_NAME
-````
+```junod tx wasm execute <contract_address> '{"add_liquidity":{"max_token":"<max_token>","min_liquidity":"<min_liquidity>"}}' --from <key> --amount "<native_amount>" --chain-id="lucina"```
 
-**0.12**
+### Remove Liquidity
 
-```sh
-cargo generate --git https://github.com/CosmWasm/cosmwasm-template.git --branch 0.12 --name PROJECT_NAME
-```
+This removes liquidity from the pool and returns it to the owner. Current liquidity owner ship can be seen with the balance query below. `min_native` and `min_token` are used to ensure the pool reserves do no unexpectedly change. Set both values to 1 if you want to guarantee the message is executed.
 
-**0.11**
+```junod tx wasm execute <contract_address> '{"remove_liquidity":{"amount":"<liquidity_amount>","min_native":"<min_native>","min_token":"<min_native>"}}' --from <key> --chain-id="lucina"```
 
-```sh
-cargo generate --git https://github.com/CosmWasm/cosmwasm-template.git --branch 0.11 --name PROJECT_NAME
-```
-**0.10**
+### Swap Native For Token
 
-```sh
-cargo generate --git https://github.com/CosmWasm/cosmwasm-template.git --branch 0.10 --name PROJECT_NAME
-```
+This swaps the native token for the cw20 token. Use the price query below to estimate the price before executing this message. `min_token` is used to set limit on acceptable price for the swap.
 
-**0.9**
+```junod tx wasm execute <contract_address> '{"swap_native_for_token":{"min_token":"<min_token>"}}' --from <key> --amount "<native_amount>" --chain-id="lucina"```
 
-```sh
-cargo generate --git https://github.com/CosmWasm/cosmwasm-template.git --branch 0.9 --name PROJECT_NAME
-```
+### Swap Token For Native
 
-**0.8**
+This swaps the native token for the cw20 token. First, the swap contract must be given an allowance of the cw20 token. Use the price query below to estimate the price before executing this message. `token_amount` should be the amount of allowance given to the swap contract. `min_native` is used to set limit on acceptable price for the swap.
 
-```sh
-cargo generate --git https://github.com/CosmWasm/cosmwasm-template.git --branch 0.8 --name PROJECT_NAME
-```
+```junod tx wasm execute <cw20_contract_address> '{"increase_allowance":{"amount":"<token_amount>","spender":"<contract_address>"}}' --from <key> --chain-id="lucina"```
 
-You will now have a new folder called `PROJECT_NAME` (I hope you changed that to something else)
-containing a simple working contract and build system that you can customize.
+```junod tx wasm execute <contract_address> '{"swap_token_for_native":{"min_native":"<min_native>", "token_amount":"<token_amount>"}}' --from bob --chain-id="lucina"```
 
-## Create a Repo
+### Advanced Features
 
-After generating, you have a initialized local git repo, but no commits, and no remote.
-Go to a server (eg. github) and create a new upstream repo (called `YOUR-GIT-URL` below).
-Then run the following:
+All execute messages can also be given an expiration for greater security. This is recommended in a production environment. Exact specifications for the expiration field can be viewed in `schema/execute_msg.json`.
 
-```sh
-# this is needed to create a valid Cargo.lock file (see below)
-cargo check
-git branch -M main
-git add .
-git commit -m 'Initial Commit'
-git remote add origin YOUR-GIT-URL
-git push -u origin master
-```
+## Query Messages
 
-## CI Support
+### Info
 
-We have template configurations for both [GitHub Actions](.github/workflows/Basic.yml)
-and [Circle CI](.circleci/config.yml) in the generated project, so you can
-get up and running with CI right away.
+This returns information about the assets in the pool and the size of the reserves.
 
-One note is that the CI runs all `cargo` commands
-with `--locked` to ensure it uses the exact same versions as you have locally. This also means
-you must have an up-to-date `Cargo.lock` file, which is not auto-generated.
-The first time you set up the project (or after adding any dep), you should ensure the
-`Cargo.lock` file is updated, so the CI will test properly. This can be done simply by
-running `cargo check` or `cargo unit-test`.
+```junod query wasm contract-state smart <contract-address> '{"info":{}}' --chain-id="lucina"```
 
-## Using your project
+### Native For Token Price
 
-Once you have your custom repo, you should check out [Developing](./Developing.md) to explain
-more on how to run tests and develop code. Or go through the
-[online tutorial](https://docs.cosmwasm.com/) to get a better feel
-of how to develop.
+This returns the current swap result for the desired native token amount.
 
-[Publishing](./Publishing.md) contains useful information on how to publish your contract
-to the world, once you are ready to deploy it on a running blockchain. And
-[Importing](./Importing.md) contains information about pulling in other contracts or crates
-that have been published.
+```junod query wasm contract-state smart <contract-address> '{"native_for_token_price":{"native_amount":"<native-amount>"}}' --chain-id="lucina"```
 
-Please replace this README file with information about your specific project. You can keep
-the `Developing.md` and `Publishing.md` files as useful referenced, but please set some
-proper description in the README.
+### Token For Native Price
+
+This returns the current swap result for the desired cw20 token amount.
+
+```junod query wasm contract-state smart <contract-address> '{"token_for_native_price":{"token_amount":"<token-amount>"}}' --chain-id="lucina"```
+
+### Balance
+
+This returns the current liquidity token balance for the address.
+
+```junod query wasm contract-state smart <contract-address> '{"balance":{"address":"<address>"}}' --chain-id="lucina"```
