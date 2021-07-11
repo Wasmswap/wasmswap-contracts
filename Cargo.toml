@@ -1,5 +1,5 @@
 [package]
-name = "amm"
+name = "crustacean-swap"
 version = "0.1.0"
 authors = ["ben2x4 <ben2x4@protonmail.com>"]
 edition = "2018"
