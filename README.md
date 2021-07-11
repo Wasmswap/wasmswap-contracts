@@ -11,7 +11,7 @@ This contract allows you to swap native cosmos coins for cw20 tokens. Liquidity 
 The following instructions are written for the Juno testnet, however this contract can be run on any cosmwasm enabled chain.
 
 ## Deploy
-```junod tx wasm instantiate 20 '{"native_denom": "<native_denom>", "token_address":"<cw20_contract_address>", "token_denom": "<token_denom>"}'  --from <key> --label="<label>" --gas="auto" --chain-id="lucina"```
+```junod tx wasm instantiate 21 '{"native_denom": "<native_denom>", "token_address":"<cw20_contract_address>", "token_denom": "<token_denom>"}'  --from <key> --label="<label>" --gas="auto" --chain-id="lucina"```
 
 ## Execute Messages
 
