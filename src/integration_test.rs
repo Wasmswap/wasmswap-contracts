@@ -393,4 +393,49 @@ fn swap_tokens_happy_path() {
         .unwrap();
     let balance: BalanceResponse = from_binary(&query_res).unwrap();
     assert_eq!(balance.amount.amount, Uint128(1999));
+
+    // Swap native for toke to
+
+    // check owner balance
+    let owner_balance = cash.balance(&router, owner.clone()).unwrap();
+    assert_eq!(owner_balance, Uint128(4900));
+
+    let swap_msg = ExecuteMsg::SwapNativeForTokenTo {
+        recipient: owner.clone(),
+        min_token: Uint128(3),
+        expiration: None,
+    };
+    let res = router
+        .execute_contract(
+            buyer.clone(),
+            amm_addr.clone(),
+            &swap_msg,
+            &[Coin {
+                denom: NATIVE_TOKEN_DENOM.into(),
+                amount: Uint128(10),
+            }],
+        )
+        .unwrap();
+    println!("{:?}", res.attributes);
+
+    let info = get_info(&router, &amm_addr);
+    assert_eq!(info.native_reserve, Uint128(111));
+    assert_eq!(info.token_reserve, Uint128(92));
+
+    // ensure balances updated
+    let owner_balance = cash.balance(&router, owner.clone()).unwrap();
+    assert_eq!(owner_balance, Uint128(4908));
+
+    // Check balances of owner and buyer reflect the sale transaction
+    let query_res = router
+        .query(
+            cosmwasm_std::QueryRequest::Bank(BankQuery::Balance {
+                address: buyer.to_string(),
+                denom: NATIVE_TOKEN_DENOM.to_string(),
+            })
+                .into(),
+        )
+        .unwrap();
+    let balance: BalanceResponse = from_binary(&query_res).unwrap();
+    assert_eq!(balance.amount.amount, Uint128(1989));
 }

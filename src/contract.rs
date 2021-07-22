@@ -1083,4 +1083,42 @@ mod tests {
         let res: TokenForNativePriceResponse = from_binary(&data).unwrap();
         assert_eq!(res.native_amount, Uint128(16));
     }
+
+    #[test]
+    fn swap_native_for_token_to() {
+        let mut deps = mock_dependencies(&coins(2, "token"));
+
+        let msg = InstantiateMsg {
+            native_denom: "test".to_string(),
+            token_denom: "coin".to_string(),
+            token_address: Addr::unchecked("asdf"),
+        };
+        let info = mock_info("creator", &coins(2, "token"));
+        let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        // Add initial liquidity
+        let info = mock_info("anyone", &coins(100, "test"));
+        let msg = ExecuteMsg::AddLiquidity {
+            min_liquidity: Uint128(100),
+            max_token: Uint128(100),
+            expiration: None,
+        };
+        let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        // Swap tokens
+        let info = mock_info("anyone", &coins(10, "test"));
+        let msg = ExecuteMsg::SwapNativeForTokenTo {
+            recipient: Addr::unchecked("test"),
+            min_token: Uint128(9),
+            expiration: None,
+        };
+        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+        assert_eq!(res.attributes.len(), 2);
+        assert_eq!(res.attributes[0].value, "10");
+        assert_eq!(res.attributes[1].value, "9");
+
+        let info = get_info(deps.as_ref());
+        assert_eq!(info.native_reserve, Uint128(110));
+        assert_eq!(info.token_reserve, Uint128(91));
+    }
 }
