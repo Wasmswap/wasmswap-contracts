@@ -1,7 +1,4 @@
-use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
-};
+use cosmwasm_std::{attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, SubMsg};
 use cw20::{Cw20ExecuteMsg, Expiration, MinterResponse};
 use cw20_base::contract::{
     execute_burn, execute_mint, instantiate as cw20_instantiate, query_balance,
@@ -14,6 +11,7 @@ use crate::msg::{
     TokenForNativePriceResponse,
 };
 use crate::state::{State, STATE};
+use std::convert::TryFrom;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -81,6 +79,12 @@ pub fn execute(
             min_native,
             expiration,
         } => execute_token_for_native_swap(deps, info, _env, token_amount, min_native, expiration),
+        ExecuteMsg::SwapTokenForToken {
+            output_amm_address, input_token_amount, output_min_token, expiration
+        } => execute_token_for_token_swap(deps, info, _env, output_amm_address, input_token_amount, output_min_token, expiration),
+        ExecuteMsg::SwapNativeForTokenTo {
+            recipient, min_token, expiration
+        } => execute_native_for_token_swap_to(deps, info, _env, recipient, min_token, expiration)
     }
 }
 
@@ -383,10 +387,11 @@ fn get_input_price(
         .map_err(StdError::divide_by_zero)?)
 }
 
-pub fn execute_native_for_token_swap(
+pub fn execute_native_for_token_swap_to(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
+    recipient: Addr,
     min_token: Uint128,
     expiration: Option<Expiration>,
 ) -> Result<Response, ContractError> {
@@ -408,7 +413,7 @@ pub fn execute_native_for_token_swap(
     }
 
     let cw20_transfer_cosmos_msg =
-        get_cw20_transfer_to_msg(&info.sender, &state.token_address, token_bought)?;
+        get_cw20_transfer_to_msg(&recipient, &state.token_address, token_bought)?;
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.token_reserve = state
@@ -431,6 +436,16 @@ pub fn execute_native_for_token_swap(
         ],
         data: None,
     })
+}
+
+pub fn execute_native_for_token_swap(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    min_token: Uint128,
+    expiration: Option<Expiration>,
+) -> Result<Response, ContractError> {
+    execute_native_for_token_swap_to(deps, info.clone(), _env, info.sender, min_token, expiration)
 }
 
 pub fn execute_token_for_native_swap(
@@ -485,6 +500,36 @@ pub fn execute_token_for_native_swap(
             attr("token_sold", token_amount),
             attr("native_bought", native_bought),
         ],
+        data: None,
+    })
+}
+
+pub fn execute_token_for_token_swap(deps: DepsMut, info: MessageInfo, _env: Env, output_amm_address: Addr, input_token_amount: Uint128, output_min_token: Uint128, expiration: Option<Expiration>) -> Result<Response, ContractError> {
+    let state = STATE.load(deps.storage)?;
+    let mut result = execute_token_for_native_swap(deps, info.clone(), _env, input_token_amount, Uint128(1), expiration)?;
+    let swapMsg = ExecuteMsg::SwapNativeForTokenTo {
+        recipient: info.sender,
+        min_token: output_min_token,
+        expiration,
+    };
+    let native_bought_str =
+        match result.attributes.iter().find(|x| x.key == "native_bought") {
+            Some(x) => Ok(x.value.as_str()),
+            None => Err(ContractError::MsgExpirationError {}),
+        }?;
+
+   let native_bought = Uint128::try_from(native_bought_str)?;
+
+    let wasmMsg = WasmMsg::Execute {
+        contract_addr: output_amm_address.into(),
+        msg: to_binary(&swapMsg)?,
+        send: vec![Coin{ denom: state.native_denom, amount: native_bought }],
+    };
+    result.messages.push(wasmMsg.into());
+    Ok( Response {
+        messages: result.messages,
+        submessages: vec![],
+        attributes: vec![],
         data: None,
     })
 }
