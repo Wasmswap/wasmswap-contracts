@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Expiration, MinterResponse};
 use cw20_base::contract::{
@@ -538,7 +538,7 @@ pub fn execute_token_for_token_swap(
         Uint128(1),
         expiration,
     )?;
-    let swapMsg = ExecuteMsg::SwapNativeForTokenTo {
+    let swap_msg = ExecuteMsg::SwapNativeForTokenTo {
         recipient: info.sender,
         min_token: output_min_token,
         expiration,
@@ -550,15 +550,15 @@ pub fn execute_token_for_token_swap(
 
     let native_bought = Uint128::try_from(native_bought_str)?;
 
-    let wasmMsg = WasmMsg::Execute {
+    let wasm_msg = WasmMsg::Execute {
         contract_addr: output_amm_address.into(),
-        msg: to_binary(&swapMsg)?,
+        msg: to_binary(&swap_msg)?,
         send: vec![Coin {
             denom: state.native_denom,
             amount: native_bought,
         }],
     };
-    result.messages.push(wasmMsg.into());
+    result.messages.push(wasm_msg.into());
     Ok(Response {
         messages: result.messages,
         submessages: vec![],
