@@ -205,7 +205,7 @@ fn amm_add_and_remove_liquidity() {
 fn swap_tokens_happy_path() {
     let mut router = mock_app();
 
-    const NATIVE_TOKEN_DENOM: &str = "token";
+    const NATIVE_TOKEN_DENOM: &str = "juno";
 
     let owner = Addr::unchecked("owner");
     let funds = coins(2000, NATIVE_TOKEN_DENOM);
