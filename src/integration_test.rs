@@ -40,8 +40,13 @@ fn get_info(router: &App, contract_addr: &Addr) -> InfoResponse {
         .unwrap()
 }
 
-fn createAmm(router: &mut App, owner: &Addr, cash: &Cw20Contract, nativeTokenDenom: String) -> Addr {
-// set up amm contract
+fn createAmm(
+    router: &mut App,
+    owner: &Addr,
+    cash: &Cw20Contract,
+    nativeTokenDenom: String,
+) -> Addr {
+    // set up amm contract
     let amm_id = router.store_code(contract_amm());
     let msg = InstantiateMsg {
         native_denom: nativeTokenDenom,
@@ -55,8 +60,14 @@ fn createAmm(router: &mut App, owner: &Addr, cash: &Cw20Contract, nativeTokenDen
 }
 
 // CreateCW20 create new cw20 with given initial balance belonging to owner
-fn createCW20(router: &mut App, owner: &Addr, name: String, symbol: String, balance: Uint128 ) -> Cw20Contract {
-// set up cw20 contract with some tokens
+fn createCW20(
+    router: &mut App,
+    owner: &Addr,
+    name: String,
+    symbol: String,
+    balance: Uint128,
+) -> Cw20Contract {
+    // set up cw20 contract with some tokens
     let cw20_id = router.store_code(contract_cw20());
     let msg = cw20_base::msg::InstantiateMsg {
         name: name,
@@ -85,7 +96,13 @@ fn amm_add_and_remove_liquidity() {
     let funds = coins(2000, NATIVE_TOKEN_DENOM);
     router.set_bank_balance(&owner, funds).unwrap();
 
-    let cw20token = createCW20(&mut router, &owner, "token".to_string(), "CWTOKEN".to_string(), Uint128(5000));
+    let cw20token = createCW20(
+        &mut router,
+        &owner,
+        "token".to_string(),
+        "CWTOKEN".to_string(),
+        Uint128(5000),
+    );
 
     let amm_addr = createAmm(&mut router, &owner, &cw20token, NATIVE_TOKEN_DENOM.into());
 
@@ -211,9 +228,20 @@ fn swap_tokens_happy_path() {
     let funds = coins(2000, NATIVE_TOKEN_DENOM);
     router.set_bank_balance(&owner, funds).unwrap();
 
-    let cw20Token = createCW20(&mut router, &owner, "token".to_string(), "CWTOKEN".to_string(), Uint128(5000));
+    let cw20Token = createCW20(
+        &mut router,
+        &owner,
+        "token".to_string(),
+        "CWTOKEN".to_string(),
+        Uint128(5000),
+    );
 
-    let amm_addr = createAmm(&mut router, &owner, &cw20Token, NATIVE_TOKEN_DENOM.to_string());
+    let amm_addr = createAmm(
+        &mut router,
+        &owner,
+        &cw20Token,
+        NATIVE_TOKEN_DENOM.to_string(),
+    );
 
     assert_ne!(cw20Token.addr(), amm_addr);
 
@@ -415,7 +443,7 @@ fn swap_tokens_happy_path() {
                 address: buyer.to_string(),
                 denom: NATIVE_TOKEN_DENOM.to_string(),
             })
-                .into(),
+            .into(),
         )
         .unwrap();
     let balance: BalanceResponse = from_binary(&query_res).unwrap();
@@ -432,8 +460,20 @@ fn token_to_token_swap() {
     let funds = coins(2000, NATIVE_TOKEN_DENOM);
     router.set_bank_balance(&owner, funds).unwrap();
 
-    let token1 = createCW20(&mut router, &owner, "token1".to_string(), "TOKENONE".to_string(), Uint128(5000));
-    let token2= createCW20(&mut router, &owner, "token2".to_string(), "TOKENTWO".to_string(), Uint128(5000));
+    let token1 = createCW20(
+        &mut router,
+        &owner,
+        "token1".to_string(),
+        "TOKENONE".to_string(),
+        Uint128(5000),
+    );
+    let token2 = createCW20(
+        &mut router,
+        &owner,
+        "token2".to_string(),
+        "TOKENTWO".to_string(),
+        Uint128(5000),
+    );
 
     let amm1 = createAmm(&mut router, &owner, &token1, NATIVE_TOKEN_DENOM.to_string());
     let amm2 = createAmm(&mut router, &owner, &token2, NATIVE_TOKEN_DENOM.to_string());
@@ -508,7 +548,7 @@ fn token_to_token_swap() {
         output_amm_address: amm2.clone(),
         input_token_amount: Uint128(10),
         output_min_token: Uint128(8),
-        expiration: None
+        expiration: None,
     };
     let res = router
         .execute_contract(owner.clone(), amm1.clone(), &swap_msg, &[])
@@ -538,7 +578,7 @@ fn token_to_token_swap() {
         output_amm_address: amm1.clone(),
         input_token_amount: Uint128(10),
         output_min_token: Uint128(1),
-        expiration: None
+        expiration: None,
     };
     let res = router
         .execute_contract(owner.clone(), amm2.clone(), &swap_msg, &[])
