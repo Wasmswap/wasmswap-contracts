@@ -40,12 +40,7 @@ fn get_info(router: &App, contract_addr: &Addr) -> InfoResponse {
         .unwrap()
 }
 
-fn create_amm(
-    router: &mut App,
-    owner: &Addr,
-    cash: &Cw20Contract,
-    native_denom: String,
-) -> Addr {
+fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom: String) -> Addr {
     // set up amm contract
     let amm_id = router.store_code(contract_amm());
     let msg = InstantiateMsg {
