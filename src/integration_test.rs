@@ -533,16 +533,6 @@ fn token_to_token_swap() {
         .unwrap();
 
     // Swap token1 for token2
-    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: amm1.to_string(),
-        amount: Uint128(10),
-        expires: None,
-    };
-    let res = router
-        .execute_contract(owner.clone(), token1.addr(), &allowance_msg, &[])
-        .unwrap();
-    println!("{:?}", res.attributes);
-
     let msg = ReceiveMsg::SwapTokenForToken {
         output_amm_address: amm2.clone(),
         expiration: None,
@@ -567,16 +557,6 @@ fn token_to_token_swap() {
     assert_eq!(token2_balance, Uint128(4908));
 
     // Swap token2 for token1
-    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: amm2.to_string(),
-        amount: Uint128(10),
-        expires: None,
-    };
-    let res = router
-        .execute_contract(owner.clone(), token2.addr(), &allowance_msg, &[])
-        .unwrap();
-    println!("{:?}", res.attributes);
-
     let msg = ReceiveMsg::SwapTokenForToken {
         output_amm_address: amm1.clone(),
         expiration: None,
