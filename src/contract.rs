@@ -1011,11 +1011,11 @@ mod tests {
     fn swap_token_for_native() {
         let mut deps = mock_dependencies(&coins(2, "token"));
 
-        const token_addr: &str = "asdf";
+        const TOKEN_ADDR: &str = "asdf";
         let msg = InstantiateMsg {
             native_denom: "test".to_string(),
             token_denom: "coin".to_string(),
-            token_address: Addr::unchecked(token_addr),
+            token_address: Addr::unchecked(TOKEN_ADDR),
         };
         let info = mock_info("creator", &coins(2, "token"));
         let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1030,7 +1030,7 @@ mod tests {
         let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // Swap tokens
-        let info = mock_info(token_addr, &vec![]);
+        let info = mock_info(TOKEN_ADDR, &vec![]);
         let msg = ReceiveMsg::SwapTokenForNative {
             min_native: Uint128(9),
             expiration: None,
@@ -1050,7 +1050,7 @@ mod tests {
         assert_eq!(info.native_reserve, Uint128(91));
 
         // Second purchase at higher price
-        let info = mock_info(token_addr, &vec![]);
+        let info = mock_info(TOKEN_ADDR, &vec![]);
         let msg = ReceiveMsg::SwapTokenForNative {
             min_native: Uint128(7),
             expiration: None,
@@ -1070,7 +1070,7 @@ mod tests {
         assert_eq!(info.native_reserve, Uint128(84));
 
         // min_token error
-        let info = mock_info(token_addr, &vec![]);
+        let info = mock_info(TOKEN_ADDR, &vec![]);
         let msg = ReceiveMsg::SwapTokenForNative {
             min_native: Uint128(100),
             expiration: None,
@@ -1090,7 +1090,7 @@ mod tests {
         );
 
         // Expired Message
-        let info = mock_info(token_addr, &vec![]);
+        let info = mock_info(TOKEN_ADDR, &vec![]);
         let mut env = mock_env();
         env.block.height = 20;
         let msg = ReceiveMsg::SwapTokenForNative {
@@ -1123,7 +1123,7 @@ mod tests {
             err,
             ContractError::WrongCW20Contract {
                 received: Addr::unchecked("Wrong_Token"),
-                expected: Addr::unchecked(token_addr)
+                expected: Addr::unchecked(TOKEN_ADDR)
             }
         );
     }

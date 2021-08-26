@@ -4,7 +4,7 @@ use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
     coins, from_binary, to_binary, Addr, BalanceResponse, BankQuery, Coin, Empty, Uint128,
 };
-use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg};
 use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
 
 use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, ReceiveMsg};
