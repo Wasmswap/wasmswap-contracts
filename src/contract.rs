@@ -1027,13 +1027,13 @@ mod tests {
         let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // Swap tokens
-        let info = mock_info("anyone", &vec![]);
+        let info = mock_info(token_addr, &vec![]);
         let msg = ReceiveMsg::SwapTokenForNative {
             min_native: Uint128(9),
             expiration: None,
         };
         let cw20_msg = ExecuteMsg::Receive(Cw20ReceiveMsg{
-            sender: token_addr.to_string(), amount:Uint128(10), msg: to_binary(&msg).unwrap()
+            sender: "anyone".to_string(), amount:Uint128(10), msg: to_binary(&msg).unwrap()
         });
         let res = execute(deps.as_mut(), mock_env(), info, cw20_msg).unwrap();
         assert_eq!(res.attributes.len(), 2);
@@ -1045,13 +1045,13 @@ mod tests {
         assert_eq!(info.native_reserve, Uint128(91));
 
         // Second purchase at higher price
-        let info = mock_info("anyone", &vec![]);
+        let info = mock_info(token_addr, &vec![]);
         let msg = ReceiveMsg::SwapTokenForNative {
             min_native: Uint128(7),
             expiration: None,
         };
         let cw20_msg = ExecuteMsg::Receive(Cw20ReceiveMsg{
-            sender: token_addr.to_string(), amount:Uint128(10), msg: to_binary(&msg).unwrap()
+            sender: "anyone".to_string(), amount:Uint128(10), msg: to_binary(&msg).unwrap()
         });
         let res = execute(deps.as_mut(), mock_env(), info, cw20_msg).unwrap();
         assert_eq!(res.attributes.len(), 2);
@@ -1063,13 +1063,13 @@ mod tests {
         assert_eq!(info.native_reserve, Uint128(84));
 
         // min_token error
-        let info = mock_info("anyone", &vec![]);
+        let info = mock_info(token_addr, &vec![]);
         let msg = ReceiveMsg::SwapTokenForNative {
             min_native: Uint128(100),
             expiration: None,
         };
         let cw20_msg = ExecuteMsg::Receive(Cw20ReceiveMsg{
-            sender: token_addr.to_string(), amount:Uint128(10), msg: to_binary(&msg).unwrap()
+            sender: "anyone".to_string(), amount:Uint128(10), msg: to_binary(&msg).unwrap()
         });
         let err = execute(deps.as_mut(), mock_env(), info, cw20_msg).unwrap_err();
         assert_eq!(
@@ -1081,7 +1081,7 @@ mod tests {
         );
 
         // Expired Message
-        let info = mock_info("anyone", &coins(100, "test"));
+        let info = mock_info(token_addr, &vec![]);
         let mut env = mock_env();
         env.block.height = 20;
         let msg = ReceiveMsg::SwapTokenForNative {
@@ -1089,7 +1089,7 @@ mod tests {
             expiration: Some(Expiration::AtHeight(19)),
         };
         let cw20_msg = ExecuteMsg::Receive(Cw20ReceiveMsg{
-            sender: token_addr.to_string(), amount:Uint128(10), msg: to_binary(&msg).unwrap()
+            sender: "anyone".to_string(), amount:Uint128(10), msg: to_binary(&msg).unwrap()
         });
         let err = execute(deps.as_mut(), env, info, cw20_msg).unwrap_err();
         assert_eq!(err, ContractError::MsgExpirationError {})
