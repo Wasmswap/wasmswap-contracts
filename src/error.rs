@@ -56,5 +56,5 @@ pub enum ContractError {
     MsgExpirationError {},
 
     #[error("WrongCW20Contract")]
-    WrongCW20Contract { received: Addr, expected: Addr },
+    WrongCw20Contract { received: Addr, expected: Addr },
 }

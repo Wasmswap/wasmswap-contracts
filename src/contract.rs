@@ -94,7 +94,7 @@ fn execute_receive_cw20(
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
     if info.sender != state.token_address {
-        return Err(ContractError::WrongCW20Contract {
+        return Err(ContractError::WrongCw20Contract {
             received: info.sender,
             expected: state.token_address,
         });
@@ -1121,7 +1121,7 @@ mod tests {
         let err = execute(deps.as_mut(), env, info, cw20_msg).unwrap_err();
         assert_eq!(
             err,
-            ContractError::WrongCW20Contract {
+            ContractError::WrongCw20Contract {
                 received: Addr::unchecked("Wrong_Token"),
                 expected: Addr::unchecked(TOKEN_ADDR)
             }
