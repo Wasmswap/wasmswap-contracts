@@ -1,7 +1,9 @@
 #![cfg(test)]
 
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{coins, from_binary, to_binary, Addr, BalanceResponse, BankQuery, Coin, Empty, Uint128};
+use cosmwasm_std::{
+    coins, from_binary, to_binary, Addr, BalanceResponse, BankQuery, Coin, Empty, Uint128,
+};
 use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
 
@@ -377,7 +379,7 @@ fn swap_tokens_happy_path() {
     let cw20_msg = Cw20ExecuteMsg::Send {
         contract: amm_addr.clone().into(),
         amount: Uint128(16),
-        msg: Some(to_binary(&msg).unwrap())
+        msg: Some(to_binary(&msg).unwrap()),
     };
     let res = router
         .execute_contract(buyer.clone(), cw20_token.addr(), &cw20_msg, &vec![])
@@ -536,12 +538,12 @@ fn token_to_token_swap() {
     let msg = ReceiveMsg::SwapTokenForToken {
         output_amm_address: amm2.clone(),
         expiration: None,
-        output_min_token: Uint128(8)
+        output_min_token: Uint128(8),
     };
     let cw20_msg = Cw20ExecuteMsg::Send {
         contract: amm1.clone().into(),
         amount: Uint128(10),
-        msg: Some(to_binary(&msg).unwrap())
+        msg: Some(to_binary(&msg).unwrap()),
     };
     let res = router
         .execute_contract(owner.clone(), token1.addr().clone(), &cw20_msg, &[])
@@ -560,12 +562,12 @@ fn token_to_token_swap() {
     let msg = ReceiveMsg::SwapTokenForToken {
         output_amm_address: amm1.clone(),
         expiration: None,
-        output_min_token: Uint128(1)
+        output_min_token: Uint128(1),
     };
     let cw20_msg = Cw20ExecuteMsg::Send {
         contract: amm2.clone().into(),
         amount: Uint128(10),
-        msg: Some(to_binary(&msg).unwrap())
+        msg: Some(to_binary(&msg).unwrap()),
     };
     let res = router
         .execute_contract(owner.clone(), token2.addr().clone(), &cw20_msg, &[])

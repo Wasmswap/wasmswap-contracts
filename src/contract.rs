@@ -1,5 +1,8 @@
-use cosmwasm_std::{attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, from_binary};
-use cw20::{Cw20ExecuteMsg, Expiration, MinterResponse, Cw20ReceiveMsg};
+use cosmwasm_std::{
+    attr, entry_point, from_binary, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps,
+    DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
+};
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, Expiration, MinterResponse};
 use cw20_base::contract::{
     execute_burn, execute_mint, instantiate as cw20_instantiate, query_balance,
 };
@@ -7,8 +10,8 @@ use cw20_base::state::{BALANCES as LIQUIDITY_BALANCES, TOKEN_INFO as LIQUIDITY_I
 
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, InfoResponse, InstantiateMsg, NativeForTokenPriceResponse, QueryMsg,
-    TokenForNativePriceResponse, ReceiveMsg,
+    ExecuteMsg, InfoResponse, InstantiateMsg, NativeForTokenPriceResponse, QueryMsg, ReceiveMsg,
+    TokenForNativePriceResponse,
 };
 use crate::state::{State, STATE};
 use std::convert::TryFrom;
@@ -87,22 +90,35 @@ fn execute_receive_cw20(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
-    msg: Cw20ReceiveMsg
+    msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
     if info.sender != state.token_address {
-        return Err(
-            ContractError::WrongCW20Contract {
-                received: info.sender,
-                expected: state.token_address
-            }
-        )
+        return Err(ContractError::WrongCW20Contract {
+            received: info.sender,
+            expected: state.token_address,
+        });
     }
     let receive_msg: ReceiveMsg = from_binary(&msg.msg)?;
     let sender = deps.api.addr_validate(&msg.sender)?;
     match receive_msg {
-        ReceiveMsg::SwapTokenForNative { min_native, expiration } => execute_token_for_native_swap(deps, _env, sender, msg.amount, min_native, expiration),
-        ReceiveMsg::SwapTokenForToken { output_amm_address, output_min_token, expiration } => execute_token_for_token_swap(deps, _env, sender, output_amm_address, msg.amount, output_min_token, expiration)
+        ReceiveMsg::SwapTokenForNative {
+            min_native,
+            expiration,
+        } => execute_token_for_native_swap(deps, _env, sender, msg.amount, min_native, expiration),
+        ReceiveMsg::SwapTokenForToken {
+            output_amm_address,
+            output_min_token,
+            expiration,
+        } => execute_token_for_token_swap(
+            deps,
+            _env,
+            sender,
+            output_amm_address,
+            msg.amount,
+            output_min_token,
+            expiration,
+        ),
     }
 }
 
@@ -472,7 +488,7 @@ pub fn execute_token_for_native_swap(
     sender: Addr,
     token_amount: Uint128,
     min_native: Uint128,
-    expiration: Option<Expiration>
+    expiration: Option<Expiration>,
 ) -> Result<Response, ContractError> {
     check_expiration(&expiration, &_env.block)?;
 
@@ -657,7 +673,7 @@ mod tests {
             Uint128(0),
             Uint128(0),
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(liquidity, Uint128(100));
 
         let liquidity = get_token_amount(
@@ -667,7 +683,7 @@ mod tests {
             Uint128(100),
             Uint128(25),
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(liquidity, Uint128(201));
     }
 
@@ -995,7 +1011,7 @@ mod tests {
     fn swap_token_for_native() {
         let mut deps = mock_dependencies(&coins(2, "token"));
 
-        const token_addr:&str = "asdf";
+        const token_addr: &str = "asdf";
         let msg = InstantiateMsg {
             native_denom: "test".to_string(),
             token_denom: "coin".to_string(),
@@ -1019,8 +1035,10 @@ mod tests {
             min_native: Uint128(9),
             expiration: None,
         };
-        let cw20_msg = ExecuteMsg::Receive(Cw20ReceiveMsg{
-            sender: "anyone".to_string(), amount:Uint128(10), msg: to_binary(&msg).unwrap()
+        let cw20_msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+            sender: "anyone".to_string(),
+            amount: Uint128(10),
+            msg: to_binary(&msg).unwrap(),
         });
         let res = execute(deps.as_mut(), mock_env(), info, cw20_msg).unwrap();
         assert_eq!(res.attributes.len(), 2);
@@ -1037,8 +1055,10 @@ mod tests {
             min_native: Uint128(7),
             expiration: None,
         };
-        let cw20_msg = ExecuteMsg::Receive(Cw20ReceiveMsg{
-            sender: "anyone".to_string(), amount:Uint128(10), msg: to_binary(&msg).unwrap()
+        let cw20_msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+            sender: "anyone".to_string(),
+            amount: Uint128(10),
+            msg: to_binary(&msg).unwrap(),
         });
         let res = execute(deps.as_mut(), mock_env(), info, cw20_msg).unwrap();
         assert_eq!(res.attributes.len(), 2);
@@ -1055,8 +1075,10 @@ mod tests {
             min_native: Uint128(100),
             expiration: None,
         };
-        let cw20_msg = ExecuteMsg::Receive(Cw20ReceiveMsg{
-            sender: "anyone".to_string(), amount:Uint128(10), msg: to_binary(&msg).unwrap()
+        let cw20_msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+            sender: "anyone".to_string(),
+            amount: Uint128(10),
+            msg: to_binary(&msg).unwrap(),
         });
         let err = execute(deps.as_mut(), mock_env(), info, cw20_msg).unwrap_err();
         assert_eq!(
@@ -1075,8 +1097,10 @@ mod tests {
             min_native: Uint128(100),
             expiration: Some(Expiration::AtHeight(19)),
         };
-        let cw20_msg = ExecuteMsg::Receive(Cw20ReceiveMsg{
-            sender: "anyone".to_string(), amount:Uint128(10), msg: to_binary(&msg).unwrap()
+        let cw20_msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+            sender: "anyone".to_string(),
+            amount: Uint128(10),
+            msg: to_binary(&msg).unwrap(),
         });
         let err = execute(deps.as_mut(), env, info, cw20_msg).unwrap_err();
         assert_eq!(err, ContractError::MsgExpirationError {});
@@ -1089,11 +1113,19 @@ mod tests {
             min_native: Uint128(100),
             expiration: Some(Expiration::AtHeight(19)),
         };
-        let cw20_msg = ExecuteMsg::Receive(Cw20ReceiveMsg{
-            sender: "anyone".to_string(), amount:Uint128(10), msg: to_binary(&msg).unwrap()
+        let cw20_msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+            sender: "anyone".to_string(),
+            amount: Uint128(10),
+            msg: to_binary(&msg).unwrap(),
         });
         let err = execute(deps.as_mut(), env, info, cw20_msg).unwrap_err();
-        assert_eq!(err, ContractError::WrongCW20Contract { received:Addr::unchecked("Wrong_Token"), expected: Addr::unchecked(token_addr) });
+        assert_eq!(
+            err,
+            ContractError::WrongCW20Contract {
+                received: Addr::unchecked("Wrong_Token"),
+                expected: Addr::unchecked(token_addr)
+            }
+        );
     }
 
     #[test]

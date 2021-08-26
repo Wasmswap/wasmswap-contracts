@@ -1,4 +1,4 @@
-use cosmwasm_std::{StdError, Uint128, Addr};
+use cosmwasm_std::{Addr, StdError, Uint128};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
@@ -56,8 +56,5 @@ pub enum ContractError {
     MsgExpirationError {},
 
     #[error("WrongCW20Contract")]
-    WrongCW20Contract {
-        received: Addr,
-        expected: Addr,
-    }
+    WrongCW20Contract { received: Addr, expected: Addr },
 }
