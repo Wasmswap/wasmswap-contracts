@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Uint128};
-use cw20::Expiration;
+use cw20::{Expiration, Cw20ReceiveMsg};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -29,11 +29,7 @@ pub enum ExecuteMsg {
         min_token: Uint128,
         expiration: Option<Expiration>,
     },
-    SwapTokenForNative {
-        token_amount: Uint128,
-        min_native: Uint128,
-        expiration: Option<Expiration>,
-    },
+    Receive(Cw20ReceiveMsg),
     SwapTokenForToken {
         output_amm_address: Addr,
         input_token_amount: Uint128,
@@ -45,6 +41,14 @@ pub enum ExecuteMsg {
         min_token: Uint128,
         expiration: Option<Expiration>,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub enum ReceiveMsg {
+    SwapTokenForNative {
+        min_native: Uint128,
+        expiration: Option<Expiration>,
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
