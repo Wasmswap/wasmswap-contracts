@@ -1092,7 +1092,21 @@ mod tests {
             sender: "anyone".to_string(), amount:Uint128(10), msg: to_binary(&msg).unwrap()
         });
         let err = execute(deps.as_mut(), env, info, cw20_msg).unwrap_err();
-        assert_eq!(err, ContractError::MsgExpirationError {})
+        assert_eq!(err, ContractError::MsgExpirationError {});
+
+        // Message from incorrect token
+        let info = mock_info("Wrong_Token", &vec![]);
+        let mut env = mock_env();
+        env.block.height = 20;
+        let msg = ReceiveMsg::SwapTokenForNative {
+            min_native: Uint128(100),
+            expiration: Some(Expiration::AtHeight(19)),
+        };
+        let cw20_msg = ExecuteMsg::Receive(Cw20ReceiveMsg{
+            sender: "anyone".to_string(), amount:Uint128(10), msg: to_binary(&msg).unwrap()
+        });
+        let err = execute(deps.as_mut(), env, info, cw20_msg).unwrap_err();
+        assert_eq!(err, ContractError::WrongCW20Contract { received:Addr::unchecked("Wrong_Token"), expected: Addr::unchecked(token_addr) });
     }
 
     #[test]
