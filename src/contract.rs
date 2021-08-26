@@ -75,20 +75,6 @@ pub fn execute(
             expiration,
         } => execute_native_for_token_swap(deps, info, _env, min_token, expiration),
         ExecuteMsg::Receive(msg) => execute_receive_cw20(deps, info, _env, msg),
-        ExecuteMsg::SwapTokenForToken {
-            output_amm_address,
-            input_token_amount,
-            output_min_token,
-            expiration,
-        } => execute_token_for_token_swap(
-            deps,
-            info,
-            _env,
-            output_amm_address,
-            input_token_amount,
-            output_min_token,
-            expiration,
-        ),
         ExecuteMsg::SwapNativeForTokenTo {
             recipient,
             min_token,
@@ -115,7 +101,8 @@ fn execute_receive_cw20(
     let receive_msg: ReceiveMsg = from_binary(&msg.msg)?;
     let sender = deps.api.addr_validate(&msg.sender)?;
     match receive_msg {
-        ReceiveMsg::SwapTokenForNative { min_native, expiration } => execute_token_for_native_swap(deps, _env, sender, msg.amount, min_native, expiration)
+        ReceiveMsg::SwapTokenForNative { min_native, expiration } => execute_token_for_native_swap(deps, _env, sender, msg.amount, min_native, expiration),
+        ReceiveMsg::SwapTokenForToken { output_amm_address, output_min_token, expiration } => execute_token_for_token_swap(deps, _env, sender, output_amm_address, msg.amount, output_min_token, expiration)
     }
 }
 
@@ -529,8 +516,8 @@ pub fn execute_token_for_native_swap(
 
 pub fn execute_token_for_token_swap(
     deps: DepsMut,
-    info: MessageInfo,
     _env: Env,
+    sender: Addr,
     output_amm_address: Addr,
     input_token_amount: Uint128,
     output_min_token: Uint128,
@@ -540,13 +527,13 @@ pub fn execute_token_for_token_swap(
     let mut result = execute_token_for_native_swap(
         deps,
         _env,
-        info.sender.clone(),
+        sender.clone(),
         input_token_amount,
-        Uint128(1),
+        Uint128(0),
         expiration,
     )?;
     let swap_msg = ExecuteMsg::SwapNativeForTokenTo {
-        recipient: info.sender,
+        recipient: sender,
         min_token: output_min_token,
         expiration,
     };

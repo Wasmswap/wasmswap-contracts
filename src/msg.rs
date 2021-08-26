@@ -30,12 +30,6 @@ pub enum ExecuteMsg {
         expiration: Option<Expiration>,
     },
     Receive(Cw20ReceiveMsg),
-    SwapTokenForToken {
-        output_amm_address: Addr,
-        input_token_amount: Uint128,
-        output_min_token: Uint128,
-        expiration: Option<Expiration>,
-    },
     SwapNativeForTokenTo {
         recipient: Addr,
         min_token: Uint128,
@@ -48,7 +42,12 @@ pub enum ReceiveMsg {
     SwapTokenForNative {
         min_native: Uint128,
         expiration: Option<Expiration>,
-    }
+    },
+    SwapTokenForToken {
+        output_amm_address: Addr,
+        output_min_token: Uint128,
+        expiration: Option<Expiration>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

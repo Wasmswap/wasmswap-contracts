@@ -380,7 +380,7 @@ fn swap_tokens_happy_path() {
         msg: Some(to_binary(&msg).unwrap())
     };
     let res = router
-        .execute_contract(buyer.clone(), cw20_token.addr(), &cw20_token, &vec![])
+        .execute_contract(buyer.clone(), cw20_token.addr(), &cw20_msg, &vec![])
         .unwrap();
     println!("{:?}", res.attributes);
 
@@ -543,14 +543,18 @@ fn token_to_token_swap() {
         .unwrap();
     println!("{:?}", res.attributes);
 
-    let swap_msg = ExecuteMsg::SwapTokenForToken {
+    let msg = ReceiveMsg::SwapTokenForToken {
         output_amm_address: amm2.clone(),
-        input_token_amount: Uint128(10),
-        output_min_token: Uint128(8),
         expiration: None,
+        output_min_token: Uint128(8)
+    };
+    let cw20_msg = Cw20ExecuteMsg::Send {
+        contract: amm1.clone().into(),
+        amount: Uint128(10),
+        msg: Some(to_binary(&msg).unwrap())
     };
     let res = router
-        .execute_contract(owner.clone(), amm1.clone(), &swap_msg, &[])
+        .execute_contract(owner.clone(), token1.addr().clone(), &cw20_msg, &[])
         .unwrap();
 
     println!("{:?}", res.attributes);
@@ -573,14 +577,18 @@ fn token_to_token_swap() {
         .unwrap();
     println!("{:?}", res.attributes);
 
-    let swap_msg = ExecuteMsg::SwapTokenForToken {
+    let msg = ReceiveMsg::SwapTokenForToken {
         output_amm_address: amm1.clone(),
-        input_token_amount: Uint128(10),
-        output_min_token: Uint128(1),
         expiration: None,
+        output_min_token: Uint128(1)
+    };
+    let cw20_msg = Cw20ExecuteMsg::Send {
+        contract: amm2.clone().into(),
+        amount: Uint128(10),
+        msg: Some(to_binary(&msg).unwrap())
     };
     let res = router
-        .execute_contract(owner.clone(), amm2.clone(), &swap_msg, &[])
+        .execute_contract(owner.clone(), token2.addr().clone(), &cw20_msg, &[])
         .unwrap();
 
     println!("{:?}", res.attributes);
