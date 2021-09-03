@@ -1,6 +1,6 @@
 [package]
 name = "amm"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["ben2x4 <ben2x4@protonmail.com>"]
 edition = "2018"
 

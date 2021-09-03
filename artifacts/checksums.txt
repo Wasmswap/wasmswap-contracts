@@ -1,1 +1,2 @@
-01d4f4219061e641df3cf049d19e532bff685fae885b9238df9e37a842a1127d  amm.wasm
+0f9a7d51ef3a4fd2b2eac4cb6db3ce4bae2dcb85f7e22f9c1e55ceabcfe6737b  amm.wasm
+7fb61ecb6a5e41b26cbe69990ed398acf2ab32f7ee6dc37d18582588f624c3fe  crustacean_swap.wasm
