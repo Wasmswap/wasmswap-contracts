@@ -1,13 +1,11 @@
 #![cfg(test)]
 
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{
-    coins, from_binary, to_binary, Addr, BalanceResponse, BankQuery, Coin, Empty, Uint128,
-};
+use cosmwasm_std::{coins, from_binary, Addr, BalanceResponse, BankQuery, Coin, Empty, Uint128};
 use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg};
 use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
 
-use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, ReceiveMsg};
+use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg};
 
 fn mock_app() -> App {
     let env = mock_env();
@@ -372,17 +370,13 @@ fn swap_tokens_happy_path() {
         .unwrap();
     println!("{:?}", res.attributes);
 
-    let msg = ReceiveMsg::SwapTokenForNative {
+    let swap_msg = ExecuteMsg::SwapTokenForNative {
+        token_amount: Uint128(16),
         min_native: Uint128(19),
         expiration: None,
     };
-    let cw20_msg = Cw20ExecuteMsg::Send {
-        contract: amm_addr.clone().into(),
-        amount: Uint128(16),
-        msg: Some(to_binary(&msg).unwrap()),
-    };
     let res = router
-        .execute_contract(buyer.clone(), cw20_token.addr(), &cw20_msg, &vec![])
+        .execute_contract(buyer.clone(), amm_addr.clone(), &swap_msg, &vec![])
         .unwrap();
     println!("{:?}", res.attributes);
 
@@ -535,18 +529,24 @@ fn token_to_token_swap() {
         .unwrap();
 
     // Swap token1 for token2
-    let msg = ReceiveMsg::SwapTokenForToken {
-        output_amm_address: amm2.clone(),
-        expiration: None,
-        output_min_token: Uint128(8),
-    };
-    let cw20_msg = Cw20ExecuteMsg::Send {
-        contract: amm1.clone().into(),
+    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: amm1.to_string(),
         amount: Uint128(10),
-        msg: Some(to_binary(&msg).unwrap()),
+        expires: None,
     };
     let res = router
-        .execute_contract(owner.clone(), token1.addr().clone(), &cw20_msg, &[])
+        .execute_contract(owner.clone(), token1.addr(), &allowance_msg, &[])
+        .unwrap();
+    println!("{:?}", res.attributes);
+
+    let swap_msg = ExecuteMsg::SwapTokenForToken {
+        output_amm_address: amm2.clone(),
+        input_token_amount: Uint128(10),
+        output_min_token: Uint128(8),
+        expiration: None,
+    };
+    let res = router
+        .execute_contract(owner.clone(), amm1.clone(), &swap_msg, &[])
         .unwrap();
 
     println!("{:?}", res.attributes);
@@ -559,18 +559,24 @@ fn token_to_token_swap() {
     assert_eq!(token2_balance, Uint128(4908));
 
     // Swap token2 for token1
-    let msg = ReceiveMsg::SwapTokenForToken {
-        output_amm_address: amm1.clone(),
-        expiration: None,
-        output_min_token: Uint128(1),
-    };
-    let cw20_msg = Cw20ExecuteMsg::Send {
-        contract: amm2.clone().into(),
+    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: amm2.to_string(),
         amount: Uint128(10),
-        msg: Some(to_binary(&msg).unwrap()),
+        expires: None,
     };
     let res = router
-        .execute_contract(owner.clone(), token2.addr().clone(), &cw20_msg, &[])
+        .execute_contract(owner.clone(), token2.addr(), &allowance_msg, &[])
+        .unwrap();
+    println!("{:?}", res.attributes);
+
+    let swap_msg = ExecuteMsg::SwapTokenForToken {
+        output_amm_address: amm1.clone(),
+        input_token_amount: Uint128(10),
+        output_min_token: Uint128(1),
+        expiration: None,
+    };
+    let res = router
+        .execute_contract(owner.clone(), amm2.clone(), &swap_msg, &[])
         .unwrap();
 
     println!("{:?}", res.attributes);
