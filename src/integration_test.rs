@@ -574,8 +574,19 @@ fn token_to_token_swap() {
     assert_eq!(token2_balance, Uint128(4898));
 
     let amm1_native_balance = bank_balance(&mut router, &amm1, NATIVE_TOKEN_DENOM.to_string());
-    assert_eq!(amm1_native_balance.amount.amount, Uint128(99));
+    assert_eq!(amm1_native_balance.amount.amount, Uint128(101));
 
     let amm2_native_balance = bank_balance(&mut router, &amm2, NATIVE_TOKEN_DENOM.to_string());
     assert_eq!(amm2_native_balance.amount.amount, Uint128(99));
+
+    // assert internal state is consistent
+    let info_amm1 = get_info(&router, &amm1);
+    let token1_balance = token1.balance(&router, amm1.clone()).unwrap();
+    assert_eq!(info_amm1.token_reserve, token1_balance);
+    assert_eq!(info_amm1.native_reserve,amm1_native_balance.amount.amount);
+
+    let info_amm2 = get_info(&router, &amm2);
+    let token2_balance = token2.balance(&router, amm2.clone()).unwrap();
+    assert_eq!(info_amm2.token_reserve, token2_balance);
+    assert_eq!(info_amm2.native_reserve, amm2_native_balance.amount.amount);
 }
