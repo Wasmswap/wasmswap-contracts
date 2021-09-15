@@ -14,7 +14,6 @@ use crate::msg::{
     TokenForNativePriceResponse,
 };
 use crate::state::{State, STATE};
-use std::convert::TryFrom;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -529,40 +528,58 @@ pub fn execute_token_for_token_swap(
     output_min_token: Uint128,
     expiration: Option<Expiration>,
 ) -> Result<Response, ContractError> {
+    check_expiration(&expiration, &_env.block)?;
+
     let state = STATE.load(deps.storage)?;
-    let mut result = execute_token_for_native_swap(
-        deps,
-        info.clone(),
-        _env,
+    let native_to_transfer = get_input_price(
         input_token_amount,
-        Uint128(1),
-        expiration,
+        state.token_reserve,
+        state.native_reserve,
     )?;
+
+    // Transfer tokens to contract
+    let cw20_transfer_cosmos_msg = get_cw20_transfer_from_msg(
+        &info.sender,
+        &_env.contract.address,
+        &state.token_address,
+        input_token_amount,
+    )?;
+
     let swap_msg = ExecuteMsg::SwapNativeForTokenTo {
         recipient: info.sender,
         min_token: output_min_token,
         expiration,
     };
-    let native_bought_str = match result.attributes.iter().find(|x| x.key == "native_bought") {
-        Some(x) => Ok(x.value.as_str()),
-        None => Err(ContractError::MsgExpirationError {}),
-    }?;
 
-    let native_bought = Uint128::try_from(native_bought_str)?;
-
-    let wasm_msg = WasmMsg::Execute {
+    let swap_with_output_amm_msg: CosmosMsg = WasmMsg::Execute {
         contract_addr: output_amm_address.into(),
         msg: to_binary(&swap_msg)?,
         send: vec![Coin {
             denom: state.native_denom,
-            amount: native_bought,
+            amount: native_to_transfer,
         }],
-    };
-    result.messages.push(wasm_msg.into());
+    }
+    .into();
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.token_reserve = state
+            .token_reserve
+            .checked_add(input_token_amount)
+            .map_err(StdError::overflow)?;
+        state.native_reserve = state
+            .native_reserve
+            .checked_sub(native_to_transfer)
+            .map_err(StdError::overflow)?;
+        Ok(state)
+    })?;
+
     Ok(Response {
-        messages: result.messages,
+        messages: vec![cw20_transfer_cosmos_msg, swap_with_output_amm_msg],
         submessages: vec![],
-        attributes: vec![],
+        attributes: vec![
+            attr("input_token_amount", input_token_amount),
+            attr("native_transferred", native_to_transfer),
+        ],
         data: None,
     })
 }

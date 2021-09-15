@@ -80,6 +80,19 @@ fn create_cw20(
     Cw20Contract(addr)
 }
 
+fn bank_balance(router: &mut App, addr: &Addr, denom: String) -> BalanceResponse {
+    let query_res = router
+        .query(
+            cosmwasm_std::QueryRequest::Bank(BankQuery::Balance {
+                address: addr.to_string(),
+                denom,
+            })
+            .into(),
+        )
+        .unwrap();
+    from_binary(&query_res).unwrap()
+}
+
 #[test]
 // receive cw20 tokens and release upon approval
 fn amm_add_and_remove_liquidity() {
@@ -307,16 +320,8 @@ fn swap_tokens_happy_path() {
     assert_eq!(buyer_balance, Uint128(9));
 
     // Check balances of owner and buyer reflect the sale transaction
-    let query_res = router
-        .query(
-            cosmwasm_std::QueryRequest::Bank(BankQuery::Balance {
-                address: buyer.to_string(),
-                denom: NATIVE_TOKEN_DENOM.to_string(),
-            })
-            .into(),
-        )
-        .unwrap();
-    let balance: BalanceResponse = from_binary(&query_res).unwrap();
+    let balance: BalanceResponse =
+        bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
     assert_eq!(balance.amount.amount, Uint128(1990));
 
     let swap_msg = ExecuteMsg::SwapNativeForToken {
@@ -345,16 +350,8 @@ fn swap_tokens_happy_path() {
     assert_eq!(buyer_balance, Uint128(16));
 
     // Check balances of owner and buyer reflect the sale transaction
-    let query_res = router
-        .query(
-            cosmwasm_std::QueryRequest::Bank(BankQuery::Balance {
-                address: buyer.to_string(),
-                denom: NATIVE_TOKEN_DENOM.to_string(),
-            })
-            .into(),
-        )
-        .unwrap();
-    let balance: BalanceResponse = from_binary(&query_res).unwrap();
+    let balance: BalanceResponse =
+        bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
     assert_eq!(balance.amount.amount, Uint128(1980));
 
     // Swap token for native
@@ -389,16 +386,8 @@ fn swap_tokens_happy_path() {
     assert_eq!(buyer_balance, Uint128(0));
 
     // Check balances of owner and buyer reflect the sale transaction
-    let query_res = router
-        .query(
-            cosmwasm_std::QueryRequest::Bank(BankQuery::Balance {
-                address: buyer.to_string(),
-                denom: NATIVE_TOKEN_DENOM.to_string(),
-            })
-            .into(),
-        )
-        .unwrap();
-    let balance: BalanceResponse = from_binary(&query_res).unwrap();
+    let balance: BalanceResponse =
+        bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
     assert_eq!(balance.amount.amount, Uint128(1999));
 
     // check owner balance
@@ -432,16 +421,7 @@ fn swap_tokens_happy_path() {
     assert_eq!(owner_balance, Uint128(4908));
 
     // Check balances of owner and buyer reflect the sale transaction
-    let query_res = router
-        .query(
-            cosmwasm_std::QueryRequest::Bank(BankQuery::Balance {
-                address: buyer.to_string(),
-                denom: NATIVE_TOKEN_DENOM.to_string(),
-            })
-            .into(),
-        )
-        .unwrap();
-    let balance: BalanceResponse = from_binary(&query_res).unwrap();
+    let balance = bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
     assert_eq!(balance.amount.amount, Uint128(1989));
 }
 
@@ -558,6 +538,12 @@ fn token_to_token_swap() {
     let token2_balance = token2.balance(&router, owner.clone()).unwrap();
     assert_eq!(token2_balance, Uint128(4908));
 
+    let amm1_native_balance = bank_balance(&mut router, &amm1, NATIVE_TOKEN_DENOM.to_string());
+    assert_eq!(amm1_native_balance.amount.amount, Uint128(91));
+
+    let amm2_native_balance = bank_balance(&mut router, &amm2, NATIVE_TOKEN_DENOM.to_string());
+    assert_eq!(amm2_native_balance.amount.amount, Uint128(109));
+
     // Swap token2 for token1
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
         spender: amm2.to_string(),
@@ -587,4 +573,21 @@ fn token_to_token_swap() {
 
     let token2_balance = token2.balance(&router, owner.clone()).unwrap();
     assert_eq!(token2_balance, Uint128(4898));
+
+    let amm1_native_balance = bank_balance(&mut router, &amm1, NATIVE_TOKEN_DENOM.to_string());
+    assert_eq!(amm1_native_balance.amount.amount, Uint128(101));
+
+    let amm2_native_balance = bank_balance(&mut router, &amm2, NATIVE_TOKEN_DENOM.to_string());
+    assert_eq!(amm2_native_balance.amount.amount, Uint128(99));
+
+    // assert internal state is consistent
+    let info_amm1 = get_info(&router, &amm1);
+    let token1_balance = token1.balance(&router, amm1.clone()).unwrap();
+    assert_eq!(info_amm1.token_reserve, token1_balance);
+    assert_eq!(info_amm1.native_reserve, amm1_native_balance.amount.amount);
+
+    let info_amm2 = get_info(&router, &amm2);
+    let token2_balance = token2.balance(&router, amm2.clone()).unwrap();
+    assert_eq!(info_amm2.token_reserve, token2_balance);
+    assert_eq!(info_amm2.native_reserve, amm2_native_balance.amount.amount);
 }
