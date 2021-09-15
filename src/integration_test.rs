@@ -6,7 +6,6 @@ use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg};
 use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
 
 use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg};
-use cw20_base::contract::query_balance;
 
 fn mock_app() -> App {
     let env = mock_env();
@@ -88,7 +87,7 @@ fn bank_balance(router: &mut App, addr: &Addr, denom: String) -> BalanceResponse
                 address: addr.to_string(),
                 denom,
             })
-                .into(),
+            .into(),
         )
         .unwrap();
     from_binary(&query_res).unwrap()
@@ -321,7 +320,8 @@ fn swap_tokens_happy_path() {
     assert_eq!(buyer_balance, Uint128(9));
 
     // Check balances of owner and buyer reflect the sale transaction
-    let balance: BalanceResponse = bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
+    let balance: BalanceResponse =
+        bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
     assert_eq!(balance.amount.amount, Uint128(1990));
 
     let swap_msg = ExecuteMsg::SwapNativeForToken {
@@ -350,7 +350,8 @@ fn swap_tokens_happy_path() {
     assert_eq!(buyer_balance, Uint128(16));
 
     // Check balances of owner and buyer reflect the sale transaction
-    let balance: BalanceResponse = bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
+    let balance: BalanceResponse =
+        bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
     assert_eq!(balance.amount.amount, Uint128(1980));
 
     // Swap token for native
@@ -385,7 +386,8 @@ fn swap_tokens_happy_path() {
     assert_eq!(buyer_balance, Uint128(0));
 
     // Check balances of owner and buyer reflect the sale transaction
-    let balance: BalanceResponse = bank_balance(&mut router, &buyer,NATIVE_TOKEN_DENOM.to_string());
+    let balance: BalanceResponse =
+        bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
     assert_eq!(balance.amount.amount, Uint128(1999));
 
     // check owner balance
@@ -542,7 +544,6 @@ fn token_to_token_swap() {
     let amm2_native_balance = bank_balance(&mut router, &amm2, NATIVE_TOKEN_DENOM.to_string());
     assert_eq!(amm2_native_balance.amount.amount, Uint128(109));
 
-
     // Swap token2 for token1
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
         spender: amm2.to_string(),
@@ -583,7 +584,7 @@ fn token_to_token_swap() {
     let info_amm1 = get_info(&router, &amm1);
     let token1_balance = token1.balance(&router, amm1.clone()).unwrap();
     assert_eq!(info_amm1.token_reserve, token1_balance);
-    assert_eq!(info_amm1.native_reserve,amm1_native_balance.amount.amount);
+    assert_eq!(info_amm1.native_reserve, amm1_native_balance.amount.amount);
 
     let info_amm2 = get_info(&router, &amm2);
     let token2_balance = token2.balance(&router, amm2.clone()).unwrap();
