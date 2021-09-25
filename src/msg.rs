@@ -70,6 +70,7 @@ pub struct InfoResponse {
     pub token_reserve: Uint128,
     pub token_denom: String,
     pub token_address: String,
+    pub lp_token_supply: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

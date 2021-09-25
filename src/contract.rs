@@ -600,12 +600,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
     let state = STATE.load(deps.storage)?;
+    let liquidity = LIQUIDITY_INFO.load(deps.storage)?;
     Ok(InfoResponse {
         native_reserve: state.native_reserve,
         native_denom: state.native_denom,
         token_reserve: state.token_reserve,
         token_denom: state.token_denom,
         token_address: state.token_address.into(),
+        lp_token_supply: liquidity.total_supply,
     })
 }
 
