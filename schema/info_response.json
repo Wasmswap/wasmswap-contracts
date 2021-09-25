@@ -3,6 +3,7 @@
   "title": "InfoResponse",
   "type": "object",
   "required": [
+    "lp_token_supply",
     "native_denom",
     "native_reserve",
     "token_address",
@@ -10,6 +11,9 @@
     "token_reserve"
   ],
   "properties": {
+    "lp_token_supply": {
+      "$ref": "#/definitions/Uint128"
+    },
     "native_denom": {
       "type": "string"
     },
