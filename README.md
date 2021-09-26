@@ -1,4 +1,4 @@
-# Crustacean Swap
+# WasmSwap
 
 This contract is an automatic market maker (AMM) heavily inspired by Uniswap v1 for the cosmwasm smart contract engine.
 
