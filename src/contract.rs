@@ -32,6 +32,7 @@ pub fn instantiate(
         token2_denom: msg.token_denom,
         token2_reserve: Uint128(0),
     };
+
     STATE.save(deps.storage, &state)?;
 
     cw20_instantiate(
@@ -73,15 +74,15 @@ pub fn execute(
             min_token,
             expiration,
         } => execute_remove_liquidity(deps, info, _env, amount, min_native, min_token, expiration),
-        ExecuteMsg::SwapNativeForToken {
+        ExecuteMsg::SwapToken1ForToken2 {
             min_token,
             expiration,
-        } => execute_native_for_token_swap(deps, info, _env, min_token, expiration),
-        ExecuteMsg::SwapTokenForNative {
+        } => execute_token1_for_token2_swap(deps, info, _env, min_token, expiration),
+        ExecuteMsg::SwapToken2ForToken1 {
             token_amount,
             min_native,
             expiration,
-        } => execute_token_for_native_swap(deps, info, _env, token_amount, min_native, expiration),
+        } => execute_token2_for_token1_swap(deps, info, _env, token_amount, min_native, expiration),
         ExecuteMsg::SwapTokenForToken {
             output_amm_address,
             input_token_amount,
@@ -454,7 +455,7 @@ pub fn execute_native_for_token_swap_to(
     })
 }
 
-pub fn execute_native_for_token_swap(
+pub fn execute_token1_for_token2_swap(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
@@ -464,7 +465,7 @@ pub fn execute_native_for_token_swap(
     execute_native_for_token_swap_to(deps, info.clone(), _env, info.sender, min_token, expiration)
 }
 
-pub fn execute_token_for_native_swap(
+pub fn execute_token2_for_token1_swap(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
@@ -962,7 +963,7 @@ mod tests {
 
         // Swap tokens
         let info = mock_info("anyone", &coins(10, "test"));
-        let msg = ExecuteMsg::SwapNativeForToken {
+        let msg = ExecuteMsg::SwapToken1ForToken2 {
             min_token: Uint128(9),
             expiration: None,
         };
@@ -977,7 +978,7 @@ mod tests {
 
         // Second purchase at higher price
         let info = mock_info("anyone", &coins(10, "test"));
-        let msg = ExecuteMsg::SwapNativeForToken {
+        let msg = ExecuteMsg::SwapToken1ForToken2 {
             min_token: Uint128(7),
             expiration: None,
         };
@@ -992,7 +993,7 @@ mod tests {
 
         // min_token error
         let info = mock_info("anyone", &coins(10, "test"));
-        let msg = ExecuteMsg::SwapNativeForToken {
+        let msg = ExecuteMsg::SwapToken1ForToken2 {
             min_token: Uint128(100),
             expiration: None,
         };
@@ -1009,7 +1010,7 @@ mod tests {
         let info = mock_info("anyone", &coins(100, "test"));
         let mut env = mock_env();
         env.block.height = 20;
-        let msg = ExecuteMsg::SwapNativeForToken {
+        let msg = ExecuteMsg::SwapToken1ForToken2 {
             min_token: Uint128(100),
             expiration: Some(Expiration::AtHeight(19)),
         };
@@ -1040,7 +1041,7 @@ mod tests {
 
         // Swap tokens
         let info = mock_info("anyone", &vec![]);
-        let msg = ExecuteMsg::SwapTokenForNative {
+        let msg = ExecuteMsg::SwapToken2ForToken1 {
             token_amount: Uint128(10),
             min_native: Uint128(9),
             expiration: None,
@@ -1056,7 +1057,7 @@ mod tests {
 
         // Second purchase at higher price
         let info = mock_info("anyone", &vec![]);
-        let msg = ExecuteMsg::SwapTokenForNative {
+        let msg = ExecuteMsg::SwapToken2ForToken1 {
             token_amount: Uint128(10),
             min_native: Uint128(7),
             expiration: None,
@@ -1072,7 +1073,7 @@ mod tests {
 
         // min_token error
         let info = mock_info("anyone", &vec![]);
-        let msg = ExecuteMsg::SwapTokenForNative {
+        let msg = ExecuteMsg::SwapToken2ForToken1 {
             token_amount: Uint128(10),
             min_native: Uint128(100),
             expiration: None,
@@ -1090,7 +1091,7 @@ mod tests {
         let info = mock_info("anyone", &coins(100, "test"));
         let mut env = mock_env();
         env.block.height = 20;
-        let msg = ExecuteMsg::SwapTokenForNative {
+        let msg = ExecuteMsg::SwapToken2ForToken1 {
             token_amount: Uint128(10),
             min_native: Uint128(100),
             expiration: Some(Expiration::AtHeight(19)),
