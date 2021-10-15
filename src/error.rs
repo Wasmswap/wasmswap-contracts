@@ -9,6 +9,9 @@ pub enum ContractError {
     #[error("{0}")]
     Cw20Error(#[from] cw20_base::ContractError),
 
+    #[error("None Error")]
+    NoneError{},
+
     #[error("Unauthorized")]
     Unauthorized {},
     // Add any other custom errors you like here.

@@ -25,11 +25,12 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let state = State {
-        native_reserve: Uint128(0),
-        native_denom: msg.native_denom,
-        token_address: msg.token_address,
-        token_denom: msg.token_denom,
-        token_reserve: Uint128(0),
+        token1_reserve: Uint128(0),
+        token1_denom: msg.native_denom,
+        token1_address: None,
+        token2_address: Some(msg.token_address),
+        token2_denom: msg.token_denom,
+        token2_reserve: Uint128(0),
     };
     STATE.save(deps.storage, &state)?;
 
@@ -168,20 +169,20 @@ pub fn execute_add_liquidity(
 
     let liquidity = LIQUIDITY_INFO.load(deps.storage)?;
 
-    check_denom(&info.funds[0].denom, &state.native_denom)?;
+    check_denom(&info.funds[0].denom, &state.token1_denom)?;
 
     let liquidity_amount = get_liquidity_amount(
         info.funds[0].clone().amount,
         liquidity.total_supply,
-        state.native_reserve,
+        state.token1_reserve,
     )?;
 
     let token_amount = get_token_amount(
         max_token,
         info.funds[0].clone().amount,
         liquidity.total_supply,
-        state.token_reserve,
-        state.native_reserve,
+        state.token2_reserve,
+        state.token1_reserve,
     )?;
 
     if liquidity_amount < min_liquidity {
@@ -201,13 +202,13 @@ pub fn execute_add_liquidity(
     let cw20_transfer_cosmos_msg = get_cw20_transfer_from_msg(
         &info.sender,
         &_env.contract.address,
-        &state.token_address,
+        &state.token2_address.ok_or(ContractError::NoneError {})?,
         token_amount,
     )?;
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.token_reserve += token_amount;
-        state.native_reserve += info.funds[0].amount;
+        state.token2_reserve += token_amount;
+        state.token1_reserve += info.funds[0].amount;
         Ok(state)
     })?;
 
@@ -289,7 +290,7 @@ pub fn execute_remove_liquidity(
     }
 
     let native_amount = amount
-        .checked_mul(state.native_reserve)
+        .checked_mul(state.token1_reserve)
         .map_err(StdError::overflow)?
         .checked_div(token.total_supply)
         .map_err(StdError::divide_by_zero)?;
@@ -301,7 +302,7 @@ pub fn execute_remove_liquidity(
     }
 
     let token_amount = amount
-        .checked_mul(state.token_reserve)
+        .checked_mul(state.token2_reserve)
         .map_err(StdError::overflow)?
         .checked_div(token.total_supply)
         .map_err(StdError::divide_by_zero)?;
@@ -313,22 +314,22 @@ pub fn execute_remove_liquidity(
     }
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.token_reserve = state
-            .token_reserve
+        state.token2_reserve = state
+            .token2_reserve
             .checked_sub(token_amount)
             .map_err(StdError::overflow)?;
-        state.native_reserve = state
-            .native_reserve
+        state.token1_reserve = state
+            .token1_reserve
             .checked_sub(native_amount)
             .map_err(StdError::overflow)?;
         Ok(state)
     })?;
 
     let transfer_bank_cosmos_msg =
-        get_bank_transfer_to_msg(&info.sender, &state.native_denom, native_amount);
+        get_bank_transfer_to_msg(&info.sender, &state.token1_denom, native_amount);
 
     let cw20_transfer_cosmos_msg =
-        get_cw20_transfer_to_msg(&info.sender, &state.token_address, token_amount)?;
+        get_cw20_transfer_to_msg(&info.sender, &state.token2_address.ok_or(ContractError::NoneError {})?, token_amount)?;
 
     execute_burn(deps, _env, info, amount)?;
 
@@ -414,11 +415,11 @@ pub fn execute_native_for_token_swap_to(
 
     let state = STATE.load(deps.storage)?;
 
-    check_denom(&info.funds[0].denom, &state.native_denom)?;
+    check_denom(&info.funds[0].denom, &state.token1_denom)?;
 
     let native_amount = info.funds[0].amount;
 
-    let token_bought = get_input_price(native_amount, state.native_reserve, state.token_reserve)?;
+    let token_bought = get_input_price(native_amount, state.token1_reserve, state.token2_reserve)?;
 
     if min_token > token_bought {
         return Err(ContractError::SwapMinError {
@@ -428,15 +429,15 @@ pub fn execute_native_for_token_swap_to(
     }
 
     let cw20_transfer_cosmos_msg =
-        get_cw20_transfer_to_msg(&recipient, &state.token_address, token_bought)?;
+        get_cw20_transfer_to_msg(&recipient, &state.token2_address.ok_or(ContractError::NoneError {})?, token_bought)?;
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.token_reserve = state
-            .token_reserve
+        state.token2_reserve = state
+            .token2_reserve
             .checked_sub(token_bought)
             .map_err(StdError::overflow)?;
-        state.native_reserve = state
-            .native_reserve
+        state.token1_reserve = state
+            .token1_reserve
             .checked_add(native_amount)
             .map_err(StdError::overflow)?;
         Ok(state)
@@ -475,7 +476,7 @@ pub fn execute_token_for_native_swap(
 
     let state = STATE.load(deps.storage)?;
 
-    let native_bought = get_input_price(token_amount, state.token_reserve, state.native_reserve)?;
+    let native_bought = get_input_price(token_amount, state.token2_reserve, state.token1_reserve)?;
 
     if min_native > native_bought {
         return Err(ContractError::SwapMinError {
@@ -488,21 +489,21 @@ pub fn execute_token_for_native_swap(
     let cw20_transfer_cosmos_msg = get_cw20_transfer_from_msg(
         &info.sender,
         &_env.contract.address,
-        &state.token_address,
+        &state.token2_address.ok_or(ContractError::NoneError {})?,
         token_amount,
     )?;
 
     // Send native tokens to buyer
     let transfer_bank_cosmos_msg =
-        get_bank_transfer_to_msg(&info.sender, &state.native_denom, native_bought);
+        get_bank_transfer_to_msg(&info.sender, &state.token1_denom, native_bought);
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.token_reserve = state
-            .token_reserve
+        state.token2_reserve = state
+            .token2_reserve
             .checked_add(token_amount)
             .map_err(StdError::overflow)?;
-        state.native_reserve = state
-            .native_reserve
+        state.token1_reserve = state
+            .token1_reserve
             .checked_sub(native_bought)
             .map_err(StdError::overflow)?;
         Ok(state)
@@ -533,15 +534,15 @@ pub fn execute_token_for_token_swap(
     let state = STATE.load(deps.storage)?;
     let native_to_transfer = get_input_price(
         input_token_amount,
-        state.token_reserve,
-        state.native_reserve,
+        state.token2_reserve,
+        state.token1_reserve,
     )?;
 
     // Transfer tokens to contract
     let cw20_transfer_cosmos_msg = get_cw20_transfer_from_msg(
         &info.sender,
         &_env.contract.address,
-        &state.token_address,
+        &state.token2_address.ok_or(ContractError::NoneError {})?,
         input_token_amount,
     )?;
 
@@ -555,19 +556,19 @@ pub fn execute_token_for_token_swap(
         contract_addr: output_amm_address.into(),
         msg: to_binary(&swap_msg)?,
         send: vec![Coin {
-            denom: state.native_denom,
+            denom: state.token1_denom,
             amount: native_to_transfer,
         }],
     }
     .into();
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.token_reserve = state
-            .token_reserve
+        state.token2_reserve = state
+            .token2_reserve
             .checked_add(input_token_amount)
             .map_err(StdError::overflow)?;
-        state.native_reserve = state
-            .native_reserve
+        state.token1_reserve = state
+            .token1_reserve
             .checked_sub(native_to_transfer)
             .map_err(StdError::overflow)?;
         Ok(state)
@@ -602,11 +603,11 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
     let state = STATE.load(deps.storage)?;
     let liquidity = LIQUIDITY_INFO.load(deps.storage)?;
     Ok(InfoResponse {
-        native_reserve: state.native_reserve,
-        native_denom: state.native_denom,
-        token_reserve: state.token_reserve,
-        token_denom: state.token_denom,
-        token_address: state.token_address.into(),
+        native_reserve: state.token1_reserve,
+        native_denom: state.token1_denom,
+        token_reserve: state.token2_reserve,
+        token_denom: state.token2_denom,
+        token_address: state.token2_address.unwrap().into(),
         lp_token_supply: liquidity.total_supply,
     })
 }
@@ -617,7 +618,7 @@ pub fn query_native_for_token_price(
 ) -> StdResult<NativeForTokenPriceResponse> {
     let state = STATE.load(deps.storage)?;
     let token_amount =
-        get_input_price(native_amount, state.native_reserve, state.token_reserve).unwrap();
+        get_input_price(native_amount, state.token1_reserve, state.token2_reserve).unwrap();
     Ok(NativeForTokenPriceResponse { token_amount })
 }
 
@@ -627,7 +628,7 @@ pub fn query_token_for_native_price(
 ) -> StdResult<TokenForNativePriceResponse> {
     let state = STATE.load(deps.storage)?;
     let native_amount =
-        get_input_price(token_amount, state.token_reserve, state.native_reserve).unwrap();
+        get_input_price(token_amount, state.token2_reserve, state.token1_reserve).unwrap();
     Ok(TokenForNativePriceResponse { native_amount })
 }
 
