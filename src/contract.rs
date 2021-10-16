@@ -465,7 +465,7 @@ pub fn execute_swap(
 
     // Create transfer from message
     let mut transfer_msgs = match input_token.address {
-        Some(addr) => vec![get_cw20_transfer_from_msg(&info.sender,recipient,&addr, input_amount)?],
+        Some(addr) => vec![get_cw20_transfer_from_msg(&info.sender,&_env.contract.address,&addr, input_amount)?],
         None => vec![]
     };
 
