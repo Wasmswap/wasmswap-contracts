@@ -448,6 +448,7 @@ pub fn execute_swap(
     let input_token = input_token_item.load(deps.storage)?;
     let output_token = output_token_item.load(deps.storage)?;
 
+    // validate input_amount if native input token
     match input_token.address {
         Some(_) => Ok(()),
         None => validate_native_input_amount(&info.funds[0], input_amount, &input_token.denom)
@@ -462,11 +463,13 @@ pub fn execute_swap(
         });
     }
 
+    // Create transfer from message
     let mut transfer_msgs = match input_token.address {
         Some(addr) => vec![get_cw20_transfer_from_msg(&info.sender,recipient,&addr, input_amount)?],
         None => vec![]
     };
 
+    // Create transfer to message
     transfer_msgs.push(match output_token.address {
         Some(addr) => get_cw20_transfer_to_msg(&recipient, &addr, token_bought)?,
         None => get_bank_transfer_to_msg(&recipient,&output_token.denom, token_bought)
