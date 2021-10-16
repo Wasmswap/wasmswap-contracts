@@ -7,7 +7,7 @@ use amm::msg::{
     ExecuteMsg, InfoResponse, InstantiateMsg, NativeForTokenPriceResponse, QueryMsg,
     TokenForNativePriceResponse,
 };
-use amm::state::State;
+use amm::state::Token;
 use cw20::BalanceResponse;
 
 fn main() {
@@ -19,7 +19,7 @@ fn main() {
     export_schema(&schema_for!(InstantiateMsg), &out_dir);
     export_schema(&schema_for!(ExecuteMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
-    export_schema(&schema_for!(State), &out_dir);
+    export_schema(&schema_for!(Token), &out_dir);
     export_schema(&schema_for!(BalanceResponse), &out_dir);
     export_schema(&schema_for!(InfoResponse), &out_dir);
     export_schema(&schema_for!(NativeForTokenPriceResponse), &out_dir);
