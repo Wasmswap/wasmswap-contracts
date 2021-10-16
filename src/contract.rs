@@ -73,7 +73,15 @@ pub fn execute(
             min_liquidity,
             max_token,
             expiration,
-        } => execute_add_liquidity(deps, info, _env, min_liquidity, max_token, expiration),
+        } => execute_add_liquidity(
+            deps,
+            &info,
+            _env,
+            min_liquidity,
+            info.funds[0].amount,
+            max_token,
+            expiration,
+        ),
         ExecuteMsg::RemoveLiquidity {
             amount,
             min_native,
@@ -194,10 +202,11 @@ fn get_token_amount(
 
 pub fn execute_add_liquidity(
     deps: DepsMut,
-    info: MessageInfo,
+    info: &MessageInfo,
     _env: Env,
     min_liquidity: Uint128,
-    max_token: Uint128,
+    token1_amount: Uint128,
+    max_token2: Uint128,
     expiration: Option<Expiration>,
 ) -> Result<Response, ContractError> {
     check_expiration(&expiration, &_env.block)?;
@@ -207,17 +216,22 @@ pub fn execute_add_liquidity(
 
     let liquidity = LIQUIDITY_INFO.load(deps.storage)?;
 
-    check_denom(&info.funds[0].denom, &token1.denom)?;
+    // validate funds if native input token
+    match token1.address {
+        Some(_) => Ok(()),
+        None => validate_native_input_amount(&info.funds, token1_amount, &token1.denom),
+    }?;
+    match token2.address {
+        Some(_) => Ok(()),
+        None => validate_native_input_amount(&info.funds, max_token2, &token2.denom),
+    }?;
 
-    let liquidity_amount = get_liquidity_amount(
-        info.funds[0].clone().amount,
-        liquidity.total_supply,
-        token1.reserve,
-    )?;
+    let liquidity_amount =
+        get_liquidity_amount(token1_amount, liquidity.total_supply, token1.reserve)?;
 
     let token_amount = get_token_amount(
-        max_token,
-        info.funds[0].clone().amount,
+        max_token2,
+        token1_amount,
         liquidity.total_supply,
         token2.reserve,
         token1.reserve,
@@ -230,22 +244,34 @@ pub fn execute_add_liquidity(
         });
     }
 
-    if token_amount > max_token {
+    if token_amount > max_token2 {
         return Err(ContractError::MaxTokenError {
-            max_token,
+            max_token: max_token2,
             tokens_required: token_amount,
         });
     }
 
-    let cw20_transfer_cosmos_msg = get_cw20_transfer_from_msg(
-        &info.sender,
-        &_env.contract.address,
-        &token2.address.ok_or(ContractError::NoneError {})?,
-        token_amount,
-    )?;
+    // Generate cw20 transfer messages if necessary
+    let mut cw20_transfer_msgs: Vec<CosmosMsg> = vec![];
+    if let Some(addr) = token1.address {
+        cw20_transfer_msgs.push(get_cw20_transfer_from_msg(
+            &info.sender,
+            &_env.contract.address,
+            &addr,
+            token1_amount,
+        )?)
+    }
+    if let Some(addr) = token2.address {
+        cw20_transfer_msgs.push(get_cw20_transfer_from_msg(
+            &info.sender,
+            &_env.contract.address,
+            &addr,
+            token_amount,
+        )?)
+    }
 
     TOKEN1.update(deps.storage, |mut token1| -> Result<_, ContractError> {
-        token1.reserve += info.funds[0].amount;
+        token1.reserve += token1_amount;
         Ok(token1)
     })?;
     TOKEN2.update(deps.storage, |mut token2| -> Result<_, ContractError> {
@@ -266,7 +292,7 @@ pub fn execute_add_liquidity(
     )?;
 
     Ok(Response {
-        messages: vec![cw20_transfer_cosmos_msg],
+        messages: cw20_transfer_msgs,
         submessages: vec![],
         attributes: vec![
             attr("native_amount", info.funds[0].clone().amount),
@@ -277,27 +303,18 @@ pub fn execute_add_liquidity(
     })
 }
 
-fn check_denom(actual_denom: &str, given_denom: &str) -> Result<(), ContractError> {
-    if actual_denom != given_denom {
-        return Err(ContractError::IncorrectNativeDenom {
-            provided: actual_denom.to_string(),
-            required: given_denom.to_string(),
-        });
-    };
-    Ok(())
-}
-
 fn validate_native_input_amount(
-    actual_funds: &Coin,
+    actual_funds: &[Coin],
     given_amount: Uint128,
     given_denom: &str,
 ) -> Result<(), ContractError> {
-    if actual_funds.amount != given_amount {
+    let actual = get_amount_for_denom(actual_funds, given_denom);
+    if actual.amount != given_amount {
         return Err(ContractError::InsufficientFunds {});
     }
-    if actual_funds.denom != given_denom {
+    if actual.denom != given_denom {
         return Err(ContractError::IncorrectNativeDenom {
-            provided: actual_funds.denom.to_string(),
+            provided: actual.denom,
             required: given_denom.to_string(),
         });
     };
@@ -388,19 +405,19 @@ pub fn execute_remove_liquidity(
         Ok(token2)
     })?;
 
-    let transfer_bank_cosmos_msg =
-        get_bank_transfer_to_msg(&info.sender, &token1.denom, native_amount);
-
-    let cw20_transfer_cosmos_msg = get_cw20_transfer_to_msg(
-        &info.sender,
-        &token2.address.ok_or(ContractError::NoneError {})?,
-        token_amount,
-    )?;
+    let token1_transfer_msg = match token1.address {
+        Some(addr) => get_cw20_transfer_to_msg(&info.sender, &addr, native_amount)?,
+        None => get_bank_transfer_to_msg(&info.sender, &token1.denom, native_amount),
+    };
+    let token2_transfer_msg = match token2.address {
+        Some(addr) => get_cw20_transfer_to_msg(&info.sender, &addr, token_amount)?,
+        None => get_bank_transfer_to_msg(&info.sender, &token1.denom, token_amount),
+    };
 
     execute_burn(deps, _env, info, amount)?;
 
     Ok(Response {
-        messages: vec![transfer_bank_cosmos_msg, cw20_transfer_cosmos_msg],
+        messages: vec![token1_transfer_msg, token2_transfer_msg],
         submessages: vec![],
         attributes: vec![
             attr("liquidity_burned", amount),
@@ -469,6 +486,18 @@ fn get_input_price(
         .map_err(StdError::divide_by_zero)?)
 }
 
+fn get_amount_for_denom(coins: &[Coin], denom: &str) -> Coin {
+    let amount: Uint128 = coins
+        .iter()
+        .filter(|c| c.denom == denom)
+        .map(|c| c.amount)
+        .sum();
+    Coin {
+        amount,
+        denom: denom.to_string(),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn execute_swap(
     deps: DepsMut,
@@ -489,7 +518,7 @@ pub fn execute_swap(
     // validate input_amount if native input token
     match input_token.address {
         Some(_) => Ok(()),
-        None => validate_native_input_amount(&info.funds[0], input_amount, &input_token.denom),
+        None => validate_native_input_amount(&info.funds, input_amount, &input_token.denom),
     }?;
 
     let token_bought = get_input_price(input_amount, input_token.reserve, output_token.reserve)?;
@@ -818,13 +847,7 @@ mod tests {
             expiration: None,
         };
         let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-        assert_eq!(
-            err,
-            ContractError::IncorrectNativeDenom {
-                provided: "wrong".to_string(),
-                required: "test".to_string()
-            }
-        );
+        assert_eq!(err, ContractError::InsufficientFunds {});
 
         // Expired Message
         let info = mock_info("anyone", &coins(100, "test"));
