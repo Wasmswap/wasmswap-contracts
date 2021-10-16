@@ -27,15 +27,15 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     let token1 = Token {
         reserve: Uint128(0),
-        denom: msg.native_denom,
-        address: None,
+        denom: msg.token1_denom,
+        address: msg.token1_address,
     };
 
     TOKEN1.save(deps.storage, &token1)?;
 
     let token2 = Token {
-        address: Some(msg.token_address),
-        denom: msg.token_denom,
+        address: msg.token2_address,
+        denom: msg.token2_denom,
         reserve: Uint128(0),
     };
 
@@ -709,9 +709,10 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
 
         let msg = InstantiateMsg {
-            native_denom: "test".to_string(),
-            token_denom: "coin".to_string(),
-            token_address: Addr::unchecked("token_address"),
+            token1_denom: "test".to_string(),
+            token1_address: None,
+            token2_denom: "coin".to_string(),
+            token2_address: Some(Addr::unchecked("token_address")),
         };
         let info = mock_info("creator", &coins(1000, "earth"));
 
@@ -764,9 +765,10 @@ mod tests {
         let mut deps = mock_dependencies(&coins(2, "token"));
 
         let msg = InstantiateMsg {
-            native_denom: "test".to_string(),
-            token_denom: "coin".to_string(),
-            token_address: Addr::unchecked("asdf"),
+            token1_denom: "test".to_string(),
+            token1_address: None,
+            token2_denom: "coin".to_string(),
+            token2_address: Some(Addr::unchecked("asdf")),
         };
         let info = mock_info("creator", &coins(2, "token"));
         let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -867,9 +869,10 @@ mod tests {
         let mut deps = mock_dependencies(&coins(2, "token"));
 
         let msg = InstantiateMsg {
-            native_denom: "test".to_string(),
-            token_denom: "coin".to_string(),
-            token_address: Addr::unchecked("asdf"),
+            token1_denom: "test".to_string(),
+            token1_address: None,
+            token2_denom: "coin".to_string(),
+            token2_address: Some(Addr::unchecked("asdf")),
         };
         let info = mock_info("creator", &coins(2, "token"));
         let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1000,9 +1003,10 @@ mod tests {
         let mut deps = mock_dependencies(&coins(2, "token"));
 
         let msg = InstantiateMsg {
-            native_denom: "test".to_string(),
-            token_denom: "coin".to_string(),
-            token_address: Addr::unchecked("asdf"),
+            token1_denom: "test".to_string(),
+            token1_address: None,
+            token2_denom: "coin".to_string(),
+            token2_address: Some(Addr::unchecked("asdf")),
         };
         let info = mock_info("creator", &coins(2, "token"));
         let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1078,9 +1082,10 @@ mod tests {
         let mut deps = mock_dependencies(&coins(2, "token"));
 
         let msg = InstantiateMsg {
-            native_denom: "test".to_string(),
-            token_denom: "coin".to_string(),
-            token_address: Addr::unchecked("asdf"),
+            token1_denom: "test".to_string(),
+            token1_address: None,
+            token2_denom: "coin".to_string(),
+            token2_address: Some(Addr::unchecked("asdf")),
         };
         let info = mock_info("creator", &coins(2, "token"));
         let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1160,9 +1165,10 @@ mod tests {
         let mut deps = mock_dependencies(&coins(2, "token"));
 
         let msg = InstantiateMsg {
-            native_denom: "test".to_string(),
-            token_denom: "coin".to_string(),
-            token_address: Addr::unchecked("asdf"),
+            token1_denom: "test".to_string(),
+            token1_address: None,
+            token2_denom: "coin".to_string(),
+            token2_address: Some(Addr::unchecked("asdf")),
         };
         let info = mock_info("creator", &coins(2, "token"));
         let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1198,9 +1204,10 @@ mod tests {
         let mut deps = mock_dependencies(&coins(2, "token"));
 
         let msg = InstantiateMsg {
-            native_denom: "test".to_string(),
-            token_denom: "coin".to_string(),
-            token_address: Addr::unchecked("asdf"),
+            token1_denom: "test".to_string(),
+            token1_address: None,
+            token2_denom: "coin".to_string(),
+            token2_address: Some(Addr::unchecked("asdf")),
         };
         let info = mock_info("creator", &coins(2, "token"));
         let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();

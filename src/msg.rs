@@ -6,9 +6,10 @@ use cw20::Expiration;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub native_denom: String,
-    pub token_denom: String,
-    pub token_address: Addr,
+    pub token1_denom: String,
+    pub token1_address: Option<Addr>,
+    pub token2_denom: String,
+    pub token2_address: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

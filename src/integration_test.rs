@@ -44,9 +44,10 @@ fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom:
     // set up amm contract
     let amm_id = router.store_code(contract_amm());
     let msg = InstantiateMsg {
-        native_denom,
-        token_denom: cash.meta(router).unwrap().symbol,
-        token_address: cash.addr(),
+        token1_denom: native_denom,
+        token1_address: None,
+        token2_denom: cash.meta(router).unwrap().symbol,
+        token2_address: Some(cash.addr()),
     };
     let amm_addr = router
         .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm")
