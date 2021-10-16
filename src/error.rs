@@ -57,4 +57,7 @@ pub enum ContractError {
 
     #[error("MsgExpirationError")]
     MsgExpirationError {},
+
+    #[error("InsufficientFunds")]
+    InsufficientFunds {},
 }

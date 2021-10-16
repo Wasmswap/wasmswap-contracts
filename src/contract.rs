@@ -14,6 +14,7 @@ use crate::msg::{
     TokenForNativePriceResponse,
 };
 use crate::state::{Token, TOKEN1, TOKEN2};
+use cw_storage_plus::Item;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -82,12 +83,12 @@ pub fn execute(
         ExecuteMsg::SwapToken1ForToken2 {
             min_token,
             expiration,
-        } => execute_token1_for_token2_swap(deps, info, _env, min_token, expiration),
+        } => execute_swap(deps, &info, info.funds[0].amount, _env, TOKEN1, TOKEN2, &info.sender, min_token, expiration),
         ExecuteMsg::SwapToken2ForToken1 {
             token_amount,
             min_native,
             expiration,
-        } => execute_token2_for_token1_swap(deps, info, _env, token_amount, min_native, expiration),
+        } => execute_swap(deps, &info, token_amount, _env, TOKEN2, TOKEN1, &info.sender, min_native, expiration),
         ExecuteMsg::SwapTokenForToken {
             output_amm_address,
             input_token_amount,
@@ -106,7 +107,7 @@ pub fn execute(
             recipient,
             min_token,
             expiration,
-        } => execute_native_for_token_swap_to(deps, info, _env, recipient, min_token, expiration),
+        } => execute_swap(deps, &info, info.funds[0].amount, _env, TOKEN1, TOKEN2, &recipient, min_token, expiration),
     }
 }
 
@@ -251,6 +252,19 @@ fn check_denom(actual_denom: &str, given_denom: &str) -> Result<(), ContractErro
     if actual_denom != given_denom {
         return Err(ContractError::IncorrectNativeDenom {
             provided: actual_denom.to_string(),
+            required: given_denom.to_string(),
+        });
+    };
+    Ok(())
+}
+
+fn validate_native_input_amount(actual_funds: &Coin, given_amount: Uint128, given_denom: &str) -> Result<(), ContractError> {
+    if actual_funds.amount != given_amount {
+        return Err(ContractError::InsufficientFunds {});
+    }
+    if actual_funds.denom != given_denom {
+        return Err(ContractError::IncorrectNativeDenom {
+            provided: actual_funds.denom.to_string(),
             required: given_denom.to_string(),
         });
     };
@@ -418,24 +432,28 @@ fn get_input_price(
         .map_err(StdError::divide_by_zero)?)
 }
 
-pub fn execute_native_for_token_swap_to(
+pub fn execute_swap(
     deps: DepsMut,
-    info: MessageInfo,
+    info: &MessageInfo,
+    input_amount: Uint128,
     _env: Env,
-    recipient: Addr,
+    input_token_item: Item<Token>,
+    output_token_item: Item<Token>,
+    recipient: &Addr,
     min_token: Uint128,
     expiration: Option<Expiration>,
 ) -> Result<Response, ContractError> {
     check_expiration(&expiration, &_env.block)?;
 
-    let token1 = TOKEN1.load(deps.storage)?;
-    let token2 = TOKEN2.load(deps.storage)?;
+    let input_token = input_token_item.load(deps.storage)?;
+    let output_token = output_token_item.load(deps.storage)?;
 
-    check_denom(&info.funds[0].denom, &token1.denom)?;
+    match input_token.address {
+        Some(_) => Ok(()),
+        None => validate_native_input_amount(&info.funds[0], input_amount, &input_token.denom)
+    }?;
 
-    let native_amount = info.funds[0].amount;
-
-    let token_bought = get_input_price(native_amount, token1.reserve, token2.reserve)?;
+    let token_bought = get_input_price(input_amount, input_token.reserve, output_token.reserve)?;
 
     if min_token > token_bought {
         return Err(ContractError::SwapMinError {
@@ -444,99 +462,37 @@ pub fn execute_native_for_token_swap_to(
         });
     }
 
-    let cw20_transfer_cosmos_msg =
-        get_cw20_transfer_to_msg(&recipient, &token2.address.ok_or(ContractError::NoneError {})?, token_bought)?;
+    let mut transfer_msgs = match input_token.address {
+        Some(addr) => vec![get_cw20_transfer_from_msg(&info.sender,recipient,&addr, input_amount)?],
+        None => vec![]
+    };
 
-    TOKEN1.update(deps.storage, |mut token1| -> Result<_, ContractError> {
-        token1.reserve = token1.reserve
-            .checked_add(native_amount)
+    transfer_msgs.push(match output_token.address {
+        Some(addr) => get_cw20_transfer_to_msg(&recipient, &addr, token_bought)?,
+        None => get_bank_transfer_to_msg(&recipient,&output_token.denom, token_bought)
+    });
+
+    input_token_item.update(deps.storage, |mut input_token| -> Result<_, ContractError> {
+        input_token.reserve = input_token.reserve
+            .checked_add(input_amount)
             .map_err(StdError::overflow)?;
-        Ok(token1)
+        Ok(input_token)
     })?;
 
-    TOKEN2.update(deps.storage, |mut token2| -> Result<_, ContractError> {
-        token2.reserve =
-            token2.reserve
+    output_token_item.update(deps.storage, |mut output_token| -> Result<_, ContractError> {
+        output_token.reserve =
+            output_token.reserve
             .checked_sub(token_bought)
             .map_err(StdError::overflow)?;
-        Ok(token2)
+        Ok(output_token)
     })?;
 
     Ok(Response {
-        messages: vec![cw20_transfer_cosmos_msg],
+        messages: transfer_msgs,
         submessages: vec![],
         attributes: vec![
-            attr("native_sold", native_amount),
+            attr("native_sold", input_amount),
             attr("token_bought", token_bought),
-        ],
-        data: None,
-    })
-}
-
-pub fn execute_token1_for_token2_swap(
-    deps: DepsMut,
-    info: MessageInfo,
-    _env: Env,
-    min_token: Uint128,
-    expiration: Option<Expiration>,
-) -> Result<Response, ContractError> {
-    execute_native_for_token_swap_to(deps, info.clone(), _env, info.sender, min_token, expiration)
-}
-
-pub fn execute_token2_for_token1_swap(
-    deps: DepsMut,
-    info: MessageInfo,
-    _env: Env,
-    token_amount: Uint128,
-    min_native: Uint128,
-    expiration: Option<Expiration>,
-) -> Result<Response, ContractError> {
-    check_expiration(&expiration, &_env.block)?;
-
-    let token1 = TOKEN1.load(deps.storage)?;
-    let token2 = TOKEN2.load(deps.storage)?;
-
-    let native_bought = get_input_price(token_amount, token2.reserve, token1.reserve)?;
-
-    if min_native > native_bought {
-        return Err(ContractError::SwapMinError {
-            min: min_native,
-            available: native_bought,
-        });
-    }
-
-    // Transfer tokens to contract
-    let cw20_transfer_cosmos_msg = get_cw20_transfer_from_msg(
-        &info.sender,
-        &_env.contract.address,
-        &token2.address.ok_or(ContractError::NoneError {})?,
-        token_amount,
-    )?;
-
-    // Send native tokens to buyer
-    let transfer_bank_cosmos_msg =
-        get_bank_transfer_to_msg(&info.sender, &token1.denom, native_bought);
-
-    TOKEN1.update(deps.storage, |mut token1| -> Result<_, ContractError> {
-        token1.reserve = token1.reserve
-            .checked_sub(native_bought)
-            .map_err(StdError::overflow)?;
-        Ok(token1)
-    })?;
-
-    TOKEN2.update(deps.storage, |mut token2| -> Result<_, ContractError> {
-        token2.reserve = token2.reserve
-        .checked_add(token_amount)
-        .map_err(StdError::overflow)?;
-    Ok(token2)
-})?;
-
-    Ok(Response {
-        messages: vec![cw20_transfer_cosmos_msg, transfer_bank_cosmos_msg],
-        submessages: vec![],
-        attributes: vec![
-            attr("token_sold", token_amount),
-            attr("native_bought", native_bought),
         ],
         data: None,
     })
