@@ -5,13 +5,11 @@ use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::Item;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct State {
-    pub native_reserve: Uint128,
-    pub native_denom: String,
-
-    pub token_address: Addr,
-    pub token_denom: String,
-    pub token_reserve: Uint128,
+pub struct Token {
+    pub address: Option<Addr>,
+    pub reserve: Uint128,
+    pub denom: String,
 }
 
-pub const STATE: Item<State> = Item::new("state");
+pub const TOKEN1: Item<Token> = Item::new("token1");
+pub const TOKEN2: Item<Token> = Item::new("token2");

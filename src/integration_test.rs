@@ -294,7 +294,7 @@ fn swap_tokens_happy_path() {
     let funds = coins(2000, NATIVE_TOKEN_DENOM);
     router.set_bank_balance(&buyer, funds).unwrap();
 
-    let add_liquidity_msg = ExecuteMsg::SwapNativeForToken {
+    let add_liquidity_msg = ExecuteMsg::SwapToken1ForToken2 {
         min_token: Uint128(9),
         expiration: None,
     };
@@ -324,7 +324,7 @@ fn swap_tokens_happy_path() {
         bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
     assert_eq!(balance.amount.amount, Uint128(1990));
 
-    let swap_msg = ExecuteMsg::SwapNativeForToken {
+    let swap_msg = ExecuteMsg::SwapToken1ForToken2 {
         min_token: Uint128(7),
         expiration: None,
     };
@@ -367,7 +367,7 @@ fn swap_tokens_happy_path() {
         .unwrap();
     println!("{:?}", res.attributes);
 
-    let swap_msg = ExecuteMsg::SwapTokenForNative {
+    let swap_msg = ExecuteMsg::SwapToken2ForToken1 {
         token_amount: Uint128(16),
         min_native: Uint128(19),
         expiration: None,
