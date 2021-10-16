@@ -10,7 +10,7 @@ pub enum ContractError {
     Cw20Error(#[from] cw20_base::ContractError),
 
     #[error("None Error")]
-    NoneError{},
+    NoneError {},
 
     #[error("Unauthorized")]
     Unauthorized {},

@@ -33,7 +33,7 @@ pub fn instantiate(
 
     TOKEN1.save(deps.storage, &token1)?;
 
-    let token2 = Token{
+    let token2 = Token {
         address: Some(msg.token_address),
         denom: msg.token_denom,
         reserve: Uint128(0),
@@ -83,12 +83,32 @@ pub fn execute(
         ExecuteMsg::SwapToken1ForToken2 {
             min_token,
             expiration,
-        } => execute_swap(deps, &info, info.funds[0].amount, _env, TOKEN1, TOKEN2, &info.sender, min_token, expiration),
+        } => execute_swap(
+            deps,
+            &info,
+            info.funds[0].amount,
+            _env,
+            TOKEN1,
+            TOKEN2,
+            &info.sender,
+            min_token,
+            expiration,
+        ),
         ExecuteMsg::SwapToken2ForToken1 {
             token_amount,
             min_native,
             expiration,
-        } => execute_swap(deps, &info, token_amount, _env, TOKEN2, TOKEN1, &info.sender, min_native, expiration),
+        } => execute_swap(
+            deps,
+            &info,
+            token_amount,
+            _env,
+            TOKEN2,
+            TOKEN1,
+            &info.sender,
+            min_native,
+            expiration,
+        ),
         ExecuteMsg::SwapTokenForToken {
             output_amm_address,
             input_token_amount,
@@ -107,7 +127,17 @@ pub fn execute(
             recipient,
             min_token,
             expiration,
-        } => execute_swap(deps, &info, info.funds[0].amount, _env, TOKEN1, TOKEN2, &recipient, min_token, expiration),
+        } => execute_swap(
+            deps,
+            &info,
+            info.funds[0].amount,
+            _env,
+            TOKEN1,
+            TOKEN2,
+            &recipient,
+            min_token,
+            expiration,
+        ),
     }
 }
 
@@ -223,7 +253,6 @@ pub fn execute_add_liquidity(
         Ok(token2)
     })?;
 
-
     let sub_info = MessageInfo {
         sender: _env.contract.address.clone(),
         funds: vec![],
@@ -258,7 +287,11 @@ fn check_denom(actual_denom: &str, given_denom: &str) -> Result<(), ContractErro
     Ok(())
 }
 
-fn validate_native_input_amount(actual_funds: &Coin, given_amount: Uint128, given_denom: &str) -> Result<(), ContractError> {
+fn validate_native_input_amount(
+    actual_funds: &Coin,
+    given_amount: Uint128,
+    given_denom: &str,
+) -> Result<(), ContractError> {
     if actual_funds.amount != given_amount {
         return Err(ContractError::InsufficientFunds {});
     }
@@ -340,25 +373,29 @@ pub fn execute_remove_liquidity(
     }
 
     TOKEN1.update(deps.storage, |mut token1| -> Result<_, ContractError> {
-
-        token1.reserve = token1.reserve
+        token1.reserve = token1
+            .reserve
             .checked_sub(native_amount)
             .map_err(StdError::overflow)?;
         Ok(token1)
     })?;
 
     TOKEN2.update(deps.storage, |mut token2| -> Result<_, ContractError> {
-    token2.reserve = token2.reserve
-        .checked_sub(token_amount)
-        .map_err(StdError::overflow)?;
+        token2.reserve = token2
+            .reserve
+            .checked_sub(token_amount)
+            .map_err(StdError::overflow)?;
         Ok(token2)
     })?;
 
     let transfer_bank_cosmos_msg =
         get_bank_transfer_to_msg(&info.sender, &token1.denom, native_amount);
 
-    let cw20_transfer_cosmos_msg =
-        get_cw20_transfer_to_msg(&info.sender, &token2.address.ok_or(ContractError::NoneError {})?, token_amount)?;
+    let cw20_transfer_cosmos_msg = get_cw20_transfer_to_msg(
+        &info.sender,
+        &token2.address.ok_or(ContractError::NoneError {})?,
+        token_amount,
+    )?;
 
     execute_burn(deps, _env, info, amount)?;
 
@@ -451,7 +488,7 @@ pub fn execute_swap(
     // validate input_amount if native input token
     match input_token.address {
         Some(_) => Ok(()),
-        None => validate_native_input_amount(&info.funds[0], input_amount, &input_token.denom)
+        None => validate_native_input_amount(&info.funds[0], input_amount, &input_token.denom),
     }?;
 
     let token_bought = get_input_price(input_amount, input_token.reserve, output_token.reserve)?;
@@ -465,30 +502,42 @@ pub fn execute_swap(
 
     // Create transfer from message
     let mut transfer_msgs = match input_token.address {
-        Some(addr) => vec![get_cw20_transfer_from_msg(&info.sender,&_env.contract.address,&addr, input_amount)?],
-        None => vec![]
+        Some(addr) => vec![get_cw20_transfer_from_msg(
+            &info.sender,
+            &_env.contract.address,
+            &addr,
+            input_amount,
+        )?],
+        None => vec![],
     };
 
     // Create transfer to message
     transfer_msgs.push(match output_token.address {
         Some(addr) => get_cw20_transfer_to_msg(&recipient, &addr, token_bought)?,
-        None => get_bank_transfer_to_msg(&recipient,&output_token.denom, token_bought)
+        None => get_bank_transfer_to_msg(&recipient, &output_token.denom, token_bought),
     });
 
-    input_token_item.update(deps.storage, |mut input_token| -> Result<_, ContractError> {
-        input_token.reserve = input_token.reserve
-            .checked_add(input_amount)
-            .map_err(StdError::overflow)?;
-        Ok(input_token)
-    })?;
+    input_token_item.update(
+        deps.storage,
+        |mut input_token| -> Result<_, ContractError> {
+            input_token.reserve = input_token
+                .reserve
+                .checked_add(input_amount)
+                .map_err(StdError::overflow)?;
+            Ok(input_token)
+        },
+    )?;
 
-    output_token_item.update(deps.storage, |mut output_token| -> Result<_, ContractError> {
-        output_token.reserve =
-            output_token.reserve
-            .checked_sub(token_bought)
-            .map_err(StdError::overflow)?;
-        Ok(output_token)
-    })?;
+    output_token_item.update(
+        deps.storage,
+        |mut output_token| -> Result<_, ContractError> {
+            output_token.reserve = output_token
+                .reserve
+                .checked_sub(token_bought)
+                .map_err(StdError::overflow)?;
+            Ok(output_token)
+        },
+    )?;
 
     Ok(Response {
         messages: transfer_msgs,
@@ -514,11 +563,7 @@ pub fn execute_token_for_token_swap(
 
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
-    let native_to_transfer = get_input_price(
-        input_token_amount,
-        token2.reserve,
-        token1.reserve,
-    )?;
+    let native_to_transfer = get_input_price(input_token_amount, token2.reserve, token1.reserve)?;
 
     // Transfer tokens to contract
     let cw20_transfer_cosmos_msg = get_cw20_transfer_from_msg(
@@ -545,15 +590,16 @@ pub fn execute_token_for_token_swap(
     .into();
 
     TOKEN1.update(deps.storage, |mut token1| -> Result<_, ContractError> {
-
-        token1.reserve = token1.reserve
+        token1.reserve = token1
+            .reserve
             .checked_sub(native_to_transfer)
             .map_err(StdError::overflow)?;
         Ok(token1)
     })?;
 
     TOKEN2.update(deps.storage, |mut token2| -> Result<_, ContractError> {
-        token2.reserve = token2.reserve
+        token2.reserve = token2
+            .reserve
             .checked_add(input_token_amount)
             .map_err(StdError::overflow)?;
         Ok(token2)
@@ -604,8 +650,7 @@ pub fn query_native_for_token_price(
 ) -> StdResult<NativeForTokenPriceResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
-    let token_amount =
-        get_input_price(native_amount, token1.reserve, token2.reserve).unwrap();
+    let token_amount = get_input_price(native_amount, token1.reserve, token2.reserve).unwrap();
     Ok(NativeForTokenPriceResponse { token_amount })
 }
 
@@ -615,8 +660,7 @@ pub fn query_token_for_native_price(
 ) -> StdResult<TokenForNativePriceResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
-    let native_amount =
-        get_input_price(token_amount, token2.reserve, token1.reserve).unwrap();
+    let native_amount = get_input_price(token_amount, token2.reserve, token1.reserve).unwrap();
     Ok(TokenForNativePriceResponse { native_amount })
 }
 
