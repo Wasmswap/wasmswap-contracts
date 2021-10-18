@@ -17,13 +17,13 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     AddLiquidity {
         min_liquidity: Uint128,
-        max_token: Uint128,
+        max_token2: Uint128,
         expiration: Option<Expiration>,
     },
     RemoveLiquidity {
         amount: Uint128,
-        min_native: Uint128,
-        min_token: Uint128,
+        min_token1: Uint128,
+        min_token2: Uint128,
         expiration: Option<Expiration>,
     },
     SwapToken1ForToken2 {

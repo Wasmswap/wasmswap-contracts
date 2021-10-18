@@ -71,7 +71,7 @@ pub fn execute(
     match msg {
         ExecuteMsg::AddLiquidity {
             min_liquidity,
-            max_token,
+            max_token2: max_token,
             expiration,
         } => execute_add_liquidity(
             deps,
@@ -84,8 +84,8 @@ pub fn execute(
         ),
         ExecuteMsg::RemoveLiquidity {
             amount,
-            min_native,
-            min_token,
+            min_token1: min_native,
+            min_token2: min_token,
             expiration,
         } => execute_remove_liquidity(deps, info, _env, amount, min_native, min_token, expiration),
         ExecuteMsg::SwapToken1ForToken2 {
@@ -777,7 +777,7 @@ mod tests {
         let info = mock_info("anyone", &coins(2, "test"));
         let msg = ExecuteMsg::AddLiquidity {
             min_liquidity: Uint128(2),
-            max_token: Uint128(1),
+            max_token2: Uint128(1),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -795,7 +795,7 @@ mod tests {
         let info = mock_info("anyone", &coins(4, "test"));
         let msg = ExecuteMsg::AddLiquidity {
             min_liquidity: Uint128(4),
-            max_token: Uint128(3),
+            max_token2: Uint128(3),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -813,7 +813,7 @@ mod tests {
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
             min_liquidity: Uint128(100),
-            max_token: Uint128(1),
+            max_token2: Uint128(1),
             expiration: None,
         };
         let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
@@ -829,7 +829,7 @@ mod tests {
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
             min_liquidity: Uint128(500),
-            max_token: Uint128(500),
+            max_token2: Uint128(500),
             expiration: None,
         };
         let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
@@ -845,7 +845,7 @@ mod tests {
         let info = mock_info("anyone", &coins(100, "wrong"));
         let msg = ExecuteMsg::AddLiquidity {
             min_liquidity: Uint128(1),
-            max_token: Uint128(500),
+            max_token2: Uint128(500),
             expiration: None,
         };
         let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
@@ -857,7 +857,7 @@ mod tests {
         env.block.height = 20;
         let msg = ExecuteMsg::AddLiquidity {
             min_liquidity: Uint128(100),
-            max_token: Uint128(50),
+            max_token2: Uint128(50),
             expiration: Some(Expiration::AtHeight(19)),
         };
         let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
@@ -881,7 +881,7 @@ mod tests {
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
             min_liquidity: Uint128(100),
-            max_token: Uint128(50),
+            max_token2: Uint128(50),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -899,8 +899,8 @@ mod tests {
         let info = mock_info("anyone", &vec![]);
         let msg = ExecuteMsg::RemoveLiquidity {
             amount: Uint128(50),
-            min_native: Uint128(50),
-            min_token: Uint128(25),
+            min_token1: Uint128(50),
+            min_token2: Uint128(25),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -916,8 +916,8 @@ mod tests {
         let info = mock_info("anyone", &vec![]);
         let msg = ExecuteMsg::RemoveLiquidity {
             amount: Uint128(25),
-            min_native: Uint128(25),
-            min_token: Uint128(12),
+            min_token1: Uint128(25),
+            min_token2: Uint128(12),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -933,8 +933,8 @@ mod tests {
         let info = mock_info("anyone", &vec![]);
         let msg = ExecuteMsg::RemoveLiquidity {
             amount: Uint128(26),
-            min_native: Uint128(1),
-            min_token: Uint128(1),
+            min_token1: Uint128(1),
+            min_token2: Uint128(1),
             expiration: None,
         };
         let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
@@ -950,8 +950,8 @@ mod tests {
         let info = mock_info("anyone", &vec![]);
         let msg = ExecuteMsg::RemoveLiquidity {
             amount: Uint128(25),
-            min_native: Uint128(1),
-            min_token: Uint128(1),
+            min_token1: Uint128(1),
+            min_token2: Uint128(1),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -969,8 +969,8 @@ mod tests {
         env.block.height = 20;
         let msg = ExecuteMsg::RemoveLiquidity {
             amount: Uint128(25),
-            min_native: Uint128(1),
-            min_token: Uint128(1),
+            min_token1: Uint128(1),
+            min_token2: Uint128(1),
             expiration: Some(Expiration::AtHeight(19)),
         };
         let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
@@ -1015,7 +1015,7 @@ mod tests {
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
             min_liquidity: Uint128(100),
-            max_token: Uint128(100),
+            max_token2: Uint128(100),
             expiration: None,
         };
         let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1094,7 +1094,7 @@ mod tests {
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
             min_liquidity: Uint128(100),
-            max_token: Uint128(100),
+            max_token2: Uint128(100),
             expiration: None,
         };
         let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1177,7 +1177,7 @@ mod tests {
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
             min_liquidity: Uint128(100),
-            max_token: Uint128(50),
+            max_token2: Uint128(50),
             expiration: None,
         };
         let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1216,7 +1216,7 @@ mod tests {
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
             min_liquidity: Uint128(100),
-            max_token: Uint128(100),
+            max_token2: Uint128(100),
             expiration: None,
         };
         let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();

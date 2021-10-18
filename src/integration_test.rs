@@ -137,7 +137,7 @@ fn amm_add_and_remove_liquidity() {
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
         min_liquidity: Uint128(100),
-        max_token: Uint128(100),
+        max_token2: Uint128(100),
         expiration: None,
     };
     let res = router
@@ -175,7 +175,7 @@ fn amm_add_and_remove_liquidity() {
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
         min_liquidity: Uint128(50),
-        max_token: Uint128(51),
+        max_token2: Uint128(51),
         expiration: None,
     };
     let res = router
@@ -201,8 +201,8 @@ fn amm_add_and_remove_liquidity() {
 
     let remove_liquidity_msg = ExecuteMsg::RemoveLiquidity {
         amount: Uint128(50),
-        min_native: Uint128(50),
-        min_token: Uint128(50),
+        min_token1: Uint128(50),
+        min_token2: Uint128(50),
         expiration: None,
     };
     let res = router
@@ -271,7 +271,7 @@ fn swap_tokens_happy_path() {
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
         min_liquidity: Uint128(100),
-        max_token: Uint128(100),
+        max_token2: Uint128(100),
         expiration: None,
     };
     let res = router
@@ -467,7 +467,7 @@ fn token_to_token_swap() {
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
         min_liquidity: Uint128(100),
-        max_token: Uint128(100),
+        max_token2: Uint128(100),
         expiration: None,
     };
     router
@@ -494,7 +494,7 @@ fn token_to_token_swap() {
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
         min_liquidity: Uint128(100),
-        max_token: Uint128(100),
+        max_token2: Uint128(100),
         expiration: None,
     };
     router
