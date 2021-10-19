@@ -136,6 +136,7 @@ fn amm_add_and_remove_liquidity() {
     println!("{:?}", res.attributes);
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128(100),
         min_liquidity: Uint128(100),
         max_token2: Uint128(100),
         expiration: None,
@@ -174,6 +175,7 @@ fn amm_add_and_remove_liquidity() {
     assert_eq!(res.attributes.len(), 4);
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128(50),
         min_liquidity: Uint128(50),
         max_token2: Uint128(51),
         expiration: None,
@@ -270,6 +272,7 @@ fn swap_tokens_happy_path() {
     println!("{:?}", res.attributes);
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128(100),
         min_liquidity: Uint128(100),
         max_token2: Uint128(100),
         expiration: None,
@@ -468,6 +471,7 @@ fn token_to_token_swap() {
     println!("{:?}", res.attributes);
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128(100),
         min_liquidity: Uint128(100),
         max_token2: Uint128(100),
         expiration: None,
@@ -495,6 +499,7 @@ fn token_to_token_swap() {
     println!("{:?}", res.attributes);
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128(100),
         min_liquidity: Uint128(100),
         max_token2: Uint128(100),
         expiration: None,

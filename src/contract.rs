@@ -70,16 +70,17 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::AddLiquidity {
+            token1_amount,
             min_liquidity,
-            max_token2: max_token,
+            max_token2,
             expiration,
         } => execute_add_liquidity(
             deps,
             &info,
             _env,
             min_liquidity,
-            info.funds[0].amount,
-            max_token,
+            token1_amount,
+            max_token2,
             expiration,
         ),
         ExecuteMsg::RemoveLiquidity {
@@ -777,6 +778,7 @@ mod tests {
         // Add initial liquidity
         let info = mock_info("anyone", &coins(2, "test"));
         let msg = ExecuteMsg::AddLiquidity {
+            token1_amount: Uint128(2),
             min_liquidity: Uint128(2),
             max_token2: Uint128(1),
             expiration: None,
@@ -795,6 +797,7 @@ mod tests {
         // Add more liquidity
         let info = mock_info("anyone", &coins(4, "test"));
         let msg = ExecuteMsg::AddLiquidity {
+            token1_amount: Uint128(4),
             min_liquidity: Uint128(4),
             max_token2: Uint128(3),
             expiration: None,
@@ -813,6 +816,7 @@ mod tests {
         // Too low max_token
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
+            token1_amount: Uint128(100),
             min_liquidity: Uint128(100),
             max_token2: Uint128(1),
             expiration: None,
@@ -829,6 +833,7 @@ mod tests {
         // Too high min liquidity
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
+            token1_amount: Uint128(100),
             min_liquidity: Uint128(500),
             max_token2: Uint128(500),
             expiration: None,
@@ -845,6 +850,7 @@ mod tests {
         // Incorrect native denom throws error
         let info = mock_info("anyone", &coins(100, "wrong"));
         let msg = ExecuteMsg::AddLiquidity {
+            token1_amount: Uint128(100),
             min_liquidity: Uint128(1),
             max_token2: Uint128(500),
             expiration: None,
@@ -857,6 +863,7 @@ mod tests {
         let mut env = mock_env();
         env.block.height = 20;
         let msg = ExecuteMsg::AddLiquidity {
+            token1_amount: Uint128(100),
             min_liquidity: Uint128(100),
             max_token2: Uint128(50),
             expiration: Some(Expiration::AtHeight(19)),
@@ -881,6 +888,7 @@ mod tests {
         // Add initial liquidity
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
+            token1_amount: Uint128(100),
             min_liquidity: Uint128(100),
             max_token2: Uint128(50),
             expiration: None,
@@ -1015,6 +1023,7 @@ mod tests {
         // Add initial liquidity
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
+            token1_amount: Uint128(100),
             min_liquidity: Uint128(100),
             max_token2: Uint128(100),
             expiration: None,
@@ -1098,6 +1107,7 @@ mod tests {
         // Add initial liquidity
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
+            token1_amount: Uint128(100),
             min_liquidity: Uint128(100),
             max_token2: Uint128(100),
             expiration: None,
@@ -1181,6 +1191,7 @@ mod tests {
         // Add initial liquidity
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
+            token1_amount: Uint128(100),
             min_liquidity: Uint128(100),
             max_token2: Uint128(50),
             expiration: None,
@@ -1220,6 +1231,7 @@ mod tests {
         // Add initial liquidity
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
+            token1_amount: Uint128(100),
             min_liquidity: Uint128(100),
             max_token2: Uint128(100),
             expiration: None,

@@ -16,6 +16,7 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     AddLiquidity {
+        token1_amount: Uint128,
         min_liquidity: Uint128,
         max_token2: Uint128,
         expiration: Option<Expiration>,
