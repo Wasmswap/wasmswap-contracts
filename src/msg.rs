@@ -70,9 +70,10 @@ pub enum QueryMsg {
 pub struct InfoResponse {
     pub token1_reserve: Uint128,
     pub token1_denom: String,
+    pub token1_address: Option<String>,
     pub token2_reserve: Uint128,
     pub token2_denom: String,
-    pub token2_address: String,
+    pub token2_address: Option<String>,
     pub lp_token_supply: Uint128,
 }
 

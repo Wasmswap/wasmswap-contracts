@@ -669,12 +669,10 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
     Ok(InfoResponse {
         token1_reserve: token1.reserve,
         token1_denom: token1.denom,
+        token1_address: token1.address.map(|a|a.to_string()),
         token2_reserve: token2.reserve,
         token2_denom: token2.denom,
-        token2_address: token2
-            .address
-            .unwrap_or_else(|| Addr::unchecked("native"))
-            .into(),
+        token2_address: token2.address.map(|a|a.to_string()),
         lp_token_supply: liquidity.total_supply,
     })
 }
@@ -730,7 +728,7 @@ mod tests {
         assert_eq!(info.token1_denom, "test");
         assert_eq!(info.token2_reserve, Uint128(0));
         assert_eq!(info.token2_denom, "coin");
-        assert_eq!(info.token2_address, "token_address")
+        assert_eq!(info.token2_address, Some("token_address".to_string()))
     }
 
     #[test]
