@@ -78,10 +78,10 @@ pub struct InfoResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Token1ForToken2PriceResponse {
-    pub token_amount: Uint128,
+    pub token2_amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Token2ForToken1PriceResponse {
-    pub native_amount: Uint128,
+    pub token1_amount: Uint128,
 }

@@ -686,7 +686,7 @@ pub fn query_native_for_token_price(
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
     let token_amount = get_input_price(native_amount, token1.reserve, token2.reserve).unwrap();
-    Ok(Token1ForToken2PriceResponse { token_amount })
+    Ok(Token1ForToken2PriceResponse { token2_amount: token_amount })
 }
 
 pub fn query_token_for_native_price(
@@ -696,7 +696,7 @@ pub fn query_token_for_native_price(
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
     let native_amount = get_input_price(token_amount, token2.reserve, token1.reserve).unwrap();
-    Ok(Token2ForToken1PriceResponse { native_amount })
+    Ok(Token2ForToken1PriceResponse { token1_amount: native_amount })
 }
 
 #[cfg(test)]
@@ -1207,7 +1207,7 @@ mod tests {
         };
         let data = query(deps.as_ref(), mock_env(), msg).unwrap();
         let res: Token1ForToken2PriceResponse = from_binary(&data).unwrap();
-        assert_eq!(res.token_amount, Uint128(4));
+        assert_eq!(res.token2_amount, Uint128(4));
 
         // Query Token for Native Price
         let msg = QueryMsg::Token2ForToken1Price {
@@ -1215,7 +1215,7 @@ mod tests {
         };
         let data = query(deps.as_ref(), mock_env(), msg).unwrap();
         let res: Token2ForToken1PriceResponse = from_binary(&data).unwrap();
-        assert_eq!(res.native_amount, Uint128(16));
+        assert_eq!(res.token1_amount, Uint128(16));
     }
 
     #[test]
