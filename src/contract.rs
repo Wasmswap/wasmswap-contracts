@@ -671,7 +671,7 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
         native_denom: token1.denom,
         token_reserve: token2.reserve,
         token_denom: token2.denom,
-        token_address: token2.address.unwrap().into(),
+        token_address: token2.address.unwrap_or(Addr::unchecked("native")).into(),
         lp_token_supply: liquidity.total_supply,
     })
 }
