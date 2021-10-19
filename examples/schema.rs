@@ -4,8 +4,8 @@ use std::fs::create_dir_all;
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 use amm::msg::{
-    ExecuteMsg, InfoResponse, InstantiateMsg, NativeForTokenPriceResponse, QueryMsg,
-    TokenForNativePriceResponse,
+    ExecuteMsg, InfoResponse, InstantiateMsg, Token1ForToken2PriceResponse, QueryMsg,
+    Token2ForToken1PriceResponse,
 };
 use amm::state::Token;
 use cw20::BalanceResponse;
@@ -22,6 +22,6 @@ fn main() {
     export_schema(&schema_for!(Token), &out_dir);
     export_schema(&schema_for!(BalanceResponse), &out_dir);
     export_schema(&schema_for!(InfoResponse), &out_dir);
-    export_schema(&schema_for!(NativeForTokenPriceResponse), &out_dir);
-    export_schema(&schema_for!(TokenForNativePriceResponse), &out_dir);
+    export_schema(&schema_for!(Token1ForToken2PriceResponse), &out_dir);
+    export_schema(&schema_for!(Token2ForToken1PriceResponse), &out_dir);
 }

@@ -291,8 +291,8 @@ fn swap_tokens_happy_path() {
     println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.native_reserve, Uint128(100));
-    assert_eq!(info.token_reserve, Uint128(100));
+    assert_eq!(info.token1_reserve, Uint128(100));
+    assert_eq!(info.token2_reserve, Uint128(100));
 
     let buyer = Addr::unchecked("buyer");
     let funds = coins(2000, NATIVE_TOKEN_DENOM);
@@ -317,8 +317,8 @@ fn swap_tokens_happy_path() {
     println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.native_reserve, Uint128(110));
-    assert_eq!(info.token_reserve, Uint128(91));
+    assert_eq!(info.token1_reserve, Uint128(110));
+    assert_eq!(info.token2_reserve, Uint128(91));
 
     // ensure balances updated
     let buyer_balance = cw20_token.balance(&router, buyer.clone()).unwrap();
@@ -348,8 +348,8 @@ fn swap_tokens_happy_path() {
     println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.native_reserve, Uint128(120));
-    assert_eq!(info.token_reserve, Uint128(84));
+    assert_eq!(info.token1_reserve, Uint128(120));
+    assert_eq!(info.token2_reserve, Uint128(84));
 
     // ensure balances updated
     let buyer_balance = cw20_token.balance(&router, buyer.clone()).unwrap();
@@ -384,8 +384,8 @@ fn swap_tokens_happy_path() {
     println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.native_reserve, Uint128(101));
-    assert_eq!(info.token_reserve, Uint128(100));
+    assert_eq!(info.token1_reserve, Uint128(101));
+    assert_eq!(info.token2_reserve, Uint128(100));
 
     // ensure balances updated
     let buyer_balance = cw20_token.balance(&router, buyer.clone()).unwrap();
@@ -419,8 +419,8 @@ fn swap_tokens_happy_path() {
     println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.native_reserve, Uint128(111));
-    assert_eq!(info.token_reserve, Uint128(92));
+    assert_eq!(info.token1_reserve, Uint128(111));
+    assert_eq!(info.token2_reserve, Uint128(92));
 
     // ensure balances updated
     let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
@@ -489,8 +489,8 @@ fn swap_native_to_native_tokens_happy_path() {
     println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.native_reserve, Uint128(100));
-    assert_eq!(info.token_reserve, Uint128(100));
+    assert_eq!(info.token1_reserve, Uint128(100));
+    assert_eq!(info.token2_reserve, Uint128(100));
 
     let buyer = Addr::unchecked("buyer");
     let funds = coins(2000, NATIVE_TOKEN_DENOM);
@@ -515,8 +515,8 @@ fn swap_native_to_native_tokens_happy_path() {
     println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.native_reserve, Uint128(110));
-    assert_eq!(info.token_reserve, Uint128(91));
+    assert_eq!(info.token1_reserve, Uint128(110));
+    assert_eq!(info.token2_reserve, Uint128(91));
 
     // Check balances of owner and buyer reflect the sale transaction
     let native_balance: BalanceResponse =
@@ -545,8 +545,8 @@ fn swap_native_to_native_tokens_happy_path() {
     println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.native_reserve, Uint128(120));
-    assert_eq!(info.token_reserve, Uint128(84));
+    assert_eq!(info.token1_reserve, Uint128(120));
+    assert_eq!(info.token2_reserve, Uint128(84));
 
     // Check balances of owner and buyer reflect the sale transaction
     let native_balance: BalanceResponse =
@@ -576,8 +576,8 @@ fn swap_native_to_native_tokens_happy_path() {
     println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.native_reserve, Uint128(101));
-    assert_eq!(info.token_reserve, Uint128(100));
+    assert_eq!(info.token1_reserve, Uint128(101));
+    assert_eq!(info.token2_reserve, Uint128(100));
 
     // Check balances of owner and buyer reflect the sale transaction
     let native_balance: BalanceResponse =
@@ -786,11 +786,11 @@ fn token_to_token_swap() {
     // assert internal state is consistent
     let info_amm1 = get_info(&router, &amm1);
     let token1_balance = token1.balance(&router, amm1.clone()).unwrap();
-    assert_eq!(info_amm1.token_reserve, token1_balance);
-    assert_eq!(info_amm1.native_reserve, amm1_native_balance.amount.amount);
+    assert_eq!(info_amm1.token2_reserve, token1_balance);
+    assert_eq!(info_amm1.token1_reserve, amm1_native_balance.amount.amount);
 
     let info_amm2 = get_info(&router, &amm2);
     let token2_balance = token2.balance(&router, amm2.clone()).unwrap();
-    assert_eq!(info_amm2.token_reserve, token2_balance);
-    assert_eq!(info_amm2.native_reserve, amm2_native_balance.amount.amount);
+    assert_eq!(info_amm2.token2_reserve, token2_balance);
+    assert_eq!(info_amm2.token1_reserve, amm2_native_balance.amount.amount);
 }
