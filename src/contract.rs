@@ -10,7 +10,7 @@ use cw20_base::state::{BALANCES as LIQUIDITY_BALANCES, TOKEN_INFO as LIQUIDITY_I
 
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, InfoResponse, InstantiateMsg, Token1ForToken2PriceResponse, QueryMsg,
+    ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, Token1ForToken2PriceResponse,
     Token2ForToken1PriceResponse,
 };
 use crate::state::{Token, TOKEN1, TOKEN2};
@@ -653,12 +653,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Balance { address } => to_binary(&query_balance(deps, address)?),
         QueryMsg::Info {} => to_binary(&query_info(deps)?),
-        QueryMsg::Token1ForToken2Price { token1_amount: native_amount } => {
-            to_binary(&query_native_for_token_price(deps, native_amount)?)
-        }
-        QueryMsg::Token2ForToken1Price { token2_amount: token_amount } => {
-            to_binary(&query_token_for_native_price(deps, token_amount)?)
-        }
+        QueryMsg::Token1ForToken2Price {
+            token1_amount: native_amount,
+        } => to_binary(&query_native_for_token_price(deps, native_amount)?),
+        QueryMsg::Token2ForToken1Price {
+            token2_amount: token_amount,
+        } => to_binary(&query_token_for_native_price(deps, token_amount)?),
     }
 }
 
@@ -669,10 +669,10 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
     Ok(InfoResponse {
         token1_reserve: token1.reserve,
         token1_denom: token1.denom,
-        token1_address: token1.address.map(|a|a.to_string()),
+        token1_address: token1.address.map(|a| a.to_string()),
         token2_reserve: token2.reserve,
         token2_denom: token2.denom,
-        token2_address: token2.address.map(|a|a.to_string()),
+        token2_address: token2.address.map(|a| a.to_string()),
         lp_token_supply: liquidity.total_supply,
     })
 }
@@ -684,7 +684,9 @@ pub fn query_native_for_token_price(
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
     let token_amount = get_input_price(native_amount, token1.reserve, token2.reserve).unwrap();
-    Ok(Token1ForToken2PriceResponse { token2_amount: token_amount })
+    Ok(Token1ForToken2PriceResponse {
+        token2_amount: token_amount,
+    })
 }
 
 pub fn query_token_for_native_price(
@@ -694,7 +696,9 @@ pub fn query_token_for_native_price(
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
     let native_amount = get_input_price(token_amount, token2.reserve, token1.reserve).unwrap();
-    Ok(Token2ForToken1PriceResponse { token1_amount: native_amount })
+    Ok(Token2ForToken1PriceResponse {
+        token1_amount: native_amount,
+    })
 }
 
 #[cfg(test)]

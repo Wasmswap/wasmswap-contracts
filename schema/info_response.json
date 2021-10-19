@@ -4,29 +4,37 @@
   "type": "object",
   "required": [
     "lp_token_supply",
-    "native_denom",
-    "native_reserve",
-    "token_address",
-    "token_denom",
-    "token_reserve"
+    "token1_denom",
+    "token1_reserve",
+    "token2_denom",
+    "token2_reserve"
   ],
   "properties": {
     "lp_token_supply": {
       "$ref": "#/definitions/Uint128"
     },
-    "native_denom": {
+    "token1_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "token1_denom": {
       "type": "string"
     },
-    "native_reserve": {
+    "token1_reserve": {
       "$ref": "#/definitions/Uint128"
     },
-    "token_address": {
+    "token2_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "token2_denom": {
       "type": "string"
     },
-    "token_denom": {
-      "type": "string"
-    },
-    "token_reserve": {
+    "token2_reserve": {
       "$ref": "#/definitions/Uint128"
     }
   },

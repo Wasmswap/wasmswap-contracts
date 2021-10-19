@@ -38,16 +38,16 @@
     {
       "type": "object",
       "required": [
-        "native_for_token_price"
+        "token1_for_token2_price"
       ],
       "properties": {
-        "native_for_token_price": {
+        "token1_for_token2_price": {
           "type": "object",
           "required": [
-            "native_amount"
+            "token1_amount"
           ],
           "properties": {
-            "native_amount": {
+            "token1_amount": {
               "$ref": "#/definitions/Uint128"
             }
           }
@@ -58,16 +58,16 @@
     {
       "type": "object",
       "required": [
-        "token_for_native_price"
+        "token2_for_token1_price"
       ],
       "properties": {
-        "token_for_native_price": {
+        "token2_for_token1_price": {
           "type": "object",
           "required": [
-            "token_amount"
+            "token2_amount"
           ],
           "properties": {
-            "token_amount": {
+            "token2_amount": {
               "$ref": "#/definitions/Uint128"
             }
           }

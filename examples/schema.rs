@@ -4,7 +4,7 @@ use std::fs::create_dir_all;
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 use amm::msg::{
-    ExecuteMsg, InfoResponse, InstantiateMsg, Token1ForToken2PriceResponse, QueryMsg,
+    ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, Token1ForToken2PriceResponse,
     Token2ForToken1PriceResponse,
 };
 use amm::state::Token;
