@@ -439,7 +439,16 @@ fn swap_native_to_native_tokens_happy_path() {
     const IBC_TOKEN_DENOM: &str = "atom";
 
     let owner = Addr::unchecked("owner");
-    let funds = vec![Coin{ denom: NATIVE_TOKEN_DENOM.into(), amount: Uint128(2000)}, Coin{denom:IBC_TOKEN_DENOM.into(), amount:Uint128(5000)}];
+    let funds = vec![
+        Coin {
+            denom: NATIVE_TOKEN_DENOM.into(),
+            amount: Uint128(2000),
+        },
+        Coin {
+            denom: IBC_TOKEN_DENOM.into(),
+            amount: Uint128(5000),
+        },
+    ];
     router.set_bank_balance(&owner, funds).unwrap();
 
     let amm_id = router.store_code(contract_amm());
@@ -465,13 +474,16 @@ fn swap_native_to_native_tokens_happy_path() {
             owner.clone(),
             amm_addr.clone(),
             &add_liquidity_msg,
-            &[Coin {
-                denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128(100),
-            }, Coin {
-                denom: IBC_TOKEN_DENOM.into(),
-                amount: Uint128(100),
-            }],
+            &[
+                Coin {
+                    denom: NATIVE_TOKEN_DENOM.into(),
+                    amount: Uint128(100),
+                },
+                Coin {
+                    denom: IBC_TOKEN_DENOM.into(),
+                    amount: Uint128(100),
+                },
+            ],
         )
         .unwrap();
     println!("{:?}", res.attributes);
@@ -551,7 +563,15 @@ fn swap_native_to_native_tokens_happy_path() {
         expiration: None,
     };
     let res = router
-        .execute_contract(buyer.clone(), amm_addr.clone(), &swap_msg, &vec![Coin{denom:IBC_TOKEN_DENOM.into(), amount:Uint128(16)}])
+        .execute_contract(
+            buyer.clone(),
+            amm_addr.clone(),
+            &swap_msg,
+            &vec![Coin {
+                denom: IBC_TOKEN_DENOM.into(),
+                amount: Uint128(16),
+            }],
+        )
         .unwrap();
     println!("{:?}", res.attributes);
 
@@ -605,7 +625,6 @@ fn swap_native_to_native_tokens_happy_path() {
 
      */
 }
-
 
 #[test]
 fn token_to_token_swap() {
