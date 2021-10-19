@@ -27,12 +27,13 @@ pub enum ExecuteMsg {
         expiration: Option<Expiration>,
     },
     SwapToken1ForToken2 {
-        min_token: Uint128,
+        token1_amount: Uint128,
+        min_token2: Uint128,
         expiration: Option<Expiration>,
     },
     SwapToken2ForToken1 {
-        token_amount: Uint128,
-        min_native: Uint128,
+        token2_amount: Uint128,
+        min_token1: Uint128,
         expiration: Option<Expiration>,
     },
     SwapTokenForToken {

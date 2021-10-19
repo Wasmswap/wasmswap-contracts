@@ -89,32 +89,33 @@ pub fn execute(
             expiration,
         } => execute_remove_liquidity(deps, info, _env, amount, min_native, min_token, expiration),
         ExecuteMsg::SwapToken1ForToken2 {
-            min_token,
+            token1_amount,
+            min_token2,
             expiration,
         } => execute_swap(
             deps,
             &info,
-            info.funds[0].amount,
+            token1_amount,
             _env,
             TOKEN1,
             TOKEN2,
             &info.sender,
-            min_token,
+            min_token2,
             expiration,
         ),
         ExecuteMsg::SwapToken2ForToken1 {
-            token_amount,
-            min_native,
+            token2_amount,
+            min_token1,
             expiration,
         } => execute_swap(
             deps,
             &info,
-            token_amount,
+            token2_amount,
             _env,
             TOKEN2,
             TOKEN1,
             &info.sender,
-            min_native,
+            min_token1,
             expiration,
         ),
         ExecuteMsg::SwapTokenForToken {
@@ -1023,7 +1024,8 @@ mod tests {
         // Swap tokens
         let info = mock_info("anyone", &coins(10, "test"));
         let msg = ExecuteMsg::SwapToken1ForToken2 {
-            min_token: Uint128(9),
+            token1_amount: Uint128(10),
+            min_token2: Uint128(9),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1038,7 +1040,8 @@ mod tests {
         // Second purchase at higher price
         let info = mock_info("anyone", &coins(10, "test"));
         let msg = ExecuteMsg::SwapToken1ForToken2 {
-            min_token: Uint128(7),
+            token1_amount: Uint128(10),
+            min_token2: Uint128(7),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1053,7 +1056,8 @@ mod tests {
         // min_token error
         let info = mock_info("anyone", &coins(10, "test"));
         let msg = ExecuteMsg::SwapToken1ForToken2 {
-            min_token: Uint128(100),
+            token1_amount: Uint128(10),
+            min_token2: Uint128(100),
             expiration: None,
         };
         let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
@@ -1070,7 +1074,8 @@ mod tests {
         let mut env = mock_env();
         env.block.height = 20;
         let msg = ExecuteMsg::SwapToken1ForToken2 {
-            min_token: Uint128(100),
+            token1_amount: Uint128(100),
+            min_token2: Uint128(100),
             expiration: Some(Expiration::AtHeight(19)),
         };
         let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
@@ -1102,8 +1107,8 @@ mod tests {
         // Swap tokens
         let info = mock_info("anyone", &vec![]);
         let msg = ExecuteMsg::SwapToken2ForToken1 {
-            token_amount: Uint128(10),
-            min_native: Uint128(9),
+            token2_amount: Uint128(10),
+            min_token1: Uint128(9),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1118,8 +1123,8 @@ mod tests {
         // Second purchase at higher price
         let info = mock_info("anyone", &vec![]);
         let msg = ExecuteMsg::SwapToken2ForToken1 {
-            token_amount: Uint128(10),
-            min_native: Uint128(7),
+            token2_amount: Uint128(10),
+            min_token1: Uint128(7),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1134,8 +1139,8 @@ mod tests {
         // min_token error
         let info = mock_info("anyone", &vec![]);
         let msg = ExecuteMsg::SwapToken2ForToken1 {
-            token_amount: Uint128(10),
-            min_native: Uint128(100),
+            token2_amount: Uint128(10),
+            min_token1: Uint128(100),
             expiration: None,
         };
         let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
@@ -1152,8 +1157,8 @@ mod tests {
         let mut env = mock_env();
         env.block.height = 20;
         let msg = ExecuteMsg::SwapToken2ForToken1 {
-            token_amount: Uint128(10),
-            min_native: Uint128(100),
+            token2_amount: Uint128(10),
+            min_token1: Uint128(100),
             expiration: Some(Expiration::AtHeight(19)),
         };
         let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
