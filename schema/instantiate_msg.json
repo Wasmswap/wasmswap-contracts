@@ -3,18 +3,34 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "native_denom",
-    "token_address",
-    "token_denom"
+    "token1_denom",
+    "token2_denom"
   ],
   "properties": {
-    "native_denom": {
+    "token1_address": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "token1_denom": {
       "type": "string"
     },
-    "token_address": {
-      "$ref": "#/definitions/Addr"
+    "token2_address": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
-    "token_denom": {
+    "token2_denom": {
       "type": "string"
     }
   },

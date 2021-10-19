@@ -11,8 +11,9 @@
         "add_liquidity": {
           "type": "object",
           "required": [
-            "max_token",
-            "min_liquidity"
+            "max_token2",
+            "min_liquidity",
+            "token1_amount"
           ],
           "properties": {
             "expiration": {
@@ -25,10 +26,13 @@
                 }
               ]
             },
-            "max_token": {
+            "max_token2": {
               "$ref": "#/definitions/Uint128"
             },
             "min_liquidity": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "token1_amount": {
               "$ref": "#/definitions/Uint128"
             }
           }
@@ -46,8 +50,8 @@
           "type": "object",
           "required": [
             "amount",
-            "min_native",
-            "min_token"
+            "min_token1",
+            "min_token2"
           ],
           "properties": {
             "amount": {
@@ -63,10 +67,10 @@
                 }
               ]
             },
-            "min_native": {
+            "min_token1": {
               "$ref": "#/definitions/Uint128"
             },
-            "min_token": {
+            "min_token2": {
               "$ref": "#/definitions/Uint128"
             }
           }
@@ -83,7 +87,8 @@
         "swap_token1_for_token2": {
           "type": "object",
           "required": [
-            "min_token"
+            "min_token2",
+            "token1_amount"
           ],
           "properties": {
             "expiration": {
@@ -96,7 +101,10 @@
                 }
               ]
             },
-            "min_token": {
+            "min_token2": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "token1_amount": {
               "$ref": "#/definitions/Uint128"
             }
           }
@@ -113,8 +121,8 @@
         "swap_token2_for_token1": {
           "type": "object",
           "required": [
-            "min_native",
-            "token_amount"
+            "min_token1",
+            "token2_amount"
           ],
           "properties": {
             "expiration": {
@@ -127,10 +135,10 @@
                 }
               ]
             },
-            "min_native": {
+            "min_token1": {
               "$ref": "#/definitions/Uint128"
             },
-            "token_amount": {
+            "token2_amount": {
               "$ref": "#/definitions/Uint128"
             }
           }

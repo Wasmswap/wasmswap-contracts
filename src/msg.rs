@@ -6,32 +6,35 @@ use cw20::Expiration;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub native_denom: String,
-    pub token_denom: String,
-    pub token_address: Addr,
+    pub token1_denom: String,
+    pub token1_address: Option<Addr>,
+    pub token2_denom: String,
+    pub token2_address: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     AddLiquidity {
+        token1_amount: Uint128,
         min_liquidity: Uint128,
-        max_token: Uint128,
+        max_token2: Uint128,
         expiration: Option<Expiration>,
     },
     RemoveLiquidity {
         amount: Uint128,
-        min_native: Uint128,
-        min_token: Uint128,
+        min_token1: Uint128,
+        min_token2: Uint128,
         expiration: Option<Expiration>,
     },
     SwapToken1ForToken2 {
-        min_token: Uint128,
+        token1_amount: Uint128,
+        min_token2: Uint128,
         expiration: Option<Expiration>,
     },
     SwapToken2ForToken1 {
-        token_amount: Uint128,
-        min_native: Uint128,
+        token2_amount: Uint128,
+        min_token1: Uint128,
         expiration: Option<Expiration>,
     },
     SwapTokenForToken {

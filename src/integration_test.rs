@@ -44,9 +44,10 @@ fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom:
     // set up amm contract
     let amm_id = router.store_code(contract_amm());
     let msg = InstantiateMsg {
-        native_denom,
-        token_denom: cash.meta(router).unwrap().symbol,
-        token_address: cash.addr(),
+        token1_denom: native_denom,
+        token1_address: None,
+        token2_denom: cash.meta(router).unwrap().symbol,
+        token2_address: Some(cash.addr()),
     };
     let amm_addr = router
         .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm")
@@ -135,8 +136,9 @@ fn amm_add_and_remove_liquidity() {
     println!("{:?}", res.attributes);
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128(100),
         min_liquidity: Uint128(100),
-        max_token: Uint128(100),
+        max_token2: Uint128(100),
         expiration: None,
     };
     let res = router
@@ -173,8 +175,9 @@ fn amm_add_and_remove_liquidity() {
     assert_eq!(res.attributes.len(), 4);
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128(50),
         min_liquidity: Uint128(50),
-        max_token: Uint128(51),
+        max_token2: Uint128(51),
         expiration: None,
     };
     let res = router
@@ -200,8 +203,8 @@ fn amm_add_and_remove_liquidity() {
 
     let remove_liquidity_msg = ExecuteMsg::RemoveLiquidity {
         amount: Uint128(50),
-        min_native: Uint128(50),
-        min_token: Uint128(50),
+        min_token1: Uint128(50),
+        min_token2: Uint128(50),
         expiration: None,
     };
     let res = router
@@ -269,8 +272,9 @@ fn swap_tokens_happy_path() {
     println!("{:?}", res.attributes);
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128(100),
         min_liquidity: Uint128(100),
-        max_token: Uint128(100),
+        max_token2: Uint128(100),
         expiration: None,
     };
     let res = router
@@ -295,7 +299,8 @@ fn swap_tokens_happy_path() {
     router.set_bank_balance(&buyer, funds).unwrap();
 
     let add_liquidity_msg = ExecuteMsg::SwapToken1ForToken2 {
-        min_token: Uint128(9),
+        token1_amount: Uint128(10),
+        min_token2: Uint128(9),
         expiration: None,
     };
     let res = router
@@ -325,7 +330,8 @@ fn swap_tokens_happy_path() {
     assert_eq!(balance.amount.amount, Uint128(1990));
 
     let swap_msg = ExecuteMsg::SwapToken1ForToken2 {
-        min_token: Uint128(7),
+        token1_amount: Uint128(10),
+        min_token2: Uint128(7),
         expiration: None,
     };
     let res = router
@@ -368,8 +374,8 @@ fn swap_tokens_happy_path() {
     println!("{:?}", res.attributes);
 
     let swap_msg = ExecuteMsg::SwapToken2ForToken1 {
-        token_amount: Uint128(16),
-        min_native: Uint128(19),
+        token2_amount: Uint128(16),
+        min_token1: Uint128(19),
         expiration: None,
     };
     let res = router
@@ -465,8 +471,9 @@ fn token_to_token_swap() {
     println!("{:?}", res.attributes);
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128(100),
         min_liquidity: Uint128(100),
-        max_token: Uint128(100),
+        max_token2: Uint128(100),
         expiration: None,
     };
     router
@@ -492,8 +499,9 @@ fn token_to_token_swap() {
     println!("{:?}", res.attributes);
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128(100),
         min_liquidity: Uint128(100),
-        max_token: Uint128(100),
+        max_token2: Uint128(100),
         expiration: None,
     };
     router
