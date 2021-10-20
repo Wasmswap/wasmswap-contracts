@@ -12,6 +12,11 @@ pub struct InstantiateMsg {
     pub token2_address: Option<Addr>,
 }
 
+pub enum TokenSelect {
+    Token1,
+    Token2
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
