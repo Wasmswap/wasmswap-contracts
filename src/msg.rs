@@ -58,30 +58,31 @@ pub enum QueryMsg {
         address: String,
     },
     Info {},
-    NativeForTokenPrice {
-        native_amount: Uint128,
+    Token1ForToken2Price {
+        token1_amount: Uint128,
     },
-    TokenForNativePrice {
-        token_amount: Uint128,
+    Token2ForToken1Price {
+        token2_amount: Uint128,
     },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InfoResponse {
-    pub native_reserve: Uint128,
-    pub native_denom: String,
-    pub token_reserve: Uint128,
-    pub token_denom: String,
-    pub token_address: String,
+    pub token1_reserve: Uint128,
+    pub token1_denom: String,
+    pub token1_address: Option<String>,
+    pub token2_reserve: Uint128,
+    pub token2_denom: String,
+    pub token2_address: Option<String>,
     pub lp_token_supply: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct NativeForTokenPriceResponse {
-    pub token_amount: Uint128,
+pub struct Token1ForToken2PriceResponse {
+    pub token2_amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct TokenForNativePriceResponse {
-    pub native_amount: Uint128,
+pub struct Token2ForToken1PriceResponse {
+    pub token1_amount: Uint128,
 }

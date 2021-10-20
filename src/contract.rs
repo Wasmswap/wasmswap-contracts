@@ -10,8 +10,8 @@ use cw20_base::state::{BALANCES as LIQUIDITY_BALANCES, TOKEN_INFO as LIQUIDITY_I
 
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, InfoResponse, InstantiateMsg, NativeForTokenPriceResponse, QueryMsg,
-    TokenForNativePriceResponse,
+    ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, Token1ForToken2PriceResponse,
+    Token2ForToken1PriceResponse,
 };
 use crate::state::{Token, TOKEN1, TOKEN2};
 use cw_storage_plus::Item;
@@ -653,12 +653,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Balance { address } => to_binary(&query_balance(deps, address)?),
         QueryMsg::Info {} => to_binary(&query_info(deps)?),
-        QueryMsg::NativeForTokenPrice { native_amount } => {
-            to_binary(&query_native_for_token_price(deps, native_amount)?)
-        }
-        QueryMsg::TokenForNativePrice { token_amount } => {
-            to_binary(&query_token_for_native_price(deps, token_amount)?)
-        }
+        QueryMsg::Token1ForToken2Price {
+            token1_amount: native_amount,
+        } => to_binary(&query_native_for_token_price(deps, native_amount)?),
+        QueryMsg::Token2ForToken1Price {
+            token2_amount: token_amount,
+        } => to_binary(&query_token_for_native_price(deps, token_amount)?),
     }
 }
 
@@ -667,14 +667,12 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
     let token2 = TOKEN2.load(deps.storage)?;
     let liquidity = LIQUIDITY_INFO.load(deps.storage)?;
     Ok(InfoResponse {
-        native_reserve: token1.reserve,
-        native_denom: token1.denom,
-        token_reserve: token2.reserve,
-        token_denom: token2.denom,
-        token_address: token2
-            .address
-            .unwrap_or_else(|| Addr::unchecked("native"))
-            .into(),
+        token1_reserve: token1.reserve,
+        token1_denom: token1.denom,
+        token1_address: token1.address.map(|a| a.to_string()),
+        token2_reserve: token2.reserve,
+        token2_denom: token2.denom,
+        token2_address: token2.address.map(|a| a.to_string()),
         lp_token_supply: liquidity.total_supply,
     })
 }
@@ -682,21 +680,25 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
 pub fn query_native_for_token_price(
     deps: Deps,
     native_amount: Uint128,
-) -> StdResult<NativeForTokenPriceResponse> {
+) -> StdResult<Token1ForToken2PriceResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
     let token_amount = get_input_price(native_amount, token1.reserve, token2.reserve).unwrap();
-    Ok(NativeForTokenPriceResponse { token_amount })
+    Ok(Token1ForToken2PriceResponse {
+        token2_amount: token_amount,
+    })
 }
 
 pub fn query_token_for_native_price(
     deps: Deps,
     token_amount: Uint128,
-) -> StdResult<TokenForNativePriceResponse> {
+) -> StdResult<Token2ForToken1PriceResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
     let native_amount = get_input_price(token_amount, token2.reserve, token1.reserve).unwrap();
-    Ok(TokenForNativePriceResponse { native_amount })
+    Ok(Token2ForToken1PriceResponse {
+        token1_amount: native_amount,
+    })
 }
 
 #[cfg(test)]
@@ -726,11 +728,11 @@ mod tests {
         assert_eq!(res.messages.len(), 0);
 
         let info = query_info(deps.as_ref()).unwrap();
-        assert_eq!(info.native_reserve, Uint128(0));
-        assert_eq!(info.native_denom, "test");
-        assert_eq!(info.token_reserve, Uint128(0));
-        assert_eq!(info.token_denom, "coin");
-        assert_eq!(info.token_address, "token_address")
+        assert_eq!(info.token1_reserve, Uint128(0));
+        assert_eq!(info.token1_denom, "test");
+        assert_eq!(info.token2_reserve, Uint128(0));
+        assert_eq!(info.token2_denom, "coin");
+        assert_eq!(info.token2_address, Some("token_address".to_string()))
     }
 
     #[test]
@@ -794,8 +796,8 @@ mod tests {
         assert_eq!(res.attributes[2].value, "2");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_reserve, Uint128(2));
-        assert_eq!(info.token_reserve, Uint128(1));
+        assert_eq!(info.token1_reserve, Uint128(2));
+        assert_eq!(info.token2_reserve, Uint128(1));
 
         // Add more liquidity
         let info = mock_info("anyone", &coins(4, "test"));
@@ -813,8 +815,8 @@ mod tests {
         assert_eq!(res.attributes[2].value, "4");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_reserve, Uint128(6));
-        assert_eq!(info.token_reserve, Uint128(4));
+        assert_eq!(info.token1_reserve, Uint128(6));
+        assert_eq!(info.token2_reserve, Uint128(4));
 
         // Too low max_token
         let info = mock_info("anyone", &coins(100, "test"));
@@ -904,8 +906,8 @@ mod tests {
         assert_eq!(res.attributes[2].value, "100");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_reserve, Uint128(100));
-        assert_eq!(info.token_reserve, Uint128(50));
+        assert_eq!(info.token1_reserve, Uint128(100));
+        assert_eq!(info.token2_reserve, Uint128(50));
 
         // Remove half liquidity
         let info = mock_info("anyone", &vec![]);
@@ -921,8 +923,8 @@ mod tests {
         assert_eq!(res.attributes[2].value, "25");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_reserve, Uint128(50));
-        assert_eq!(info.token_reserve, Uint128(25));
+        assert_eq!(info.token1_reserve, Uint128(50));
+        assert_eq!(info.token2_reserve, Uint128(25));
 
         // Remove half again with not proper division
         let info = mock_info("anyone", &vec![]);
@@ -938,8 +940,8 @@ mod tests {
         assert_eq!(res.attributes[2].value, "12");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_reserve, Uint128(25));
-        assert_eq!(info.token_reserve, Uint128(13));
+        assert_eq!(info.token1_reserve, Uint128(25));
+        assert_eq!(info.token2_reserve, Uint128(13));
 
         // Remove more than owned
         let info = mock_info("anyone", &vec![]);
@@ -972,8 +974,8 @@ mod tests {
         assert_eq!(res.attributes[2].value, "13");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_reserve, Uint128(0));
-        assert_eq!(info.token_reserve, Uint128(0));
+        assert_eq!(info.token1_reserve, Uint128(0));
+        assert_eq!(info.token2_reserve, Uint128(0));
 
         // Expired Message
         let info = mock_info("anyone", &coins(100, "test"));
@@ -1046,8 +1048,8 @@ mod tests {
         assert_eq!(res.attributes[1].value, "9");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_reserve, Uint128(110));
-        assert_eq!(info.token_reserve, Uint128(91));
+        assert_eq!(info.token1_reserve, Uint128(110));
+        assert_eq!(info.token2_reserve, Uint128(91));
 
         // Second purchase at higher price
         let info = mock_info("anyone", &coins(10, "test"));
@@ -1062,8 +1064,8 @@ mod tests {
         assert_eq!(res.attributes[1].value, "7");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_reserve, Uint128(120));
-        assert_eq!(info.token_reserve, Uint128(84));
+        assert_eq!(info.token1_reserve, Uint128(120));
+        assert_eq!(info.token2_reserve, Uint128(84));
 
         // min_token error
         let info = mock_info("anyone", &coins(10, "test"));
@@ -1130,8 +1132,8 @@ mod tests {
         assert_eq!(res.attributes[1].value, "9");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.token_reserve, Uint128(110));
-        assert_eq!(info.native_reserve, Uint128(91));
+        assert_eq!(info.token2_reserve, Uint128(110));
+        assert_eq!(info.token1_reserve, Uint128(91));
 
         // Second purchase at higher price
         let info = mock_info("anyone", &vec![]);
@@ -1146,8 +1148,8 @@ mod tests {
         assert_eq!(res.attributes[1].value, "7");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.token_reserve, Uint128(120));
-        assert_eq!(info.native_reserve, Uint128(84));
+        assert_eq!(info.token2_reserve, Uint128(120));
+        assert_eq!(info.token1_reserve, Uint128(84));
 
         // min_token error
         let info = mock_info("anyone", &vec![]);
@@ -1202,20 +1204,20 @@ mod tests {
         let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // Query Native for Token Price
-        let msg = QueryMsg::NativeForTokenPrice {
-            native_amount: Uint128(10),
+        let msg = QueryMsg::Token1ForToken2Price {
+            token1_amount: Uint128(10),
         };
         let data = query(deps.as_ref(), mock_env(), msg).unwrap();
-        let res: NativeForTokenPriceResponse = from_binary(&data).unwrap();
-        assert_eq!(res.token_amount, Uint128(4));
+        let res: Token1ForToken2PriceResponse = from_binary(&data).unwrap();
+        assert_eq!(res.token2_amount, Uint128(4));
 
         // Query Token for Native Price
-        let msg = QueryMsg::TokenForNativePrice {
-            token_amount: Uint128(10),
+        let msg = QueryMsg::Token2ForToken1Price {
+            token2_amount: Uint128(10),
         };
         let data = query(deps.as_ref(), mock_env(), msg).unwrap();
-        let res: TokenForNativePriceResponse = from_binary(&data).unwrap();
-        assert_eq!(res.native_amount, Uint128(16));
+        let res: Token2ForToken1PriceResponse = from_binary(&data).unwrap();
+        assert_eq!(res.token1_amount, Uint128(16));
     }
 
     #[test]
@@ -1254,7 +1256,7 @@ mod tests {
         assert_eq!(res.attributes[1].value, "9");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.native_reserve, Uint128(110));
-        assert_eq!(info.token_reserve, Uint128(91));
+        assert_eq!(info.token1_reserve, Uint128(110));
+        assert_eq!(info.token2_reserve, Uint128(91));
     }
 }
