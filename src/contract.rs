@@ -126,9 +126,9 @@ pub fn execute(
             info,
             _env,
             output_amm_address,
-            TokenSelect::Token1,
-            input_token_amount,
             TokenSelect::Token2,
+            input_token_amount,
+            TokenSelect::Token1,
             output_min_token,
             expiration,
         ),
@@ -594,8 +594,14 @@ pub fn execute_multi_contract_swap(
 ) -> Result<Response, ContractError> {
     check_expiration(&expiration, &_env.block)?;
 
-    let token2 = TOKEN2.load(deps.storage)?;
-    let token1 = TOKEN1.load(deps.storage)?;
+    let token2 = match input_token {
+        TokenSelect::Token1 => TOKEN1,
+        TokenSelect::Token2 => TOKEN2,
+    }.load(deps.storage)?;
+    let token1 = match input_token {
+        TokenSelect::Token1 => TOKEN2,
+        TokenSelect::Token2 => TOKEN1,
+    }.load(deps.storage)?;
     let native_to_transfer = get_input_price(input_token_amount, token2.reserve, token1.reserve)?;
 
     // Transfer tokens to contract
