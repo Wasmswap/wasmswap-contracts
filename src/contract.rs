@@ -9,10 +9,7 @@ use cw20_base::contract::{
 use cw20_base::state::{BALANCES as LIQUIDITY_BALANCES, TOKEN_INFO as LIQUIDITY_INFO};
 
 use crate::error::ContractError;
-use crate::msg::{
-    ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, Token1ForToken2PriceResponse,
-    Token2ForToken1PriceResponse,
-};
+use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, Token1ForToken2PriceResponse, Token2ForToken1PriceResponse, TokenSelect};
 use crate::state::{Token, TOKEN1, TOKEN2};
 use cw_storage_plus::Item;
 
@@ -124,12 +121,14 @@ pub fn execute(
             input_token_amount,
             output_min_token,
             expiration,
-        } => execute_token_for_token_swap(
+        } => execute_multi_contract_swap(
             deps,
             info,
             _env,
             output_amm_address,
+            TokenSelect::Token1,
             input_token_amount,
+            TokenSelect::Token2,
             output_min_token,
             expiration,
         ),
@@ -582,19 +581,21 @@ pub fn execute_swap(
     })
 }
 
-pub fn execute_token_for_token_swap(
+pub fn execute_multi_contract_swap(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
     output_amm_address: Addr,
+    input_token: TokenSelect,
     input_token_amount: Uint128,
+    output_token: TokenSelect,
     output_min_token: Uint128,
     expiration: Option<Expiration>,
 ) -> Result<Response, ContractError> {
     check_expiration(&expiration, &_env.block)?;
 
-    let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
+    let token1 = TOKEN1.load(deps.storage)?;
     let native_to_transfer = get_input_price(input_token_amount, token2.reserve, token1.reserve)?;
 
     // Transfer tokens to contract
