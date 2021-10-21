@@ -14,7 +14,7 @@ pub struct InstantiateMsg {
 
 pub enum TokenSelect {
     Token1,
-    Token2
+    Token2,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -9,7 +9,10 @@ use cw20_base::contract::{
 use cw20_base::state::{BALANCES as LIQUIDITY_BALANCES, TOKEN_INFO as LIQUIDITY_INFO};
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, Token1ForToken2PriceResponse, Token2ForToken1PriceResponse, TokenSelect};
+use crate::msg::{
+    ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, Token1ForToken2PriceResponse,
+    Token2ForToken1PriceResponse, TokenSelect,
+};
 use crate::state::{Token, TOKEN1, TOKEN2};
 use cw_storage_plus::Item;
 
@@ -343,6 +346,26 @@ fn get_cw20_transfer_from_msg(
     Ok(cw20_transfer_cosmos_msg)
 }
 
+fn get_cw20_increase_allowance_msg(
+    token_addr: &Addr,
+    spender: &Addr,
+    amount: Uint128,
+    expires: Option<Expiration>,
+) -> StdResult<CosmosMsg> {
+    // create transfer cw20 msg
+    let increase_allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: spender.to_string(),
+        amount,
+        expires,
+    };
+    let exec_allowance = WasmMsg::Execute {
+        contract_addr: token_addr.into(),
+        msg: to_binary(&increase_allowance_msg)?,
+        send: vec![],
+    };
+    Ok(exec_allowance.into())
+}
+
 pub fn execute_remove_liquidity(
     deps: DepsMut,
     info: MessageInfo,
@@ -586,31 +609,57 @@ pub fn execute_multi_contract_swap(
     info: MessageInfo,
     _env: Env,
     output_amm_address: Addr,
-    input_token: TokenSelect,
+    input_token_enum: TokenSelect,
     input_token_amount: Uint128,
-    output_token: TokenSelect,
+    output_token_enum: TokenSelect,
     output_min_token: Uint128,
     expiration: Option<Expiration>,
 ) -> Result<Response, ContractError> {
     check_expiration(&expiration, &_env.block)?;
 
-    let token2 = match input_token {
+    let input_token_state = match input_token_enum {
         TokenSelect::Token1 => TOKEN1,
         TokenSelect::Token2 => TOKEN2,
-    }.load(deps.storage)?;
-    let token1 = match input_token {
+    };
+    let input_token = input_token_state.load(deps.storage)?;
+    let transfer_token_state = match input_token_enum {
         TokenSelect::Token1 => TOKEN2,
         TokenSelect::Token2 => TOKEN1,
-    }.load(deps.storage)?;
-    let native_to_transfer = get_input_price(input_token_amount, token2.reserve, token1.reserve)?;
+    };
+    let transfer_token = transfer_token_state.load(deps.storage)?;
+
+    // validate input_amount if native input token
+    match input_token.address {
+        Some(_) => Ok(()),
+        None => validate_native_input_amount(&info.funds, input_token_amount, &input_token.denom),
+    }?;
+
+    let amount_to_transfer = get_input_price(
+        input_token_amount,
+        input_token.reserve,
+        transfer_token.reserve,
+    )?;
 
     // Transfer tokens to contract
-    let cw20_transfer_cosmos_msg = get_cw20_transfer_from_msg(
-        &info.sender,
-        &_env.contract.address,
-        &token2.address.ok_or(ContractError::NoneError {})?,
-        input_token_amount,
-    )?;
+    let mut msgs: Vec<CosmosMsg> = vec![];
+    if let Some(addr) = &input_token.address {
+        msgs.push(get_cw20_transfer_from_msg(
+            &info.sender,
+            &_env.contract.address,
+            addr,
+            input_token_amount,
+        )?)
+    };
+
+    // Increase allowance of output contract is transfer token is cw20
+    if let Some(addr) = &transfer_token.address {
+        msgs.push(get_cw20_increase_allowance_msg(
+            addr,
+            &output_amm_address,
+            amount_to_transfer,
+            Some(Expiration::AtHeight(_env.block.height + 1)),
+        )?)
+    };
 
     let swap_msg = ExecuteMsg::SwapNativeForTokenTo {
         recipient: info.sender,
@@ -618,38 +667,43 @@ pub fn execute_multi_contract_swap(
         expiration,
     };
 
-    let swap_with_output_amm_msg: CosmosMsg = WasmMsg::Execute {
-        contract_addr: output_amm_address.into(),
-        msg: to_binary(&swap_msg)?,
-        send: vec![Coin {
-            denom: token1.denom,
-            amount: native_to_transfer,
-        }],
-    }
-    .into();
+    msgs.push(
+        WasmMsg::Execute {
+            contract_addr: output_amm_address.into(),
+            msg: to_binary(&swap_msg)?,
+            send: match transfer_token.address {
+                Some(_) => vec![],
+                None => vec![Coin {
+                    denom: transfer_token.denom,
+                    amount: amount_to_transfer,
+                }],
+            },
+        }
+        .into(),
+    );
 
-    TOKEN1.update(deps.storage, |mut token1| -> Result<_, ContractError> {
-        token1.reserve = token1
-            .reserve
-            .checked_sub(native_to_transfer)
-            .map_err(StdError::overflow)?;
-        Ok(token1)
-    })?;
-
-    TOKEN2.update(deps.storage, |mut token2| -> Result<_, ContractError> {
-        token2.reserve = token2
+    input_token_state.update(deps.storage, |mut token| -> Result<_, ContractError> {
+        token.reserve = token
             .reserve
             .checked_add(input_token_amount)
             .map_err(StdError::overflow)?;
-        Ok(token2)
+        Ok(token)
+    })?;
+
+    transfer_token_state.update(deps.storage, |mut token| -> Result<_, ContractError> {
+        token.reserve = token
+            .reserve
+            .checked_sub(amount_to_transfer)
+            .map_err(StdError::overflow)?;
+        Ok(token)
     })?;
 
     Ok(Response {
-        messages: vec![cw20_transfer_cosmos_msg, swap_with_output_amm_msg],
+        messages: msgs,
         submessages: vec![],
         attributes: vec![
             attr("input_token_amount", input_token_amount),
-            attr("native_transferred", native_to_transfer),
+            attr("native_transferred", amount_to_transfer),
         ],
         data: None,
     })
