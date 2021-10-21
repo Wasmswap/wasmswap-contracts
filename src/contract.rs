@@ -148,11 +148,11 @@ pub fn execute(
             &info,
             input_amount,
             _env,
-            match input_token{
+            match input_token {
                 TokenSelect::Token1 => TOKEN1,
                 TokenSelect::Token2 => TOKEN2,
             },
-            match input_token{
+            match input_token {
                 TokenSelect::Token1 => TOKEN2,
                 TokenSelect::Token2 => TOKEN1,
             },
@@ -614,6 +614,7 @@ pub fn execute_swap(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn execute_multi_contract_swap(
     deps: DepsMut,
     info: MessageInfo,
@@ -673,8 +674,8 @@ pub fn execute_multi_contract_swap(
 
     let swap_msg = ExecuteMsg::SwapTo {
         input_token: match output_token_enum {
-            TokenSelect::Token1=> TokenSelect::Token2,
-            TokenSelect::Token2=> TokenSelect::Token1,
+            TokenSelect::Token1 => TokenSelect::Token2,
+            TokenSelect::Token2 => TokenSelect::Token1,
         },
         input_amount: amount_to_transfer,
         recipient: info.sender,

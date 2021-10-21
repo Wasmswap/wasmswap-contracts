@@ -149,15 +149,17 @@
     {
       "type": "object",
       "required": [
-        "swap_token_for_token"
+        "multi_contract_swap"
       ],
       "properties": {
-        "swap_token_for_token": {
+        "multi_contract_swap": {
           "type": "object",
           "required": [
+            "input_token",
             "input_token_amount",
             "output_amm_address",
-            "output_min_token"
+            "output_min_token",
+            "output_token"
           ],
           "properties": {
             "expiration": {
@@ -170,6 +172,9 @@
                 }
               ]
             },
+            "input_token": {
+              "$ref": "#/definitions/TokenSelect"
+            },
             "input_token_amount": {
               "$ref": "#/definitions/Uint128"
             },
@@ -178,6 +183,9 @@
             },
             "output_min_token": {
               "$ref": "#/definitions/Uint128"
+            },
+            "output_token": {
+              "$ref": "#/definitions/TokenSelect"
             }
           }
         }
@@ -187,12 +195,14 @@
     {
       "type": "object",
       "required": [
-        "swap_native_for_token_to"
+        "swap_to"
       ],
       "properties": {
-        "swap_native_for_token_to": {
+        "swap_to": {
           "type": "object",
           "required": [
+            "input_amount",
+            "input_token",
             "min_token",
             "recipient"
           ],
@@ -206,6 +216,12 @@
                   "type": "null"
                 }
               ]
+            },
+            "input_amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "input_token": {
+              "$ref": "#/definitions/TokenSelect"
             },
             "min_token": {
               "$ref": "#/definitions/Uint128"
@@ -276,6 +292,13 @@
         {
           "$ref": "#/definitions/Uint64"
         }
+      ]
+    },
+    "TokenSelect": {
+      "type": "string",
+      "enum": [
+        "Token1",
+        "Token2"
       ]
     },
     "Uint128": {
