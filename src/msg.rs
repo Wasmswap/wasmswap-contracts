@@ -13,6 +13,12 @@ pub struct InstantiateMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub enum TokenSelect {
+    Token1,
+    Token2,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     AddLiquidity {
@@ -37,13 +43,17 @@ pub enum ExecuteMsg {
         min_token1: Uint128,
         expiration: Option<Expiration>,
     },
-    SwapTokenForToken {
+    MultiContractSwap {
         output_amm_address: Addr,
+        input_token: TokenSelect,
+        output_token: TokenSelect,
         input_token_amount: Uint128,
         output_min_token: Uint128,
         expiration: Option<Expiration>,
     },
-    SwapNativeForTokenTo {
+    SwapTo {
+        input_token: TokenSelect,
+        input_amount: Uint128,
         recipient: Addr,
         min_token: Uint128,
         expiration: Option<Expiration>,

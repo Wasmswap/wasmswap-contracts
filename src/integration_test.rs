@@ -5,7 +5,7 @@ use cosmwasm_std::{coins, from_binary, Addr, BalanceResponse, BankQuery, Coin, E
 use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg};
 use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
 
-use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, TokenSelect};
 
 fn mock_app() -> App {
     let env = mock_env();
@@ -400,7 +400,9 @@ fn swap_tokens_happy_path() {
     let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
     assert_eq!(owner_balance, Uint128(4900));
 
-    let swap_msg = ExecuteMsg::SwapNativeForTokenTo {
+    let swap_msg = ExecuteMsg::SwapTo {
+        input_token: TokenSelect::Token1,
+        input_amount: Uint128(10),
         recipient: owner.clone(),
         min_token: Uint128(3),
         expiration: None,
@@ -722,8 +724,10 @@ fn token_to_token_swap() {
         .unwrap();
     println!("{:?}", res.attributes);
 
-    let swap_msg = ExecuteMsg::SwapTokenForToken {
+    let swap_msg = ExecuteMsg::MultiContractSwap {
         output_amm_address: amm2.clone(),
+        input_token: TokenSelect::Token2,
+        output_token: TokenSelect::Token2,
         input_token_amount: Uint128(10),
         output_min_token: Uint128(8),
         expiration: None,
@@ -758,8 +762,10 @@ fn token_to_token_swap() {
         .unwrap();
     println!("{:?}", res.attributes);
 
-    let swap_msg = ExecuteMsg::SwapTokenForToken {
+    let swap_msg = ExecuteMsg::MultiContractSwap {
         output_amm_address: amm1.clone(),
+        input_token: TokenSelect::Token2,
+        output_token: TokenSelect::Token2,
         input_token_amount: Uint128(10),
         output_min_token: Uint128(1),
         expiration: None,
