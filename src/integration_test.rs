@@ -5,7 +5,7 @@ use cosmwasm_std::{coins, from_binary, Addr, BalanceResponse, BankQuery, Coin, E
 use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg};
 use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
 
-use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, TokenSelect};
 
 fn mock_app() -> App {
     let env = mock_env();
@@ -401,6 +401,8 @@ fn swap_tokens_happy_path() {
     assert_eq!(owner_balance, Uint128(4900));
 
     let swap_msg = ExecuteMsg::SwapTo {
+        input_token: TokenSelect::Token1,
+        input_amount: Uint128(10),
         recipient: owner.clone(),
         min_token: Uint128(3),
         expiration: None,

@@ -12,6 +12,7 @@ pub struct InstantiateMsg {
     pub token2_address: Option<Addr>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum TokenSelect {
     Token1,
     Token2,
@@ -49,6 +50,8 @@ pub enum ExecuteMsg {
         expiration: Option<Expiration>,
     },
     SwapTo {
+        input_token: TokenSelect,
+        input_amount: Uint128,
         recipient: Addr,
         min_token: Uint128,
         expiration: Option<Expiration>,

@@ -136,6 +136,8 @@ pub fn execute(
             expiration,
         ),
         ExecuteMsg::SwapTo {
+            input_token,
+            input_amount,
             recipient,
             min_token,
             expiration,
@@ -662,6 +664,11 @@ pub fn execute_multi_contract_swap(
     };
 
     let swap_msg = ExecuteMsg::SwapTo {
+        input_token: match output_token_enum {
+            TokenSelect::Token1=> TokenSelect::Token2,
+            TokenSelect::Token2=> TokenSelect::Token1,
+        },
+        input_amount: amount_to_transfer,
         recipient: info.sender,
         min_token: output_min_token,
         expiration,
@@ -1307,6 +1314,8 @@ mod tests {
         // Swap tokens
         let info = mock_info("anyone", &coins(10, "test"));
         let msg = ExecuteMsg::SwapTo {
+            input_token: TokenSelect::Token1,
+            input_amount: Uint128(10),
             recipient: Addr::unchecked("test"),
             min_token: Uint128(9),
             expiration: None,
