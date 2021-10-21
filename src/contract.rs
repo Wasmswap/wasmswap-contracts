@@ -131,7 +131,7 @@ pub fn execute(
             output_amm_address,
             TokenSelect::Token2,
             input_token_amount,
-            TokenSelect::Token1,
+            TokenSelect::Token2,
             output_min_token,
             expiration,
         ),
@@ -144,10 +144,16 @@ pub fn execute(
         } => execute_swap(
             deps,
             &info,
-            info.funds[0].amount,
+            input_amount,
             _env,
-            TOKEN1,
-            TOKEN2,
+            match input_token{
+                TokenSelect::Token1 => TOKEN1,
+                TokenSelect::Token2 => TOKEN2,
+            },
+            match input_token{
+                TokenSelect::Token1 => TOKEN2,
+                TokenSelect::Token2 => TOKEN1,
+            },
             &recipient,
             min_token,
             expiration,
