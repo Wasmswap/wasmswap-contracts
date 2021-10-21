@@ -119,8 +119,10 @@ pub fn execute(
             min_token1,
             expiration,
         ),
-        ExecuteMsg::SwapTokenForToken {
+        ExecuteMsg::MultiContractSwap {
             output_amm_address,
+            input_token,
+            output_token,
             input_token_amount,
             output_min_token,
             expiration,
@@ -129,9 +131,9 @@ pub fn execute(
             info,
             _env,
             output_amm_address,
-            TokenSelect::Token2,
+            input_token,
             input_token_amount,
-            TokenSelect::Token2,
+            output_token,
             output_min_token,
             expiration,
         ),

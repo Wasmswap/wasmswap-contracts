@@ -43,8 +43,10 @@ pub enum ExecuteMsg {
         min_token1: Uint128,
         expiration: Option<Expiration>,
     },
-    SwapTokenForToken {
+    MultiContractSwap {
         output_amm_address: Addr,
+        input_token: TokenSelect,
+        output_token: TokenSelect,
         input_token_amount: Uint128,
         output_min_token: Uint128,
         expiration: Option<Expiration>,

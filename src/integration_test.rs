@@ -724,8 +724,10 @@ fn token_to_token_swap() {
         .unwrap();
     println!("{:?}", res.attributes);
 
-    let swap_msg = ExecuteMsg::SwapTokenForToken {
+    let swap_msg = ExecuteMsg::MultiContractSwap {
         output_amm_address: amm2.clone(),
+        input_token: TokenSelect::Token2,
+        output_token: TokenSelect::Token2,
         input_token_amount: Uint128(10),
         output_min_token: Uint128(8),
         expiration: None,
@@ -760,8 +762,10 @@ fn token_to_token_swap() {
         .unwrap();
     println!("{:?}", res.attributes);
 
-    let swap_msg = ExecuteMsg::SwapTokenForToken {
+    let swap_msg = ExecuteMsg::MultiContractSwap {
         output_amm_address: amm1.clone(),
+        input_token: TokenSelect::Token2,
+        output_token: TokenSelect::Token2,
         input_token_amount: Uint128(10),
         output_min_token: Uint128(1),
         expiration: None,
