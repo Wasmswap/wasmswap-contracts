@@ -400,7 +400,7 @@ fn swap_tokens_happy_path() {
     let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
     assert_eq!(owner_balance, Uint128(4900));
 
-    let swap_msg = ExecuteMsg::SwapNativeForTokenTo {
+    let swap_msg = ExecuteMsg::SwapTo {
         recipient: owner.clone(),
         min_token: Uint128(3),
         expiration: None,

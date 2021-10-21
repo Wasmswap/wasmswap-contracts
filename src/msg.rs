@@ -48,7 +48,7 @@ pub enum ExecuteMsg {
         output_min_token: Uint128,
         expiration: Option<Expiration>,
     },
-    SwapNativeForTokenTo {
+    SwapTo {
         recipient: Addr,
         min_token: Uint128,
         expiration: Option<Expiration>,
