@@ -54,7 +54,7 @@ pub fn instantiate(
                 minter: _env.contract.address.into(),
                 cap: None,
             }),
-            marketing: None
+            marketing: None,
         },
     )?;
 
@@ -307,13 +307,12 @@ pub fn execute_add_liquidity(
     )?;
 
     Ok(Response::new()
-           .add_messages(cw20_transfer_msgs)
-           .add_attributes(vec![
+        .add_messages(cw20_transfer_msgs)
+        .add_attributes(vec![
             attr("native_amount", info.funds[0].clone().amount),
             attr("token_amount", token_amount),
             attr("liquidity_received", liquidity_amount),
-            ])
-    )
+        ]))
 }
 
 fn validate_native_input_amount(
@@ -349,7 +348,7 @@ fn get_cw20_transfer_from_msg(
     let exec_cw20_transfer = WasmMsg::Execute {
         contract_addr: token_addr.into(),
         msg: to_binary(&transfer_cw20_msg)?,
-        funds: vec![]
+        funds: vec![],
     };
     let cw20_transfer_cosmos_msg: CosmosMsg = exec_cw20_transfer.into();
     Ok(cw20_transfer_cosmos_msg)
@@ -370,7 +369,7 @@ fn get_cw20_increase_allowance_msg(
     let exec_allowance = WasmMsg::Execute {
         contract_addr: token_addr.into(),
         msg: to_binary(&increase_allowance_msg)?,
-        funds: vec![]
+        funds: vec![],
     };
     Ok(exec_allowance.into())
 }
@@ -450,13 +449,12 @@ pub fn execute_remove_liquidity(
     execute_burn(deps, _env, info, amount)?;
 
     Ok(Response::new()
-           .add_messages(vec![token1_transfer_msg, token2_transfer_msg])
-           .add_attributes(vec![
+        .add_messages(vec![token1_transfer_msg, token2_transfer_msg])
+        .add_attributes(vec![
             attr("liquidity_burned", amount),
             attr("native_returned", native_amount),
             attr("token_returned", token_amount),
-        ])
-    )
+        ]))
 }
 
 fn get_cw20_transfer_to_msg(
@@ -472,7 +470,7 @@ fn get_cw20_transfer_to_msg(
     let exec_cw20_transfer = WasmMsg::Execute {
         contract_addr: token_addr.into(),
         msg: to_binary(&transfer_cw20_msg)?,
-        funds: vec![]
+        funds: vec![],
     };
     let cw20_transfer_cosmos_msg: CosmosMsg = exec_cw20_transfer.into();
     Ok(cw20_transfer_cosmos_msg)
@@ -574,8 +572,8 @@ pub fn execute_swap(
 
     // Create transfer to message
     transfer_msgs.push(match output_token.address {
-        Some(addr) => get_cw20_transfer_to_msg(&recipient, &addr, token_bought)?,
-        None => get_bank_transfer_to_msg(&recipient, &output_token.denom, token_bought),
+        Some(addr) => get_cw20_transfer_to_msg(recipient, &addr, token_bought)?,
+        None => get_bank_transfer_to_msg(recipient, &output_token.denom, token_bought),
     });
 
     input_token_item.update(
@@ -601,12 +599,11 @@ pub fn execute_swap(
     )?;
 
     Ok(Response::new()
-           .add_messages(transfer_msgs)
-           .add_attributes(vec![
+        .add_messages(transfer_msgs)
+        .add_attributes(vec![
             attr("native_sold", input_amount),
             attr("token_bought", token_bought),
-        ])
-    )
+        ]))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -709,13 +706,10 @@ pub fn execute_multi_contract_swap(
         Ok(token)
     })?;
 
-    Ok(Response::new()
-           .add_messages(msgs)
-           .add_attributes(vec![
-            attr("input_token_amount", input_token_amount),
-            attr("native_transferred", amount_to_transfer),
-        ])
-    )
+    Ok(Response::new().add_messages(msgs).add_attributes(vec![
+        attr("input_token_amount", input_token_amount),
+        attr("native_transferred", amount_to_transfer),
+    ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -807,10 +801,12 @@ mod tests {
 
     #[test]
     fn test_get_liquidity_amount() {
-        let liquidity = get_liquidity_amount(Uint128::new(100), Uint128::zero(), Uint128::zero()).unwrap();
+        let liquidity =
+            get_liquidity_amount(Uint128::new(100), Uint128::zero(), Uint128::zero()).unwrap();
         assert_eq!(liquidity, Uint128::new(100));
 
-        let liquidity = get_liquidity_amount(Uint128::new(100), Uint128::new(50), Uint128::new(25)).unwrap();
+        let liquidity =
+            get_liquidity_amount(Uint128::new(100), Uint128::new(50), Uint128::new(25)).unwrap();
         assert_eq!(liquidity, Uint128::new(200));
     }
 
@@ -1070,11 +1066,13 @@ mod tests {
         );
 
         // No input reserve error
-        let err = get_input_price(Uint128::new(10), Uint128::new(0), Uint128::new(100)).unwrap_err();
+        let err =
+            get_input_price(Uint128::new(10), Uint128::new(0), Uint128::new(100)).unwrap_err();
         assert_eq!(err, ContractError::NoLiquidityError {});
 
         // No output reserve error
-        let err = get_input_price(Uint128::new(10), Uint128::new(100), Uint128::new(0)).unwrap_err();
+        let err =
+            get_input_price(Uint128::new(10), Uint128::new(100), Uint128::new(0)).unwrap_err();
         assert_eq!(err, ContractError::NoLiquidityError {});
 
         // No reserve error
