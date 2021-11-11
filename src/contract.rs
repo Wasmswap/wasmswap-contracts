@@ -26,7 +26,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let token1 = Token {
-        reserve: Uint128(0),
+        reserve: Uint128::zero(),
         denom: msg.token1_denom,
         address: msg.token1_address,
     };
@@ -36,7 +36,7 @@ pub fn instantiate(
     let token2 = Token {
         address: msg.token2_address,
         denom: msg.token2_denom,
-        reserve: Uint128(0),
+        reserve: Uint128::zero(),
     };
 
     TOKEN2.save(deps.storage, &token2)?;
@@ -54,6 +54,7 @@ pub fn instantiate(
                 minter: _env.contract.address.into(),
                 cap: None,
             }),
+            marketing: None,
         },
     )?;
 
@@ -183,7 +184,7 @@ fn get_liquidity_amount(
     liquidity_supply: Uint128,
     native_reserve: Uint128,
 ) -> Result<Uint128, ContractError> {
-    if liquidity_supply == Uint128(0) {
+    if liquidity_supply == Uint128::zero() {
         Ok(native_amount)
     } else {
         Ok(native_amount
@@ -201,7 +202,7 @@ fn get_token_amount(
     token_reserve: Uint128,
     native_reserve: Uint128,
 ) -> Result<Uint128, StdError> {
-    if liquidity_supply == Uint128(0) {
+    if liquidity_supply == Uint128::zero() {
         Ok(max_token)
     } else {
         Ok(native_amount
@@ -209,7 +210,7 @@ fn get_token_amount(
             .map_err(StdError::overflow)?
             .checked_div(native_reserve)
             .map_err(StdError::divide_by_zero)?
-            .checked_add(Uint128(1))
+            .checked_add(Uint128::new(1))
             .map_err(StdError::overflow)?)
     }
 }
@@ -305,16 +306,13 @@ pub fn execute_add_liquidity(
         liquidity_amount,
     )?;
 
-    Ok(Response {
-        messages: cw20_transfer_msgs,
-        submessages: vec![],
-        attributes: vec![
+    Ok(Response::new()
+        .add_messages(cw20_transfer_msgs)
+        .add_attributes(vec![
             attr("native_amount", info.funds[0].clone().amount),
             attr("token_amount", token_amount),
             attr("liquidity_received", liquidity_amount),
-        ],
-        data: None,
-    })
+        ]))
 }
 
 fn validate_native_input_amount(
@@ -350,7 +348,7 @@ fn get_cw20_transfer_from_msg(
     let exec_cw20_transfer = WasmMsg::Execute {
         contract_addr: token_addr.into(),
         msg: to_binary(&transfer_cw20_msg)?,
-        send: vec![],
+        funds: vec![],
     };
     let cw20_transfer_cosmos_msg: CosmosMsg = exec_cw20_transfer.into();
     Ok(cw20_transfer_cosmos_msg)
@@ -371,7 +369,7 @@ fn get_cw20_increase_allowance_msg(
     let exec_allowance = WasmMsg::Execute {
         contract_addr: token_addr.into(),
         msg: to_binary(&increase_allowance_msg)?,
-        send: vec![],
+        funds: vec![],
     };
     Ok(exec_allowance.into())
 }
@@ -450,16 +448,13 @@ pub fn execute_remove_liquidity(
 
     execute_burn(deps, _env, info, amount)?;
 
-    Ok(Response {
-        messages: vec![token1_transfer_msg, token2_transfer_msg],
-        submessages: vec![],
-        attributes: vec![
+    Ok(Response::new()
+        .add_messages(vec![token1_transfer_msg, token2_transfer_msg])
+        .add_attributes(vec![
             attr("liquidity_burned", amount),
             attr("native_returned", native_amount),
             attr("token_returned", token_amount),
-        ],
-        data: None,
-    })
+        ]))
 }
 
 fn get_cw20_transfer_to_msg(
@@ -475,7 +470,7 @@ fn get_cw20_transfer_to_msg(
     let exec_cw20_transfer = WasmMsg::Execute {
         contract_addr: token_addr.into(),
         msg: to_binary(&transfer_cw20_msg)?,
-        send: vec![],
+        funds: vec![],
     };
     let cw20_transfer_cosmos_msg: CosmosMsg = exec_cw20_transfer.into();
     Ok(cw20_transfer_cosmos_msg)
@@ -499,18 +494,18 @@ fn get_input_price(
     input_reserve: Uint128,
     output_reserve: Uint128,
 ) -> Result<Uint128, ContractError> {
-    if input_reserve == Uint128(0) || output_reserve == Uint128(0) {
+    if input_reserve == Uint128::zero() || output_reserve == Uint128::zero() {
         return Err(ContractError::NoLiquidityError {});
     };
 
     let input_amount_with_fee = input_amount
-        .checked_mul(Uint128(997))
+        .checked_mul(Uint128::new(997))
         .map_err(StdError::overflow)?;
     let numerator = input_amount_with_fee
         .checked_mul(output_reserve)
         .map_err(StdError::overflow)?;
     let denominator = input_reserve
-        .checked_mul(Uint128(1000))
+        .checked_mul(Uint128::new(1000))
         .map_err(StdError::overflow)?
         .checked_add(input_amount_with_fee)
         .map_err(StdError::overflow)?;
@@ -577,8 +572,8 @@ pub fn execute_swap(
 
     // Create transfer to message
     transfer_msgs.push(match output_token.address {
-        Some(addr) => get_cw20_transfer_to_msg(&recipient, &addr, token_bought)?,
-        None => get_bank_transfer_to_msg(&recipient, &output_token.denom, token_bought),
+        Some(addr) => get_cw20_transfer_to_msg(recipient, &addr, token_bought)?,
+        None => get_bank_transfer_to_msg(recipient, &output_token.denom, token_bought),
     });
 
     input_token_item.update(
@@ -603,15 +598,12 @@ pub fn execute_swap(
         },
     )?;
 
-    Ok(Response {
-        messages: transfer_msgs,
-        submessages: vec![],
-        attributes: vec![
+    Ok(Response::new()
+        .add_messages(transfer_msgs)
+        .add_attributes(vec![
             attr("native_sold", input_amount),
             attr("token_bought", token_bought),
-        ],
-        data: None,
-    })
+        ]))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -687,7 +679,7 @@ pub fn execute_multi_contract_swap(
         WasmMsg::Execute {
             contract_addr: output_amm_address.into(),
             msg: to_binary(&swap_msg)?,
-            send: match transfer_token.address {
+            funds: match transfer_token.address {
                 Some(_) => vec![],
                 None => vec![Coin {
                     denom: transfer_token.denom,
@@ -714,15 +706,10 @@ pub fn execute_multi_contract_swap(
         Ok(token)
     })?;
 
-    Ok(Response {
-        messages: msgs,
-        submessages: vec![],
-        attributes: vec![
-            attr("input_token_amount", input_token_amount),
-            attr("native_transferred", amount_to_transfer),
-        ],
-        data: None,
-    })
+    Ok(Response::new().add_messages(msgs).add_attributes(vec![
+        attr("input_token_amount", input_token_amount),
+        attr("native_transferred", amount_to_transfer),
+    ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -790,7 +777,7 @@ mod tests {
 
     #[test]
     fn proper_initialization() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let msg = InstantiateMsg {
             token1_denom: "test".to_string(),
@@ -805,48 +792,50 @@ mod tests {
         assert_eq!(res.messages.len(), 0);
 
         let info = query_info(deps.as_ref()).unwrap();
-        assert_eq!(info.token1_reserve, Uint128(0));
+        assert_eq!(info.token1_reserve, Uint128::zero());
         assert_eq!(info.token1_denom, "test");
-        assert_eq!(info.token2_reserve, Uint128(0));
+        assert_eq!(info.token2_reserve, Uint128::zero());
         assert_eq!(info.token2_denom, "coin");
         assert_eq!(info.token2_address, Some("token_address".to_string()))
     }
 
     #[test]
     fn test_get_liquidity_amount() {
-        let liquidity = get_liquidity_amount(Uint128(100), Uint128(0), Uint128(0)).unwrap();
-        assert_eq!(liquidity, Uint128(100));
+        let liquidity =
+            get_liquidity_amount(Uint128::new(100), Uint128::zero(), Uint128::zero()).unwrap();
+        assert_eq!(liquidity, Uint128::new(100));
 
-        let liquidity = get_liquidity_amount(Uint128(100), Uint128(50), Uint128(25)).unwrap();
-        assert_eq!(liquidity, Uint128(200));
+        let liquidity =
+            get_liquidity_amount(Uint128::new(100), Uint128::new(50), Uint128::new(25)).unwrap();
+        assert_eq!(liquidity, Uint128::new(200));
     }
 
     #[test]
     fn test_get_token_amount() {
         let liquidity = get_token_amount(
-            Uint128(100),
-            Uint128(50),
-            Uint128(0),
-            Uint128(0),
-            Uint128(0),
+            Uint128::new(100),
+            Uint128::new(50),
+            Uint128::zero(),
+            Uint128::zero(),
+            Uint128::zero(),
         )
         .unwrap();
-        assert_eq!(liquidity, Uint128(100));
+        assert_eq!(liquidity, Uint128::new(100));
 
         let liquidity = get_token_amount(
-            Uint128(200),
-            Uint128(50),
-            Uint128(50),
-            Uint128(100),
-            Uint128(25),
+            Uint128::new(200),
+            Uint128::new(50),
+            Uint128::new(50),
+            Uint128::new(100),
+            Uint128::new(25),
         )
         .unwrap();
-        assert_eq!(liquidity, Uint128(201));
+        assert_eq!(liquidity, Uint128::new(201));
     }
 
     #[test]
     fn add_liquidity() {
-        let mut deps = mock_dependencies(&coins(2, "token"));
+        let mut deps = mock_dependencies();
 
         let msg = InstantiateMsg {
             token1_denom: "test".to_string(),
@@ -860,9 +849,9 @@ mod tests {
         // Add initial liquidity
         let info = mock_info("anyone", &coins(2, "test"));
         let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128(2),
-            min_liquidity: Uint128(2),
-            max_token2: Uint128(1),
+            token1_amount: Uint128::new(2),
+            min_liquidity: Uint128::new(2),
+            max_token2: Uint128::new(1),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -873,15 +862,15 @@ mod tests {
         assert_eq!(res.attributes[2].value, "2");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128(2));
-        assert_eq!(info.token2_reserve, Uint128(1));
+        assert_eq!(info.token1_reserve, Uint128::new(2));
+        assert_eq!(info.token2_reserve, Uint128::new(1));
 
         // Add more liquidity
         let info = mock_info("anyone", &coins(4, "test"));
         let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128(4),
-            min_liquidity: Uint128(4),
-            max_token2: Uint128(3),
+            token1_amount: Uint128::new(4),
+            min_liquidity: Uint128::new(4),
+            max_token2: Uint128::new(3),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -892,49 +881,49 @@ mod tests {
         assert_eq!(res.attributes[2].value, "4");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128(6));
-        assert_eq!(info.token2_reserve, Uint128(4));
+        assert_eq!(info.token1_reserve, Uint128::new(6));
+        assert_eq!(info.token2_reserve, Uint128::new(4));
 
         // Too low max_token
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128(100),
-            min_liquidity: Uint128(100),
-            max_token2: Uint128(1),
+            token1_amount: Uint128::new(100),
+            min_liquidity: Uint128::new(100),
+            max_token2: Uint128::new(1),
             expiration: None,
         };
         let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
         assert_eq!(
             err,
             ContractError::MaxTokenError {
-                max_token: Uint128(1),
-                tokens_required: Uint128(67)
+                max_token: Uint128::new(1),
+                tokens_required: Uint128::new(67)
             }
         );
 
         // Too high min liquidity
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128(100),
-            min_liquidity: Uint128(500),
-            max_token2: Uint128(500),
+            token1_amount: Uint128::new(100),
+            min_liquidity: Uint128::new(500),
+            max_token2: Uint128::new(500),
             expiration: None,
         };
         let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
         assert_eq!(
             err,
             ContractError::MinLiquidityError {
-                min_liquidity: Uint128(500),
-                liquidity_available: Uint128(100)
+                min_liquidity: Uint128::new(500),
+                liquidity_available: Uint128::new(100)
             }
         );
 
         // Incorrect native denom throws error
         let info = mock_info("anyone", &coins(100, "wrong"));
         let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128(100),
-            min_liquidity: Uint128(1),
-            max_token2: Uint128(500),
+            token1_amount: Uint128::new(100),
+            min_liquidity: Uint128::new(1),
+            max_token2: Uint128::new(500),
             expiration: None,
         };
         let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
@@ -945,9 +934,9 @@ mod tests {
         let mut env = mock_env();
         env.block.height = 20;
         let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128(100),
-            min_liquidity: Uint128(100),
-            max_token2: Uint128(50),
+            token1_amount: Uint128::new(100),
+            min_liquidity: Uint128::new(100),
+            max_token2: Uint128::new(50),
             expiration: Some(Expiration::AtHeight(19)),
         };
         let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
@@ -956,7 +945,7 @@ mod tests {
 
     #[test]
     fn remove_liquidity() {
-        let mut deps = mock_dependencies(&coins(2, "token"));
+        let mut deps = mock_dependencies();
 
         let msg = InstantiateMsg {
             token1_denom: "test".to_string(),
@@ -970,9 +959,9 @@ mod tests {
         // Add initial liquidity
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128(100),
-            min_liquidity: Uint128(100),
-            max_token2: Uint128(50),
+            token1_amount: Uint128::new(100),
+            min_liquidity: Uint128::new(100),
+            max_token2: Uint128::new(50),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -983,15 +972,15 @@ mod tests {
         assert_eq!(res.attributes[2].value, "100");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128(100));
-        assert_eq!(info.token2_reserve, Uint128(50));
+        assert_eq!(info.token1_reserve, Uint128::new(100));
+        assert_eq!(info.token2_reserve, Uint128::new(50));
 
         // Remove half liquidity
         let info = mock_info("anyone", &vec![]);
         let msg = ExecuteMsg::RemoveLiquidity {
-            amount: Uint128(50),
-            min_token1: Uint128(50),
-            min_token2: Uint128(25),
+            amount: Uint128::new(50),
+            min_token1: Uint128::new(50),
+            min_token2: Uint128::new(25),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1000,15 +989,15 @@ mod tests {
         assert_eq!(res.attributes[2].value, "25");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128(50));
-        assert_eq!(info.token2_reserve, Uint128(25));
+        assert_eq!(info.token1_reserve, Uint128::new(50));
+        assert_eq!(info.token2_reserve, Uint128::new(25));
 
         // Remove half again with not proper division
         let info = mock_info("anyone", &vec![]);
         let msg = ExecuteMsg::RemoveLiquidity {
-            amount: Uint128(25),
-            min_token1: Uint128(25),
-            min_token2: Uint128(12),
+            amount: Uint128::new(25),
+            min_token1: Uint128::new(25),
+            min_token2: Uint128::new(12),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1017,32 +1006,32 @@ mod tests {
         assert_eq!(res.attributes[2].value, "12");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128(25));
-        assert_eq!(info.token2_reserve, Uint128(13));
+        assert_eq!(info.token1_reserve, Uint128::new(25));
+        assert_eq!(info.token2_reserve, Uint128::new(13));
 
         // Remove more than owned
         let info = mock_info("anyone", &vec![]);
         let msg = ExecuteMsg::RemoveLiquidity {
-            amount: Uint128(26),
-            min_token1: Uint128(1),
-            min_token2: Uint128(1),
+            amount: Uint128::new(26),
+            min_token1: Uint128::new(1),
+            min_token2: Uint128::new(1),
             expiration: None,
         };
         let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
         assert_eq!(
             err,
             ContractError::InsufficientLiquidityError {
-                requested: Uint128(26),
-                available: Uint128(25)
+                requested: Uint128::new(26),
+                available: Uint128::new(25)
             }
         );
 
         // Remove rest of liquidity
         let info = mock_info("anyone", &vec![]);
         let msg = ExecuteMsg::RemoveLiquidity {
-            amount: Uint128(25),
-            min_token1: Uint128(1),
-            min_token2: Uint128(1),
+            amount: Uint128::new(25),
+            min_token1: Uint128::new(1),
+            min_token2: Uint128::new(1),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1051,17 +1040,17 @@ mod tests {
         assert_eq!(res.attributes[2].value, "13");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128(0));
-        assert_eq!(info.token2_reserve, Uint128(0));
+        assert_eq!(info.token1_reserve, Uint128::new(0));
+        assert_eq!(info.token2_reserve, Uint128::new(0));
 
         // Expired Message
         let info = mock_info("anyone", &coins(100, "test"));
         let mut env = mock_env();
         env.block.height = 20;
         let msg = ExecuteMsg::RemoveLiquidity {
-            amount: Uint128(25),
-            min_token1: Uint128(1),
-            min_token2: Uint128(1),
+            amount: Uint128::new(25),
+            min_token1: Uint128::new(1),
+            min_token2: Uint128::new(1),
             expiration: Some(Expiration::AtHeight(19)),
         };
         let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
@@ -1072,26 +1061,28 @@ mod tests {
     fn test_get_input_price() {
         // Base case
         assert_eq!(
-            get_input_price(Uint128(10), Uint128(100), Uint128(100)).unwrap(),
-            Uint128(9)
+            get_input_price(Uint128::new(10), Uint128::new(100), Uint128::new(100)).unwrap(),
+            Uint128::new(9)
         );
 
         // No input reserve error
-        let err = get_input_price(Uint128(10), Uint128(0), Uint128(100)).unwrap_err();
+        let err =
+            get_input_price(Uint128::new(10), Uint128::new(0), Uint128::new(100)).unwrap_err();
         assert_eq!(err, ContractError::NoLiquidityError {});
 
         // No output reserve error
-        let err = get_input_price(Uint128(10), Uint128(100), Uint128(0)).unwrap_err();
+        let err =
+            get_input_price(Uint128::new(10), Uint128::new(100), Uint128::new(0)).unwrap_err();
         assert_eq!(err, ContractError::NoLiquidityError {});
 
         // No reserve error
-        let err = get_input_price(Uint128(10), Uint128(0), Uint128(0)).unwrap_err();
+        let err = get_input_price(Uint128::new(10), Uint128::new(0), Uint128::new(0)).unwrap_err();
         assert_eq!(err, ContractError::NoLiquidityError {});
     }
 
     #[test]
     fn swap_native_for_token() {
-        let mut deps = mock_dependencies(&coins(2, "token"));
+        let mut deps = mock_dependencies();
 
         let msg = InstantiateMsg {
             token1_denom: "test".to_string(),
@@ -1105,9 +1096,9 @@ mod tests {
         // Add initial liquidity
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128(100),
-            min_liquidity: Uint128(100),
-            max_token2: Uint128(100),
+            token1_amount: Uint128::new(100),
+            min_liquidity: Uint128::new(100),
+            max_token2: Uint128::new(100),
             expiration: None,
         };
         let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1115,8 +1106,8 @@ mod tests {
         // Swap tokens
         let info = mock_info("anyone", &coins(10, "test"));
         let msg = ExecuteMsg::SwapToken1ForToken2 {
-            token1_amount: Uint128(10),
-            min_token2: Uint128(9),
+            token1_amount: Uint128::new(10),
+            min_token2: Uint128::new(9),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1125,14 +1116,14 @@ mod tests {
         assert_eq!(res.attributes[1].value, "9");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128(110));
-        assert_eq!(info.token2_reserve, Uint128(91));
+        assert_eq!(info.token1_reserve, Uint128::new(110));
+        assert_eq!(info.token2_reserve, Uint128::new(91));
 
         // Second purchase at higher price
         let info = mock_info("anyone", &coins(10, "test"));
         let msg = ExecuteMsg::SwapToken1ForToken2 {
-            token1_amount: Uint128(10),
-            min_token2: Uint128(7),
+            token1_amount: Uint128::new(10),
+            min_token2: Uint128::new(7),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1141,22 +1132,22 @@ mod tests {
         assert_eq!(res.attributes[1].value, "7");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128(120));
-        assert_eq!(info.token2_reserve, Uint128(84));
+        assert_eq!(info.token1_reserve, Uint128::new(120));
+        assert_eq!(info.token2_reserve, Uint128::new(84));
 
         // min_token error
         let info = mock_info("anyone", &coins(10, "test"));
         let msg = ExecuteMsg::SwapToken1ForToken2 {
-            token1_amount: Uint128(10),
-            min_token2: Uint128(100),
+            token1_amount: Uint128::new(10),
+            min_token2: Uint128::new(100),
             expiration: None,
         };
         let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
         assert_eq!(
             err,
             ContractError::SwapMinError {
-                min: Uint128(100),
-                available: Uint128(6)
+                min: Uint128::new(100),
+                available: Uint128::new(6)
             }
         );
 
@@ -1165,8 +1156,8 @@ mod tests {
         let mut env = mock_env();
         env.block.height = 20;
         let msg = ExecuteMsg::SwapToken1ForToken2 {
-            token1_amount: Uint128(100),
-            min_token2: Uint128(100),
+            token1_amount: Uint128::new(100),
+            min_token2: Uint128::new(100),
             expiration: Some(Expiration::AtHeight(19)),
         };
         let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
@@ -1175,7 +1166,7 @@ mod tests {
 
     #[test]
     fn swap_token_for_native() {
-        let mut deps = mock_dependencies(&coins(2, "token"));
+        let mut deps = mock_dependencies();
 
         let msg = InstantiateMsg {
             token1_denom: "test".to_string(),
@@ -1189,9 +1180,9 @@ mod tests {
         // Add initial liquidity
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128(100),
-            min_liquidity: Uint128(100),
-            max_token2: Uint128(100),
+            token1_amount: Uint128::new(100),
+            min_liquidity: Uint128::new(100),
+            max_token2: Uint128::new(100),
             expiration: None,
         };
         let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1199,8 +1190,8 @@ mod tests {
         // Swap tokens
         let info = mock_info("anyone", &vec![]);
         let msg = ExecuteMsg::SwapToken2ForToken1 {
-            token2_amount: Uint128(10),
-            min_token1: Uint128(9),
+            token2_amount: Uint128::new(10),
+            min_token1: Uint128::new(9),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1209,14 +1200,14 @@ mod tests {
         assert_eq!(res.attributes[1].value, "9");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.token2_reserve, Uint128(110));
-        assert_eq!(info.token1_reserve, Uint128(91));
+        assert_eq!(info.token2_reserve, Uint128::new(110));
+        assert_eq!(info.token1_reserve, Uint128::new(91));
 
         // Second purchase at higher price
         let info = mock_info("anyone", &vec![]);
         let msg = ExecuteMsg::SwapToken2ForToken1 {
-            token2_amount: Uint128(10),
-            min_token1: Uint128(7),
+            token2_amount: Uint128::new(10),
+            min_token1: Uint128::new(7),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1225,22 +1216,22 @@ mod tests {
         assert_eq!(res.attributes[1].value, "7");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.token2_reserve, Uint128(120));
-        assert_eq!(info.token1_reserve, Uint128(84));
+        assert_eq!(info.token2_reserve, Uint128::new(120));
+        assert_eq!(info.token1_reserve, Uint128::new(84));
 
         // min_token error
         let info = mock_info("anyone", &vec![]);
         let msg = ExecuteMsg::SwapToken2ForToken1 {
-            token2_amount: Uint128(10),
-            min_token1: Uint128(100),
+            token2_amount: Uint128::new(10),
+            min_token1: Uint128::new(100),
             expiration: None,
         };
         let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
         assert_eq!(
             err,
             ContractError::SwapMinError {
-                min: Uint128(100),
-                available: Uint128(6)
+                min: Uint128::new(100),
+                available: Uint128::new(6)
             }
         );
 
@@ -1249,8 +1240,8 @@ mod tests {
         let mut env = mock_env();
         env.block.height = 20;
         let msg = ExecuteMsg::SwapToken2ForToken1 {
-            token2_amount: Uint128(10),
-            min_token1: Uint128(100),
+            token2_amount: Uint128::new(10),
+            min_token1: Uint128::new(100),
             expiration: Some(Expiration::AtHeight(19)),
         };
         let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
@@ -1259,7 +1250,7 @@ mod tests {
 
     #[test]
     fn query_price() {
-        let mut deps = mock_dependencies(&coins(2, "token"));
+        let mut deps = mock_dependencies();
 
         let msg = InstantiateMsg {
             token1_denom: "test".to_string(),
@@ -1273,33 +1264,33 @@ mod tests {
         // Add initial liquidity
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128(100),
-            min_liquidity: Uint128(100),
-            max_token2: Uint128(50),
+            token1_amount: Uint128::new(100),
+            min_liquidity: Uint128::new(100),
+            max_token2: Uint128::new(50),
             expiration: None,
         };
         let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // Query Native for Token Price
         let msg = QueryMsg::Token1ForToken2Price {
-            token1_amount: Uint128(10),
+            token1_amount: Uint128::new(10),
         };
         let data = query(deps.as_ref(), mock_env(), msg).unwrap();
         let res: Token1ForToken2PriceResponse = from_binary(&data).unwrap();
-        assert_eq!(res.token2_amount, Uint128(4));
+        assert_eq!(res.token2_amount, Uint128::new(4));
 
         // Query Token for Native Price
         let msg = QueryMsg::Token2ForToken1Price {
-            token2_amount: Uint128(10),
+            token2_amount: Uint128::new(10),
         };
         let data = query(deps.as_ref(), mock_env(), msg).unwrap();
         let res: Token2ForToken1PriceResponse = from_binary(&data).unwrap();
-        assert_eq!(res.token1_amount, Uint128(16));
+        assert_eq!(res.token1_amount, Uint128::new(16));
     }
 
     #[test]
     fn swap_native_for_token_to() {
-        let mut deps = mock_dependencies(&coins(2, "token"));
+        let mut deps = mock_dependencies();
 
         let msg = InstantiateMsg {
             token1_denom: "test".to_string(),
@@ -1313,9 +1304,9 @@ mod tests {
         // Add initial liquidity
         let info = mock_info("anyone", &coins(100, "test"));
         let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128(100),
-            min_liquidity: Uint128(100),
-            max_token2: Uint128(100),
+            token1_amount: Uint128::new(100),
+            min_liquidity: Uint128::new(100),
+            max_token2: Uint128::new(100),
             expiration: None,
         };
         let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1324,9 +1315,9 @@ mod tests {
         let info = mock_info("anyone", &coins(10, "test"));
         let msg = ExecuteMsg::SwapTo {
             input_token: TokenSelect::Token1,
-            input_amount: Uint128(10),
+            input_amount: Uint128::new(10),
             recipient: Addr::unchecked("test"),
-            min_token: Uint128(9),
+            min_token: Uint128::new(9),
             expiration: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -1335,7 +1326,7 @@ mod tests {
         assert_eq!(res.attributes[1].value, "9");
 
         let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128(110));
-        assert_eq!(info.token2_reserve, Uint128(91));
+        assert_eq!(info.token1_reserve, Uint128::new(110));
+        assert_eq!(info.token2_reserve, Uint128::new(91));
     }
 }

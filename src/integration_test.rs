@@ -1,18 +1,15 @@
 #![cfg(test)]
 
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{coins, from_binary, Addr, BalanceResponse, BankQuery, Coin, Empty, Uint128};
+use std::borrow::BorrowMut;
+
+use cosmwasm_std::{coins, Addr, Coin, Empty, Uint128};
 use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg};
-use cw_multi_test::{App, Contract, ContractWrapper, SimpleBank};
+use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
 use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, TokenSelect};
 
 fn mock_app() -> App {
-    let env = mock_env();
-    let api = Box::new(MockApi::default());
-    let bank = SimpleBank {};
-
-    App::new(api, env.block, bank, || Box::new(MockStorage::new()))
+    App::default()
 }
 
 pub fn contract_amm() -> Box<dyn Contract<Empty>> {
@@ -50,7 +47,7 @@ fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom:
         token2_address: Some(cash.addr()),
     };
     let amm_addr = router
-        .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm")
+        .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)
         .unwrap();
     amm_addr
 }
@@ -74,24 +71,19 @@ fn create_cw20(
             amount: balance,
         }],
         mint: None,
+        marketing: None,
     };
     let addr = router
-        .instantiate_contract(cw20_id, owner.clone(), &msg, &[], "CASH")
+        .instantiate_contract(cw20_id, owner.clone(), &msg, &[], "CASH", None)
         .unwrap();
     Cw20Contract(addr)
 }
 
-fn bank_balance(router: &mut App, addr: &Addr, denom: String) -> BalanceResponse {
-    let query_res = router
-        .query(
-            cosmwasm_std::QueryRequest::Bank(BankQuery::Balance {
-                address: addr.to_string(),
-                denom,
-            })
-            .into(),
-        )
-        .unwrap();
-    from_binary(&query_res).unwrap()
+fn bank_balance(router: &mut App, addr: &Addr, denom: String) -> Coin {
+    router
+        .wrap()
+        .query_balance(addr.to_string(), denom)
+        .unwrap()
 }
 
 #[test]
@@ -103,14 +95,16 @@ fn amm_add_and_remove_liquidity() {
 
     let owner = Addr::unchecked("owner");
     let funds = coins(2000, NATIVE_TOKEN_DENOM);
-    router.set_bank_balance(&owner, funds).unwrap();
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &owner, funds).unwrap()
+    });
 
     let cw20_token = create_cw20(
         &mut router,
         &owner,
         "token".to_string(),
         "CWTOKEN".to_string(),
-        Uint128(5000),
+        Uint128::new(5000),
     );
 
     let amm_addr = create_amm(&mut router, &owner, &cw20_token, NATIVE_TOKEN_DENOM.into());
@@ -122,111 +116,105 @@ fn amm_add_and_remove_liquidity() {
 
     // check initial balances
     let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(owner_balance, Uint128(5000));
+    assert_eq!(owner_balance, Uint128::new(5000));
 
     // send tokens to contract address
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
         spender: amm_addr.to_string(),
-        amount: Uint128::from(100u128),
+        amount: Uint128::new(100u128),
         expires: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(owner.clone(), cw20_token.addr(), &allowance_msg, &[])
         .unwrap();
-    println!("{:?}", res.attributes);
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
-        token1_amount: Uint128(100),
-        min_liquidity: Uint128(100),
-        max_token2: Uint128(100),
+        token1_amount: Uint128::new(100),
+        min_liquidity: Uint128::new(100),
+        max_token2: Uint128::new(100),
         expiration: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(
             owner.clone(),
             amm_addr.clone(),
             &add_liquidity_msg,
             &[Coin {
                 denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128(100),
+                amount: Uint128::new(100),
             }],
         )
         .unwrap();
-    println!("{:?}", res.attributes);
 
     // ensure balances updated
     let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(owner_balance, Uint128(4900));
+    assert_eq!(owner_balance, Uint128::new(4900));
     let amm_balance = cw20_token.balance(&router, amm_addr.clone()).unwrap();
-    assert_eq!(amm_balance, Uint128(100));
+    assert_eq!(amm_balance, Uint128::new(100));
     let crust_balance = amm.balance(&router, owner.clone()).unwrap();
-    assert_eq!(crust_balance, Uint128(100));
+    assert_eq!(crust_balance, Uint128::new(100));
 
     // send tokens to contract address
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
         spender: amm_addr.to_string(),
-        amount: Uint128::from(51u128),
+        amount: Uint128::new(51u128),
         expires: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(owner.clone(), cw20_token.addr(), &allowance_msg, &[])
         .unwrap();
-    println!("{:?}", res.attributes);
-    assert_eq!(res.attributes.len(), 4);
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
-        token1_amount: Uint128(50),
-        min_liquidity: Uint128(50),
-        max_token2: Uint128(51),
+        token1_amount: Uint128::new(50),
+        min_liquidity: Uint128::new(50),
+        max_token2: Uint128::new(51),
         expiration: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(
             owner.clone(),
             amm_addr.clone(),
             &add_liquidity_msg,
             &[Coin {
                 denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128(50),
+                amount: Uint128::new(50),
             }],
         )
         .unwrap();
-    println!("{:?}", res.attributes);
 
     // ensure balances updated
     let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(owner_balance, Uint128(4849));
+    assert_eq!(owner_balance, Uint128::new(4849));
     let amm_balance = cw20_token.balance(&router, amm_addr.clone()).unwrap();
-    assert_eq!(amm_balance, Uint128(151));
+    assert_eq!(amm_balance, Uint128::new(151));
     let crust_balance = amm.balance(&router, owner.clone()).unwrap();
-    assert_eq!(crust_balance, Uint128(150));
+    assert_eq!(crust_balance, Uint128::new(150));
 
     let remove_liquidity_msg = ExecuteMsg::RemoveLiquidity {
-        amount: Uint128(50),
-        min_token1: Uint128(50),
-        min_token2: Uint128(50),
+        amount: Uint128::new(50),
+        min_token1: Uint128::new(50),
+        min_token2: Uint128::new(50),
         expiration: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(
             owner.clone(),
             amm_addr.clone(),
             &remove_liquidity_msg,
             &[Coin {
                 denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128(50),
+                amount: Uint128::new(50),
             }],
         )
         .unwrap();
-    println!("{:?}", res.attributes);
 
     // ensure balances updated
     let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(owner_balance, Uint128(4899));
+    assert_eq!(owner_balance, Uint128::new(4899));
     let amm_balance = cw20_token.balance(&router, amm_addr.clone()).unwrap();
-    assert_eq!(amm_balance, Uint128(101));
+    assert_eq!(amm_balance, Uint128::new(101));
     let crust_balance = amm.balance(&router, owner.clone()).unwrap();
-    assert_eq!(crust_balance, Uint128(100));
+    assert_eq!(crust_balance, Uint128::new(100));
 }
 
 #[test]
@@ -237,14 +225,16 @@ fn swap_tokens_happy_path() {
 
     let owner = Addr::unchecked("owner");
     let funds = coins(2000, NATIVE_TOKEN_DENOM);
-    router.set_bank_balance(&owner, funds).unwrap();
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &owner, funds).unwrap()
+    });
 
     let cw20_token = create_cw20(
         &mut router,
         &owner,
         "token".to_string(),
         "CWTOKEN".to_string(),
-        Uint128(5000),
+        Uint128::new(5000),
     );
 
     let amm_addr = create_amm(
@@ -258,179 +248,171 @@ fn swap_tokens_happy_path() {
 
     // check initial balances
     let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(owner_balance, Uint128(5000));
+    assert_eq!(owner_balance, Uint128::new(5000));
 
     // send tokens to contract address
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
         spender: amm_addr.to_string(),
-        amount: Uint128::from(100u128),
+        amount: Uint128::new(100u128),
         expires: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(owner.clone(), cw20_token.addr(), &allowance_msg, &[])
         .unwrap();
-    println!("{:?}", res.attributes);
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
-        token1_amount: Uint128(100),
-        min_liquidity: Uint128(100),
-        max_token2: Uint128(100),
+        token1_amount: Uint128::new(100),
+        min_liquidity: Uint128::new(100),
+        max_token2: Uint128::new(100),
         expiration: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(
             owner.clone(),
             amm_addr.clone(),
             &add_liquidity_msg,
             &[Coin {
                 denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128(100),
+                amount: Uint128::new(100),
             }],
         )
         .unwrap();
-    println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.token1_reserve, Uint128(100));
-    assert_eq!(info.token2_reserve, Uint128(100));
+    assert_eq!(info.token1_reserve, Uint128::new(100));
+    assert_eq!(info.token2_reserve, Uint128::new(100));
 
     let buyer = Addr::unchecked("buyer");
     let funds = coins(2000, NATIVE_TOKEN_DENOM);
-    router.set_bank_balance(&buyer, funds).unwrap();
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &buyer, funds).unwrap()
+    });
 
     let add_liquidity_msg = ExecuteMsg::SwapToken1ForToken2 {
-        token1_amount: Uint128(10),
-        min_token2: Uint128(9),
+        token1_amount: Uint128::new(10),
+        min_token2: Uint128::new(9),
         expiration: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(
             buyer.clone(),
             amm_addr.clone(),
             &add_liquidity_msg,
             &[Coin {
                 denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128(10),
+                amount: Uint128::new(10),
             }],
         )
         .unwrap();
-    println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.token1_reserve, Uint128(110));
-    assert_eq!(info.token2_reserve, Uint128(91));
+    assert_eq!(info.token1_reserve, Uint128::new(110));
+    assert_eq!(info.token2_reserve, Uint128::new(91));
 
     // ensure balances updated
     let buyer_balance = cw20_token.balance(&router, buyer.clone()).unwrap();
-    assert_eq!(buyer_balance, Uint128(9));
+    assert_eq!(buyer_balance, Uint128::new(9));
 
     // Check balances of owner and buyer reflect the sale transaction
-    let balance: BalanceResponse =
-        bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
-    assert_eq!(balance.amount.amount, Uint128(1990));
+    let balance: Coin = bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
+    assert_eq!(balance.amount, Uint128::new(1990));
 
     let swap_msg = ExecuteMsg::SwapToken1ForToken2 {
-        token1_amount: Uint128(10),
-        min_token2: Uint128(7),
+        token1_amount: Uint128::new(10),
+        min_token2: Uint128::new(7),
         expiration: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(
             buyer.clone(),
             amm_addr.clone(),
             &swap_msg,
             &[Coin {
                 denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128(10),
+                amount: Uint128::new(10),
             }],
         )
         .unwrap();
-    println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.token1_reserve, Uint128(120));
-    assert_eq!(info.token2_reserve, Uint128(84));
+    assert_eq!(info.token1_reserve, Uint128::new(120));
+    assert_eq!(info.token2_reserve, Uint128::new(84));
 
     // ensure balances updated
     let buyer_balance = cw20_token.balance(&router, buyer.clone()).unwrap();
-    assert_eq!(buyer_balance, Uint128(16));
+    assert_eq!(buyer_balance, Uint128::new(16));
 
     // Check balances of owner and buyer reflect the sale transaction
-    let balance: BalanceResponse =
-        bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
-    assert_eq!(balance.amount.amount, Uint128(1980));
+    let balance: Coin = bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
+    assert_eq!(balance.amount, Uint128::new(1980));
 
     // Swap token for native
 
     // send tokens to contract address
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
         spender: amm_addr.to_string(),
-        amount: Uint128(16),
+        amount: Uint128::new(16),
         expires: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(buyer.clone(), cw20_token.addr(), &allowance_msg, &[])
         .unwrap();
-    println!("{:?}", res.attributes);
 
     let swap_msg = ExecuteMsg::SwapToken2ForToken1 {
-        token2_amount: Uint128(16),
-        min_token1: Uint128(19),
+        token2_amount: Uint128::new(16),
+        min_token1: Uint128::new(19),
         expiration: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(buyer.clone(), amm_addr.clone(), &swap_msg, &vec![])
         .unwrap();
-    println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.token1_reserve, Uint128(101));
-    assert_eq!(info.token2_reserve, Uint128(100));
+    assert_eq!(info.token1_reserve, Uint128::new(101));
+    assert_eq!(info.token2_reserve, Uint128::new(100));
 
     // ensure balances updated
     let buyer_balance = cw20_token.balance(&router, buyer.clone()).unwrap();
-    assert_eq!(buyer_balance, Uint128(0));
+    assert_eq!(buyer_balance, Uint128::new(0));
 
     // Check balances of owner and buyer reflect the sale transaction
-    let balance: BalanceResponse =
-        bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
-    assert_eq!(balance.amount.amount, Uint128(1999));
+    let balance: Coin = bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
+    assert_eq!(balance.amount, Uint128::new(1999));
 
     // check owner balance
     let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(owner_balance, Uint128(4900));
+    assert_eq!(owner_balance, Uint128::new(4900));
 
     let swap_msg = ExecuteMsg::SwapTo {
         input_token: TokenSelect::Token1,
-        input_amount: Uint128(10),
+        input_amount: Uint128::new(10),
         recipient: owner.clone(),
-        min_token: Uint128(3),
+        min_token: Uint128::new(3),
         expiration: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(
             buyer.clone(),
             amm_addr.clone(),
             &swap_msg,
             &[Coin {
                 denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128(10),
+                amount: Uint128::new(10),
             }],
         )
         .unwrap();
-    println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.token1_reserve, Uint128(111));
-    assert_eq!(info.token2_reserve, Uint128(92));
+    assert_eq!(info.token1_reserve, Uint128::new(111));
+    assert_eq!(info.token2_reserve, Uint128::new(92));
 
     // ensure balances updated
     let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(owner_balance, Uint128(4908));
+    assert_eq!(owner_balance, Uint128::new(4908));
 
     // Check balances of owner and buyer reflect the sale transaction
     let balance = bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
-    assert_eq!(balance.amount.amount, Uint128(1989));
+    assert_eq!(balance.amount, Uint128::new(1989));
 }
 
 #[test]
@@ -444,14 +426,16 @@ fn swap_native_to_native_tokens_happy_path() {
     let funds = vec![
         Coin {
             denom: NATIVE_TOKEN_DENOM.into(),
-            amount: Uint128(2000),
+            amount: Uint128::new(2000),
         },
         Coin {
             denom: IBC_TOKEN_DENOM.into(),
-            amount: Uint128(5000),
+            amount: Uint128::new(5000),
         },
     ];
-    router.set_bank_balance(&owner, funds).unwrap();
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &owner, funds).unwrap()
+    });
 
     let amm_id = router.store_code(contract_amm());
     let msg = InstantiateMsg {
@@ -461,17 +445,17 @@ fn swap_native_to_native_tokens_happy_path() {
         token2_address: None,
     };
     let amm_addr = router
-        .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm")
+        .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)
         .unwrap();
 
     // send tokens to contract address
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
-        token1_amount: Uint128(100),
-        min_liquidity: Uint128(100),
-        max_token2: Uint128(100),
+        token1_amount: Uint128::new(100),
+        min_liquidity: Uint128::new(100),
+        max_token2: Uint128::new(100),
         expiration: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(
             owner.clone(),
             amm_addr.clone(),
@@ -479,125 +463,117 @@ fn swap_native_to_native_tokens_happy_path() {
             &[
                 Coin {
                     denom: NATIVE_TOKEN_DENOM.into(),
-                    amount: Uint128(100),
+                    amount: Uint128::new(100),
                 },
                 Coin {
                     denom: IBC_TOKEN_DENOM.into(),
-                    amount: Uint128(100),
+                    amount: Uint128::new(100),
                 },
             ],
         )
         .unwrap();
-    println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.token1_reserve, Uint128(100));
-    assert_eq!(info.token2_reserve, Uint128(100));
+    assert_eq!(info.token1_reserve, Uint128::new(100));
+    assert_eq!(info.token2_reserve, Uint128::new(100));
 
     let buyer = Addr::unchecked("buyer");
     let funds = coins(2000, NATIVE_TOKEN_DENOM);
-    router.set_bank_balance(&buyer, funds).unwrap();
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &buyer, funds).unwrap()
+    });
 
     let add_liquidity_msg = ExecuteMsg::SwapToken1ForToken2 {
-        token1_amount: Uint128(10),
-        min_token2: Uint128(9),
+        token1_amount: Uint128::new(10),
+        min_token2: Uint128::new(9),
         expiration: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(
             buyer.clone(),
             amm_addr.clone(),
             &add_liquidity_msg,
             &[Coin {
                 denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128(10),
+                amount: Uint128::new(10),
             }],
         )
         .unwrap();
-    println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.token1_reserve, Uint128(110));
-    assert_eq!(info.token2_reserve, Uint128(91));
+    assert_eq!(info.token1_reserve, Uint128::new(110));
+    assert_eq!(info.token2_reserve, Uint128::new(91));
 
     // Check balances of owner and buyer reflect the sale transaction
-    let native_balance: BalanceResponse =
-        bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
-    assert_eq!(native_balance.amount.amount, Uint128(1990));
-    let ibc_balance: BalanceResponse =
-        bank_balance(&mut router, &buyer, IBC_TOKEN_DENOM.to_string());
-    assert_eq!(ibc_balance.amount.amount, Uint128(9));
+    let native_balance: Coin = bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
+    assert_eq!(native_balance.amount, Uint128::new(1990));
+    let ibc_balance: Coin = bank_balance(&mut router, &buyer, IBC_TOKEN_DENOM.to_string());
+    assert_eq!(ibc_balance.amount, Uint128::new(9));
 
     let swap_msg = ExecuteMsg::SwapToken1ForToken2 {
-        token1_amount: Uint128(10),
-        min_token2: Uint128(7),
+        token1_amount: Uint128::new(10),
+        min_token2: Uint128::new(7),
         expiration: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(
             buyer.clone(),
             amm_addr.clone(),
             &swap_msg,
             &[Coin {
                 denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128(10),
+                amount: Uint128::new(10),
             }],
         )
         .unwrap();
-    println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.token1_reserve, Uint128(120));
-    assert_eq!(info.token2_reserve, Uint128(84));
+    assert_eq!(info.token1_reserve, Uint128::new(120));
+    assert_eq!(info.token2_reserve, Uint128::new(84));
 
     // Check balances of owner and buyer reflect the sale transaction
-    let native_balance: BalanceResponse =
-        bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
-    assert_eq!(native_balance.amount.amount, Uint128(1980));
-    let ibc_balance: BalanceResponse =
-        bank_balance(&mut router, &buyer, IBC_TOKEN_DENOM.to_string());
-    assert_eq!(ibc_balance.amount.amount, Uint128(16));
+    let native_balance: Coin = bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
+    assert_eq!(native_balance.amount, Uint128::new(1980));
+    let ibc_balance: Coin = bank_balance(&mut router, &buyer, IBC_TOKEN_DENOM.to_string());
+    assert_eq!(ibc_balance.amount, Uint128::new(16));
 
     // Swap token for native
     let swap_msg = ExecuteMsg::SwapToken2ForToken1 {
-        token2_amount: Uint128(16),
-        min_token1: Uint128(19),
+        token2_amount: Uint128::new(16),
+        min_token1: Uint128::new(19),
         expiration: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(
             buyer.clone(),
             amm_addr.clone(),
             &swap_msg,
             &vec![Coin {
                 denom: IBC_TOKEN_DENOM.into(),
-                amount: Uint128(16),
+                amount: Uint128::new(16),
             }],
         )
         .unwrap();
-    println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.token1_reserve, Uint128(101));
-    assert_eq!(info.token2_reserve, Uint128(100));
+    assert_eq!(info.token1_reserve, Uint128::new(101));
+    assert_eq!(info.token2_reserve, Uint128::new(100));
 
     // Check balances of owner and buyer reflect the sale transaction
-    let native_balance: BalanceResponse =
-        bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
-    assert_eq!(native_balance.amount.amount, Uint128(1999));
-    let ibc_balance: BalanceResponse =
-        bank_balance(&mut router, &buyer, IBC_TOKEN_DENOM.to_string());
-    assert_eq!(ibc_balance.amount.amount, Uint128(0));
+    let native_balance: Coin = bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
+    assert_eq!(native_balance.amount, Uint128::new(1999));
+    let ibc_balance: Coin = bank_balance(&mut router, &buyer, IBC_TOKEN_DENOM.to_string());
+    assert_eq!(ibc_balance.amount, Uint128::new(0));
 
     // TODO: implement
     /*
     // check owner balance
     let owner_balance = bank_balance(&mut router, &owner, IBC_TOKEN_DENOM.to_string());
-    assert_eq!(owner_balance, Uint128(4900));
+    assert_eq!(owner_balance, Uint128::new(4900));
 
     let swap_msg = ExecuteMsg::SwapNativeForTokenTo {
         recipient: owner.clone(),
-        min_token: Uint128(3),
+        min_token: Uint128::new(3),
         expiration: None,
     };
     let res = router
@@ -607,23 +583,23 @@ fn swap_native_to_native_tokens_happy_path() {
             &swap_msg,
             &[Coin {
                 denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128(10),
+                amount: Uint128::new(10),
             }],
         )
         .unwrap();
     println!("{:?}", res.attributes);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.native_reserve, Uint128(111));
-    assert_eq!(info.token_reserve, Uint128(92));
+    assert_eq!(info.native_reserve, Uint128::new(111));
+    assert_eq!(info.token_reserve, Uint128::new(92));
 
     // ensure balances updated
     let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(owner_balance, Uint128(4908));
+    assert_eq!(owner_balance, Uint128::new(4908));
 
     // Check balances of owner and buyer reflect the sale transaction
     let balance = bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
-    assert_eq!(balance.amount.amount, Uint128(1989));
+    assert_eq!(balance.amount.amount, Uint128::new(1989));
 
      */
 }
@@ -636,21 +612,23 @@ fn token_to_token_swap() {
 
     let owner = Addr::unchecked("owner");
     let funds = coins(2000, NATIVE_TOKEN_DENOM);
-    router.set_bank_balance(&owner, funds).unwrap();
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &owner, funds).unwrap()
+    });
 
     let token1 = create_cw20(
         &mut router,
         &owner,
         "token1".to_string(),
         "TOKENONE".to_string(),
-        Uint128(5000),
+        Uint128::new(5000),
     );
     let token2 = create_cw20(
         &mut router,
         &owner,
         "token2".to_string(),
         "TOKENTWO".to_string(),
-        Uint128(5000),
+        Uint128::new(5000),
     );
 
     let amm1 = create_amm(&mut router, &owner, &token1, NATIVE_TOKEN_DENOM.to_string());
@@ -659,18 +637,17 @@ fn token_to_token_swap() {
     // Add initial liquidity to both pools
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
         spender: amm1.to_string(),
-        amount: Uint128(100),
+        amount: Uint128::new(100),
         expires: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(owner.clone(), token1.addr(), &allowance_msg, &[])
         .unwrap();
-    println!("{:?}", res.attributes);
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
-        token1_amount: Uint128(100),
-        min_liquidity: Uint128(100),
-        max_token2: Uint128(100),
+        token1_amount: Uint128::new(100),
+        min_liquidity: Uint128::new(100),
+        max_token2: Uint128::new(100),
         expiration: None,
     };
     router
@@ -680,25 +657,24 @@ fn token_to_token_swap() {
             &add_liquidity_msg,
             &[Coin {
                 denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128(100),
+                amount: Uint128::new(100),
             }],
         )
         .unwrap();
 
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
         spender: amm2.to_string(),
-        amount: Uint128(100),
+        amount: Uint128::new(100),
         expires: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(owner.clone(), token2.addr(), &allowance_msg, &[])
         .unwrap();
-    println!("{:?}", res.attributes);
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
-        token1_amount: Uint128(100),
-        min_liquidity: Uint128(100),
-        max_token2: Uint128(100),
+        token1_amount: Uint128::new(100),
+        min_liquidity: Uint128::new(100),
+        max_token2: Uint128::new(100),
         expiration: None,
     };
     router
@@ -708,7 +684,7 @@ fn token_to_token_swap() {
             &add_liquidity_msg,
             &[Coin {
                 denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128(100),
+                amount: Uint128::new(100),
             }],
         )
         .unwrap();
@@ -716,87 +692,81 @@ fn token_to_token_swap() {
     // Swap token1 for token2
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
         spender: amm1.to_string(),
-        amount: Uint128(10),
+        amount: Uint128::new(10),
         expires: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(owner.clone(), token1.addr(), &allowance_msg, &[])
         .unwrap();
-    println!("{:?}", res.attributes);
 
     let swap_msg = ExecuteMsg::MultiContractSwap {
         output_amm_address: amm2.clone(),
         input_token: TokenSelect::Token2,
         output_token: TokenSelect::Token2,
-        input_token_amount: Uint128(10),
-        output_min_token: Uint128(8),
+        input_token_amount: Uint128::new(10),
+        output_min_token: Uint128::new(8),
         expiration: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(owner.clone(), amm1.clone(), &swap_msg, &[])
         .unwrap();
 
-    println!("{:?}", res.attributes);
-
     // ensure balances updated
     let token1_balance = token1.balance(&router, owner.clone()).unwrap();
-    assert_eq!(token1_balance, Uint128(4890));
+    assert_eq!(token1_balance, Uint128::new(4890));
 
     let token2_balance = token2.balance(&router, owner.clone()).unwrap();
-    assert_eq!(token2_balance, Uint128(4908));
+    assert_eq!(token2_balance, Uint128::new(4908));
 
     let amm1_native_balance = bank_balance(&mut router, &amm1, NATIVE_TOKEN_DENOM.to_string());
-    assert_eq!(amm1_native_balance.amount.amount, Uint128(91));
+    assert_eq!(amm1_native_balance.amount, Uint128::new(91));
 
     let amm2_native_balance = bank_balance(&mut router, &amm2, NATIVE_TOKEN_DENOM.to_string());
-    assert_eq!(amm2_native_balance.amount.amount, Uint128(109));
+    assert_eq!(amm2_native_balance.amount, Uint128::new(109));
 
     // Swap token2 for token1
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
         spender: amm2.to_string(),
-        amount: Uint128(10),
+        amount: Uint128::new(10),
         expires: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(owner.clone(), token2.addr(), &allowance_msg, &[])
         .unwrap();
-    println!("{:?}", res.attributes);
 
     let swap_msg = ExecuteMsg::MultiContractSwap {
         output_amm_address: amm1.clone(),
         input_token: TokenSelect::Token2,
         output_token: TokenSelect::Token2,
-        input_token_amount: Uint128(10),
-        output_min_token: Uint128(1),
+        input_token_amount: Uint128::new(10),
+        output_min_token: Uint128::new(1),
         expiration: None,
     };
-    let res = router
+    let _res = router
         .execute_contract(owner.clone(), amm2.clone(), &swap_msg, &[])
         .unwrap();
 
-    println!("{:?}", res.attributes);
-
     // ensure balances updated
     let token1_balance = token1.balance(&router, owner.clone()).unwrap();
-    assert_eq!(token1_balance, Uint128(4900));
+    assert_eq!(token1_balance, Uint128::new(4900));
 
     let token2_balance = token2.balance(&router, owner.clone()).unwrap();
-    assert_eq!(token2_balance, Uint128(4898));
+    assert_eq!(token2_balance, Uint128::new(4898));
 
     let amm1_native_balance = bank_balance(&mut router, &amm1, NATIVE_TOKEN_DENOM.to_string());
-    assert_eq!(amm1_native_balance.amount.amount, Uint128(101));
+    assert_eq!(amm1_native_balance.amount, Uint128::new(101));
 
     let amm2_native_balance = bank_balance(&mut router, &amm2, NATIVE_TOKEN_DENOM.to_string());
-    assert_eq!(amm2_native_balance.amount.amount, Uint128(99));
+    assert_eq!(amm2_native_balance.amount, Uint128::new(99));
 
     // assert internal state is consistent
     let info_amm1 = get_info(&router, &amm1);
     let token1_balance = token1.balance(&router, amm1.clone()).unwrap();
     assert_eq!(info_amm1.token2_reserve, token1_balance);
-    assert_eq!(info_amm1.token1_reserve, amm1_native_balance.amount.amount);
+    assert_eq!(info_amm1.token1_reserve, amm1_native_balance.amount);
 
     let info_amm2 = get_info(&router, &amm2);
     let token2_balance = token2.balance(&router, amm2.clone()).unwrap();
     assert_eq!(info_amm2.token2_reserve, token2_balance);
-    assert_eq!(info_amm2.token1_reserve, amm2_native_balance.amount.amount);
+    assert_eq!(info_amm2.token1_reserve, amm2_native_balance.amount);
 }
