@@ -1,28 +1,27 @@
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
+    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
+use cw0::parse_reply_instantiate_data;
 use cw20::{Cw20ExecuteMsg, Expiration, MinterResponse};
-use cw20_base::contract::{
-    execute_burn, execute_mint, instantiate as cw20_instantiate, query_balance,
-};
-use cw20_base::state::{BALANCES as LIQUIDITY_BALANCES, TOKEN_INFO as LIQUIDITY_INFO};
+use cw20_base::contract::query_balance;
 
 use crate::error::ContractError;
 use crate::msg::{
     ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, Token1ForToken2PriceResponse,
     Token2ForToken1PriceResponse, TokenSelect,
 };
-use crate::state::{Token, TOKEN1, TOKEN2};
+use crate::state::{Token, LP_TOKEN, TOKEN1, TOKEN2};
 use cw_storage_plus::Item;
 
+const INSTANTIATE_LP_TOKEN_REPLY_ID: u64 = 0;
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let token1 = Token {
@@ -41,11 +40,12 @@ pub fn instantiate(
 
     TOKEN2.save(deps.storage, &token2)?;
 
-    cw20_instantiate(
-        deps,
-        _env.clone(),
-        info,
-        cw20_base::msg::InstantiateMsg {
+    let instantiate_lp_token_msg = WasmMsg::Instantiate {
+        code_id: msg.lp_token_code_id,
+        funds: vec![],
+        admin: None,
+        label: "lp_token".to_string(),
+        msg: to_binary(&cw20_base::msg::InstantiateMsg {
             name: "CRUST_LIQUIDITY_TOKEN".into(),
             symbol: "CRUST".into(),
             decimals: 18,
@@ -55,10 +55,13 @@ pub fn instantiate(
                 cap: None,
             }),
             marketing: None,
-        },
-    )?;
+        })?,
+    };
 
-    Ok(Response::default())
+    let reply_msg =
+        SubMsg::reply_on_success(instantiate_lp_token_msg, INSTANTIATE_LP_TOKEN_REPLY_ID);
+
+    Ok(Response::new().add_submessage(reply_msg))
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
@@ -228,8 +231,7 @@ pub fn execute_add_liquidity(
 
     let token1 = TOKEN1.load(deps.storage).unwrap();
     let token2 = TOKEN2.load(deps.storage).unwrap();
-
-    let liquidity = LIQUIDITY_INFO.load(deps.storage)?;
+    let lp_token_addr = LP_TOKEN.load(deps.storage)?;
 
     // validate funds if native input token
     match token1.address {
@@ -241,13 +243,13 @@ pub fn execute_add_liquidity(
         None => validate_native_input_amount(&info.funds, max_token2, &token2.denom),
     }?;
 
-    let liquidity_amount =
-        get_liquidity_amount(token1_amount, liquidity.total_supply, token1.reserve)?;
+    let lp_token_supply = get_lp_token_supply(deps.as_ref(), &lp_token_addr)?;
+    let liquidity_amount = get_liquidity_amount(token1_amount, lp_token_supply, token1.reserve)?;
 
     let token_amount = get_token_amount(
         max_token2,
         token1_amount,
-        liquidity.total_supply,
+        lp_token_supply,
         token2.reserve,
         token1.reserve,
     )?;
@@ -294,25 +296,50 @@ pub fn execute_add_liquidity(
         Ok(token2)
     })?;
 
-    let sub_info = MessageInfo {
-        sender: _env.contract.address.clone(),
-        funds: vec![],
-    };
-    execute_mint(
-        deps,
-        _env,
-        sub_info,
-        info.sender.clone().into(),
-        liquidity_amount,
-    )?;
+    let mint_msg = mint_lp_tokens(&info.sender, liquidity_amount, &lp_token_addr)?;
 
     Ok(Response::new()
         .add_messages(cw20_transfer_msgs)
+        .add_message(mint_msg)
         .add_attributes(vec![
             attr("native_amount", info.funds[0].clone().amount),
             attr("token_amount", token_amount),
             attr("liquidity_received", liquidity_amount),
         ]))
+}
+
+fn get_lp_token_supply(deps: Deps, lp_token_addr: &Addr) -> StdResult<Uint128> {
+    let resp: cw20::TokenInfoResponse = deps
+        .querier
+        .query_wasm_smart(lp_token_addr, &cw20_base::msg::QueryMsg::TokenInfo {})?;
+    Ok(resp.total_supply)
+}
+
+fn mint_lp_tokens(
+    recipient: &Addr,
+    liquidity_amount: Uint128,
+    lp_token_address: &Addr,
+) -> StdResult<CosmosMsg> {
+    let mint_msg = cw20_base::msg::ExecuteMsg::Mint {
+        recipient: recipient.into(),
+        amount: liquidity_amount,
+    };
+    Ok(WasmMsg::Execute {
+        contract_addr: lp_token_address.to_string(),
+        msg: to_binary(&mint_msg)?,
+        funds: vec![],
+    }
+    .into())
+}
+
+fn get_token_balance(deps: Deps, contract: &Addr, addr: &Addr) -> StdResult<Uint128> {
+    let resp: cw20::BalanceResponse = deps.querier.query_wasm_smart(
+        contract,
+        &cw20_base::msg::QueryMsg::Balance {
+            address: addr.to_string(),
+        },
+    )?;
+    Ok(resp.balance)
 }
 
 fn validate_native_input_amount(
@@ -385,8 +412,9 @@ pub fn execute_remove_liquidity(
 ) -> Result<Response, ContractError> {
     check_expiration(&expiration, &_env.block)?;
 
-    let balance = LIQUIDITY_BALANCES.load(deps.storage, &info.sender)?;
-    let token = LIQUIDITY_INFO.load(deps.storage)?;
+    let lp_token_addr = LP_TOKEN.load(deps.storage)?;
+    let balance = get_token_balance(deps.as_ref(), &lp_token_addr, &info.sender)?;
+    let lp_token_supply = get_lp_token_supply(deps.as_ref(), &lp_token_addr)?;
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
 
@@ -400,7 +428,7 @@ pub fn execute_remove_liquidity(
     let native_amount = amount
         .checked_mul(token1.reserve)
         .map_err(StdError::overflow)?
-        .checked_div(token.total_supply)
+        .checked_div(lp_token_supply)
         .map_err(StdError::divide_by_zero)?;
     if native_amount < min_native {
         return Err(ContractError::MinNative {
@@ -412,7 +440,7 @@ pub fn execute_remove_liquidity(
     let token_amount = amount
         .checked_mul(token2.reserve)
         .map_err(StdError::overflow)?
-        .checked_div(token.total_supply)
+        .checked_div(lp_token_supply)
         .map_err(StdError::divide_by_zero)?;
     if token_amount < min_token {
         return Err(ContractError::MinToken {
@@ -446,15 +474,32 @@ pub fn execute_remove_liquidity(
         None => get_bank_transfer_to_msg(&info.sender, &token1.denom, token_amount),
     };
 
-    execute_burn(deps, _env, info, amount)?;
+    let lp_token_burn_msg = get_burn_msg(&lp_token_addr, &info.sender, amount)?;
 
     Ok(Response::new()
-        .add_messages(vec![token1_transfer_msg, token2_transfer_msg])
+        .add_messages(vec![
+            token1_transfer_msg,
+            token2_transfer_msg,
+            lp_token_burn_msg,
+        ])
         .add_attributes(vec![
             attr("liquidity_burned", amount),
             attr("native_returned", native_amount),
             attr("token_returned", token_amount),
         ]))
+}
+
+fn get_burn_msg(contract: &Addr, owner: &Addr, amount: Uint128) -> StdResult<CosmosMsg> {
+    let msg = cw20_base::msg::ExecuteMsg::BurnFrom {
+        owner: owner.to_string(),
+        amount,
+    };
+    Ok(WasmMsg::Execute {
+        contract_addr: contract.to_string(),
+        msg: to_binary(&msg)?,
+        funds: vec![],
+    }
+    .into())
 }
 
 fn get_cw20_transfer_to_msg(
@@ -729,7 +774,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
-    let liquidity = LIQUIDITY_INFO.load(deps.storage)?;
+    let lp_token_address = LP_TOKEN.load(deps.storage)?.to_string();
+    // TODO get total supply
     Ok(InfoResponse {
         token1_reserve: token1.reserve,
         token1_denom: token1.denom,
@@ -737,7 +783,8 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
         token2_reserve: token2.reserve,
         token2_denom: token2.denom,
         token2_address: token2.address.map(|a| a.to_string()),
-        lp_token_supply: liquidity.total_supply,
+        lp_token_supply: Uint128::new(100),
+        lp_token_address,
     })
 }
 
@@ -765,39 +812,29 @@ pub fn query_token_for_native_price(
     })
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+    if msg.id != INSTANTIATE_LP_TOKEN_REPLY_ID {
+        return Err(ContractError::UnknownReplyId { id: msg.id });
+    };
+    let res = parse_reply_instantiate_data(msg);
+    match res {
+        Ok(res) => {
+            // Validate contract address
+            let cw20_addr = deps.api.addr_validate(&res.contract_address)?;
+
+            // Save gov token
+            LP_TOKEN.save(deps.storage, &cw20_addr)?;
+
+            Ok(Response::new())
+        }
+        Err(_) => Err(ContractError::InstantiateLpTokenError {}),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary, Addr};
-
-    fn get_info(deps: Deps) -> InfoResponse {
-        query_info(deps).unwrap()
-    }
-
-    #[test]
-    fn proper_initialization() {
-        let mut deps = mock_dependencies();
-
-        let msg = InstantiateMsg {
-            token1_denom: "test".to_string(),
-            token1_address: None,
-            token2_denom: "coin".to_string(),
-            token2_address: Some(Addr::unchecked("token_address")),
-        };
-        let info = mock_info("creator", &coins(1000, "earth"));
-
-        // we can just call .unwrap() to assert this was a success
-        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(res.messages.len(), 0);
-
-        let info = query_info(deps.as_ref()).unwrap();
-        assert_eq!(info.token1_reserve, Uint128::zero());
-        assert_eq!(info.token1_denom, "test");
-        assert_eq!(info.token2_reserve, Uint128::zero());
-        assert_eq!(info.token2_denom, "coin");
-        assert_eq!(info.token2_address, Some("token_address".to_string()))
-    }
 
     #[test]
     fn test_get_liquidity_amount() {
@@ -834,230 +871,6 @@ mod tests {
     }
 
     #[test]
-    fn add_liquidity() {
-        let mut deps = mock_dependencies();
-
-        let msg = InstantiateMsg {
-            token1_denom: "test".to_string(),
-            token1_address: None,
-            token2_denom: "coin".to_string(),
-            token2_address: Some(Addr::unchecked("asdf")),
-        };
-        let info = mock_info("creator", &coins(2, "token"));
-        let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        // Add initial liquidity
-        let info = mock_info("anyone", &coins(2, "test"));
-        let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128::new(2),
-            min_liquidity: Uint128::new(2),
-            max_token2: Uint128::new(1),
-            expiration: None,
-        };
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        assert_eq!(res.attributes.len(), 3);
-        assert_eq!(res.attributes[0].value, "2");
-        assert_eq!(res.attributes[1].value, "1");
-        assert_eq!(res.attributes[2].value, "2");
-
-        let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128::new(2));
-        assert_eq!(info.token2_reserve, Uint128::new(1));
-
-        // Add more liquidity
-        let info = mock_info("anyone", &coins(4, "test"));
-        let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128::new(4),
-            min_liquidity: Uint128::new(4),
-            max_token2: Uint128::new(3),
-            expiration: None,
-        };
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        assert_eq!(res.attributes.len(), 3);
-        assert_eq!(res.attributes[0].value, "4");
-        assert_eq!(res.attributes[1].value, "3");
-        assert_eq!(res.attributes[2].value, "4");
-
-        let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128::new(6));
-        assert_eq!(info.token2_reserve, Uint128::new(4));
-
-        // Too low max_token
-        let info = mock_info("anyone", &coins(100, "test"));
-        let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128::new(100),
-            min_liquidity: Uint128::new(100),
-            max_token2: Uint128::new(1),
-            expiration: None,
-        };
-        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-        assert_eq!(
-            err,
-            ContractError::MaxTokenError {
-                max_token: Uint128::new(1),
-                tokens_required: Uint128::new(67)
-            }
-        );
-
-        // Too high min liquidity
-        let info = mock_info("anyone", &coins(100, "test"));
-        let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128::new(100),
-            min_liquidity: Uint128::new(500),
-            max_token2: Uint128::new(500),
-            expiration: None,
-        };
-        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-        assert_eq!(
-            err,
-            ContractError::MinLiquidityError {
-                min_liquidity: Uint128::new(500),
-                liquidity_available: Uint128::new(100)
-            }
-        );
-
-        // Incorrect native denom throws error
-        let info = mock_info("anyone", &coins(100, "wrong"));
-        let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128::new(100),
-            min_liquidity: Uint128::new(1),
-            max_token2: Uint128::new(500),
-            expiration: None,
-        };
-        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-        assert_eq!(err, ContractError::InsufficientFunds {});
-
-        // Expired Message
-        let info = mock_info("anyone", &coins(100, "test"));
-        let mut env = mock_env();
-        env.block.height = 20;
-        let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128::new(100),
-            min_liquidity: Uint128::new(100),
-            max_token2: Uint128::new(50),
-            expiration: Some(Expiration::AtHeight(19)),
-        };
-        let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
-        assert_eq!(err, ContractError::MsgExpirationError {})
-    }
-
-    #[test]
-    fn remove_liquidity() {
-        let mut deps = mock_dependencies();
-
-        let msg = InstantiateMsg {
-            token1_denom: "test".to_string(),
-            token1_address: None,
-            token2_denom: "coin".to_string(),
-            token2_address: Some(Addr::unchecked("asdf")),
-        };
-        let info = mock_info("creator", &coins(2, "token"));
-        let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        // Add initial liquidity
-        let info = mock_info("anyone", &coins(100, "test"));
-        let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128::new(100),
-            min_liquidity: Uint128::new(100),
-            max_token2: Uint128::new(50),
-            expiration: None,
-        };
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        assert_eq!(res.attributes.len(), 3);
-        assert_eq!(res.attributes[0].value, "100");
-        assert_eq!(res.attributes[1].value, "50");
-        assert_eq!(res.attributes[2].value, "100");
-
-        let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128::new(100));
-        assert_eq!(info.token2_reserve, Uint128::new(50));
-
-        // Remove half liquidity
-        let info = mock_info("anyone", &vec![]);
-        let msg = ExecuteMsg::RemoveLiquidity {
-            amount: Uint128::new(50),
-            min_token1: Uint128::new(50),
-            min_token2: Uint128::new(25),
-            expiration: None,
-        };
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(res.attributes[0].value, "50");
-        assert_eq!(res.attributes[1].value, "50");
-        assert_eq!(res.attributes[2].value, "25");
-
-        let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128::new(50));
-        assert_eq!(info.token2_reserve, Uint128::new(25));
-
-        // Remove half again with not proper division
-        let info = mock_info("anyone", &vec![]);
-        let msg = ExecuteMsg::RemoveLiquidity {
-            amount: Uint128::new(25),
-            min_token1: Uint128::new(25),
-            min_token2: Uint128::new(12),
-            expiration: None,
-        };
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(res.attributes[0].value, "25");
-        assert_eq!(res.attributes[1].value, "25");
-        assert_eq!(res.attributes[2].value, "12");
-
-        let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128::new(25));
-        assert_eq!(info.token2_reserve, Uint128::new(13));
-
-        // Remove more than owned
-        let info = mock_info("anyone", &vec![]);
-        let msg = ExecuteMsg::RemoveLiquidity {
-            amount: Uint128::new(26),
-            min_token1: Uint128::new(1),
-            min_token2: Uint128::new(1),
-            expiration: None,
-        };
-        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-        assert_eq!(
-            err,
-            ContractError::InsufficientLiquidityError {
-                requested: Uint128::new(26),
-                available: Uint128::new(25)
-            }
-        );
-
-        // Remove rest of liquidity
-        let info = mock_info("anyone", &vec![]);
-        let msg = ExecuteMsg::RemoveLiquidity {
-            amount: Uint128::new(25),
-            min_token1: Uint128::new(1),
-            min_token2: Uint128::new(1),
-            expiration: None,
-        };
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(res.attributes[0].value, "25");
-        assert_eq!(res.attributes[1].value, "25");
-        assert_eq!(res.attributes[2].value, "13");
-
-        let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128::new(0));
-        assert_eq!(info.token2_reserve, Uint128::new(0));
-
-        // Expired Message
-        let info = mock_info("anyone", &coins(100, "test"));
-        let mut env = mock_env();
-        env.block.height = 20;
-        let msg = ExecuteMsg::RemoveLiquidity {
-            amount: Uint128::new(25),
-            min_token1: Uint128::new(1),
-            min_token2: Uint128::new(1),
-            expiration: Some(Expiration::AtHeight(19)),
-        };
-        let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
-        assert_eq!(err, ContractError::MsgExpirationError {})
-    }
-
-    #[test]
     fn test_get_input_price() {
         // Base case
         assert_eq!(
@@ -1078,255 +891,5 @@ mod tests {
         // No reserve error
         let err = get_input_price(Uint128::new(10), Uint128::new(0), Uint128::new(0)).unwrap_err();
         assert_eq!(err, ContractError::NoLiquidityError {});
-    }
-
-    #[test]
-    fn swap_native_for_token() {
-        let mut deps = mock_dependencies();
-
-        let msg = InstantiateMsg {
-            token1_denom: "test".to_string(),
-            token1_address: None,
-            token2_denom: "coin".to_string(),
-            token2_address: Some(Addr::unchecked("asdf")),
-        };
-        let info = mock_info("creator", &coins(2, "token"));
-        let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        // Add initial liquidity
-        let info = mock_info("anyone", &coins(100, "test"));
-        let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128::new(100),
-            min_liquidity: Uint128::new(100),
-            max_token2: Uint128::new(100),
-            expiration: None,
-        };
-        let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        // Swap tokens
-        let info = mock_info("anyone", &coins(10, "test"));
-        let msg = ExecuteMsg::SwapToken1ForToken2 {
-            token1_amount: Uint128::new(10),
-            min_token2: Uint128::new(9),
-            expiration: None,
-        };
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(res.attributes.len(), 2);
-        assert_eq!(res.attributes[0].value, "10");
-        assert_eq!(res.attributes[1].value, "9");
-
-        let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128::new(110));
-        assert_eq!(info.token2_reserve, Uint128::new(91));
-
-        // Second purchase at higher price
-        let info = mock_info("anyone", &coins(10, "test"));
-        let msg = ExecuteMsg::SwapToken1ForToken2 {
-            token1_amount: Uint128::new(10),
-            min_token2: Uint128::new(7),
-            expiration: None,
-        };
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(res.attributes.len(), 2);
-        assert_eq!(res.attributes[0].value, "10");
-        assert_eq!(res.attributes[1].value, "7");
-
-        let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128::new(120));
-        assert_eq!(info.token2_reserve, Uint128::new(84));
-
-        // min_token error
-        let info = mock_info("anyone", &coins(10, "test"));
-        let msg = ExecuteMsg::SwapToken1ForToken2 {
-            token1_amount: Uint128::new(10),
-            min_token2: Uint128::new(100),
-            expiration: None,
-        };
-        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-        assert_eq!(
-            err,
-            ContractError::SwapMinError {
-                min: Uint128::new(100),
-                available: Uint128::new(6)
-            }
-        );
-
-        // Expired Message
-        let info = mock_info("anyone", &coins(100, "test"));
-        let mut env = mock_env();
-        env.block.height = 20;
-        let msg = ExecuteMsg::SwapToken1ForToken2 {
-            token1_amount: Uint128::new(100),
-            min_token2: Uint128::new(100),
-            expiration: Some(Expiration::AtHeight(19)),
-        };
-        let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
-        assert_eq!(err, ContractError::MsgExpirationError {})
-    }
-
-    #[test]
-    fn swap_token_for_native() {
-        let mut deps = mock_dependencies();
-
-        let msg = InstantiateMsg {
-            token1_denom: "test".to_string(),
-            token1_address: None,
-            token2_denom: "coin".to_string(),
-            token2_address: Some(Addr::unchecked("asdf")),
-        };
-        let info = mock_info("creator", &coins(2, "token"));
-        let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        // Add initial liquidity
-        let info = mock_info("anyone", &coins(100, "test"));
-        let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128::new(100),
-            min_liquidity: Uint128::new(100),
-            max_token2: Uint128::new(100),
-            expiration: None,
-        };
-        let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        // Swap tokens
-        let info = mock_info("anyone", &vec![]);
-        let msg = ExecuteMsg::SwapToken2ForToken1 {
-            token2_amount: Uint128::new(10),
-            min_token1: Uint128::new(9),
-            expiration: None,
-        };
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(res.attributes.len(), 2);
-        assert_eq!(res.attributes[0].value, "10");
-        assert_eq!(res.attributes[1].value, "9");
-
-        let info = get_info(deps.as_ref());
-        assert_eq!(info.token2_reserve, Uint128::new(110));
-        assert_eq!(info.token1_reserve, Uint128::new(91));
-
-        // Second purchase at higher price
-        let info = mock_info("anyone", &vec![]);
-        let msg = ExecuteMsg::SwapToken2ForToken1 {
-            token2_amount: Uint128::new(10),
-            min_token1: Uint128::new(7),
-            expiration: None,
-        };
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(res.attributes.len(), 2);
-        assert_eq!(res.attributes[0].value, "10");
-        assert_eq!(res.attributes[1].value, "7");
-
-        let info = get_info(deps.as_ref());
-        assert_eq!(info.token2_reserve, Uint128::new(120));
-        assert_eq!(info.token1_reserve, Uint128::new(84));
-
-        // min_token error
-        let info = mock_info("anyone", &vec![]);
-        let msg = ExecuteMsg::SwapToken2ForToken1 {
-            token2_amount: Uint128::new(10),
-            min_token1: Uint128::new(100),
-            expiration: None,
-        };
-        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
-        assert_eq!(
-            err,
-            ContractError::SwapMinError {
-                min: Uint128::new(100),
-                available: Uint128::new(6)
-            }
-        );
-
-        // Expired Message
-        let info = mock_info("anyone", &coins(100, "test"));
-        let mut env = mock_env();
-        env.block.height = 20;
-        let msg = ExecuteMsg::SwapToken2ForToken1 {
-            token2_amount: Uint128::new(10),
-            min_token1: Uint128::new(100),
-            expiration: Some(Expiration::AtHeight(19)),
-        };
-        let err = execute(deps.as_mut(), env, info, msg).unwrap_err();
-        assert_eq!(err, ContractError::MsgExpirationError {})
-    }
-
-    #[test]
-    fn query_price() {
-        let mut deps = mock_dependencies();
-
-        let msg = InstantiateMsg {
-            token1_denom: "test".to_string(),
-            token1_address: None,
-            token2_denom: "coin".to_string(),
-            token2_address: Some(Addr::unchecked("asdf")),
-        };
-        let info = mock_info("creator", &coins(2, "token"));
-        let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        // Add initial liquidity
-        let info = mock_info("anyone", &coins(100, "test"));
-        let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128::new(100),
-            min_liquidity: Uint128::new(100),
-            max_token2: Uint128::new(50),
-            expiration: None,
-        };
-        let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        // Query Native for Token Price
-        let msg = QueryMsg::Token1ForToken2Price {
-            token1_amount: Uint128::new(10),
-        };
-        let data = query(deps.as_ref(), mock_env(), msg).unwrap();
-        let res: Token1ForToken2PriceResponse = from_binary(&data).unwrap();
-        assert_eq!(res.token2_amount, Uint128::new(4));
-
-        // Query Token for Native Price
-        let msg = QueryMsg::Token2ForToken1Price {
-            token2_amount: Uint128::new(10),
-        };
-        let data = query(deps.as_ref(), mock_env(), msg).unwrap();
-        let res: Token2ForToken1PriceResponse = from_binary(&data).unwrap();
-        assert_eq!(res.token1_amount, Uint128::new(16));
-    }
-
-    #[test]
-    fn swap_native_for_token_to() {
-        let mut deps = mock_dependencies();
-
-        let msg = InstantiateMsg {
-            token1_denom: "test".to_string(),
-            token1_address: None,
-            token2_denom: "coin".to_string(),
-            token2_address: Some(Addr::unchecked("asdf")),
-        };
-        let info = mock_info("creator", &coins(2, "token"));
-        let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        // Add initial liquidity
-        let info = mock_info("anyone", &coins(100, "test"));
-        let msg = ExecuteMsg::AddLiquidity {
-            token1_amount: Uint128::new(100),
-            min_liquidity: Uint128::new(100),
-            max_token2: Uint128::new(100),
-            expiration: None,
-        };
-        let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        // Swap tokens
-        let info = mock_info("anyone", &coins(10, "test"));
-        let msg = ExecuteMsg::SwapTo {
-            input_token: TokenSelect::Token1,
-            input_amount: Uint128::new(10),
-            recipient: Addr::unchecked("test"),
-            min_token: Uint128::new(9),
-            expiration: None,
-        };
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(res.attributes.len(), 2);
-        assert_eq!(res.attributes[0].value, "10");
-        assert_eq!(res.attributes[1].value, "9");
-
-        let info = get_info(deps.as_ref());
-        assert_eq!(info.token1_reserve, Uint128::new(110));
-        assert_eq!(info.token2_reserve, Uint128::new(91));
     }
 }

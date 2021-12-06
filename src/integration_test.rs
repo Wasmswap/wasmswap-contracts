@@ -3,6 +3,7 @@
 use std::borrow::BorrowMut;
 
 use cosmwasm_std::{coins, Addr, Coin, Empty, Uint128};
+
 use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg};
 use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
@@ -17,7 +18,8 @@ pub fn contract_amm() -> Box<dyn Contract<Empty>> {
         crate::contract::execute,
         crate::contract::instantiate,
         crate::contract::query,
-    );
+    )
+    .with_reply(crate::contract::reply);
     Box::new(contract)
 }
 
@@ -39,17 +41,18 @@ fn get_info(router: &App, contract_addr: &Addr) -> InfoResponse {
 
 fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom: String) -> Addr {
     // set up amm contract
+    let cw20_id = router.store_code(contract_cw20());
     let amm_id = router.store_code(contract_amm());
     let msg = InstantiateMsg {
         token1_denom: native_denom,
         token1_address: None,
         token2_denom: cash.meta(router).unwrap().symbol,
         token2_address: Some(cash.addr()),
+        lp_token_code_id: cw20_id,
     };
-    let amm_addr = router
+    router
         .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)
-        .unwrap();
-    amm_addr
+        .unwrap()
 }
 
 // CreateCW20 create new cw20 with given initial balance belonging to owner
@@ -88,6 +91,35 @@ fn bank_balance(router: &mut App, addr: &Addr, denom: String) -> Coin {
 
 #[test]
 // receive cw20 tokens and release upon approval
+fn test_instantiate() {
+    let mut router = mock_app();
+
+    const NATIVE_TOKEN_DENOM: &str = "juno";
+
+    let owner = Addr::unchecked("owner");
+    let funds = coins(2000, NATIVE_TOKEN_DENOM);
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &owner, funds).unwrap()
+    });
+
+    let cw20_token = create_cw20(
+        &mut router,
+        &owner,
+        "token".to_string(),
+        "CWTOKEN".to_string(),
+        Uint128::new(5000),
+    );
+
+    let amm_addr = create_amm(&mut router, &owner, &cw20_token, NATIVE_TOKEN_DENOM.into());
+
+    assert_ne!(cw20_token.addr(), amm_addr);
+
+    let info = get_info(&router, &amm_addr);
+    assert_eq!(info.lp_token_address, "Contract #2".to_string())
+}
+
+#[test]
+// receive cw20 tokens and release upon approval
 fn amm_add_and_remove_liquidity() {
     let mut router = mock_app();
 
@@ -111,8 +143,9 @@ fn amm_add_and_remove_liquidity() {
 
     assert_ne!(cw20_token.addr(), amm_addr);
 
+    let info = get_info(&router, &amm_addr);
     // set up cw20 helpers
-    let amm = Cw20Contract(amm_addr.clone());
+    let lp_token = Cw20Contract(Addr::unchecked(info.lp_token_address));
 
     // check initial balances
     let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
@@ -151,7 +184,7 @@ fn amm_add_and_remove_liquidity() {
     assert_eq!(owner_balance, Uint128::new(4900));
     let amm_balance = cw20_token.balance(&router, amm_addr.clone()).unwrap();
     assert_eq!(amm_balance, Uint128::new(100));
-    let crust_balance = amm.balance(&router, owner.clone()).unwrap();
+    let crust_balance = lp_token.balance(&router, owner.clone()).unwrap();
     assert_eq!(crust_balance, Uint128::new(100));
 
     // send tokens to contract address
@@ -187,8 +220,18 @@ fn amm_add_and_remove_liquidity() {
     assert_eq!(owner_balance, Uint128::new(4849));
     let amm_balance = cw20_token.balance(&router, amm_addr.clone()).unwrap();
     assert_eq!(amm_balance, Uint128::new(151));
-    let crust_balance = amm.balance(&router, owner.clone()).unwrap();
+    let crust_balance = lp_token.balance(&router, owner.clone()).unwrap();
     assert_eq!(crust_balance, Uint128::new(150));
+
+    // Allowance to burn tokens
+    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: amm_addr.to_string(),
+        amount: Uint128::new(50u128),
+        expires: None,
+    };
+    let _res = router
+        .execute_contract(owner.clone(), lp_token.addr(), &allowance_msg, &[])
+        .unwrap();
 
     let remove_liquidity_msg = ExecuteMsg::RemoveLiquidity {
         amount: Uint128::new(50),
@@ -213,7 +256,7 @@ fn amm_add_and_remove_liquidity() {
     assert_eq!(owner_balance, Uint128::new(4899));
     let amm_balance = cw20_token.balance(&router, amm_addr.clone()).unwrap();
     assert_eq!(amm_balance, Uint128::new(101));
-    let crust_balance = amm.balance(&router, owner.clone()).unwrap();
+    let crust_balance = lp_token.balance(&router, owner.clone()).unwrap();
     assert_eq!(crust_balance, Uint128::new(100));
 }
 
@@ -438,11 +481,13 @@ fn swap_native_to_native_tokens_happy_path() {
     });
 
     let amm_id = router.store_code(contract_amm());
+    let lp_token_id = router.store_code(contract_cw20());
     let msg = InstantiateMsg {
         token1_denom: NATIVE_TOKEN_DENOM.into(),
         token1_address: None,
         token2_denom: IBC_TOKEN_DENOM.into(),
         token2_address: None,
+        lp_token_code_id: lp_token_id,
     };
     let amm_addr = router
         .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)
