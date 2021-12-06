@@ -1,9 +1,9 @@
 #![cfg(test)]
 
-use std::borrow::{Borrow, BorrowMut};
+use std::borrow::BorrowMut;
 
 use cosmwasm_std::{coins, Addr, Coin, Empty, Uint128};
-use cosmwasm_std::OverflowOperation::Add;
+
 use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg};
 use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
@@ -18,7 +18,8 @@ pub fn contract_amm() -> Box<dyn Contract<Empty>> {
         crate::contract::execute,
         crate::contract::instantiate,
         crate::contract::query,
-    ).with_reply(crate::contract::reply);
+    )
+    .with_reply(crate::contract::reply);
     Box::new(contract)
 }
 

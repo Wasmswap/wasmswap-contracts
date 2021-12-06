@@ -1,18 +1,17 @@
-use std::ops::Add;
-use cosmwasm_std::{attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, SubMsg, Reply, Empty};
+use cosmwasm_std::{
+    attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+};
 use cw0::parse_reply_instantiate_data;
 use cw20::{Cw20ExecuteMsg, Expiration, MinterResponse};
-use cw20_base::contract::{
-    execute_burn, execute_mint, instantiate as cw20_instantiate, query_balance,
-};
-use cw20_base::state::{BALANCES as LIQUIDITY_BALANCES, TOKEN_INFO as LIQUIDITY_INFO};
+use cw20_base::contract::query_balance;
 
 use crate::error::ContractError;
 use crate::msg::{
     ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, Token1ForToken2PriceResponse,
     Token2ForToken1PriceResponse, TokenSelect,
 };
-use crate::state::{LP_TOKEN, Token, TOKEN1, TOKEN2};
+use crate::state::{Token, LP_TOKEN, TOKEN1, TOKEN2};
 use cw_storage_plus::Item;
 
 const INSTANTIATE_LP_TOKEN_REPLY_ID: u64 = 0;
@@ -22,7 +21,7 @@ const INSTANTIATE_LP_TOKEN_REPLY_ID: u64 = 0;
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let token1 = Token {
@@ -59,8 +58,8 @@ pub fn instantiate(
         })?,
     };
 
-    let reply_msg = SubMsg::reply_on_success(instantiate_lp_token_msg, INSTANTIATE_LP_TOKEN_REPLY_ID);
-
+    let reply_msg =
+        SubMsg::reply_on_success(instantiate_lp_token_msg, INSTANTIATE_LP_TOKEN_REPLY_ID);
 
     Ok(Response::new().add_submessage(reply_msg))
 }
@@ -234,7 +233,6 @@ pub fn execute_add_liquidity(
     let token2 = TOKEN2.load(deps.storage).unwrap();
     let lp_token_addr = LP_TOKEN.load(deps.storage)?;
 
-
     // validate funds if native input token
     match token1.address {
         Some(_) => Ok(()),
@@ -245,9 +243,8 @@ pub fn execute_add_liquidity(
         None => validate_native_input_amount(&info.funds, max_token2, &token2.denom),
     }?;
 
-    let lp_token_supply = get_lp_token_supply(deps.as_ref(),&lp_token_addr)?;
-    let liquidity_amount =
-        get_liquidity_amount(token1_amount,  lp_token_supply, token1.reserve)?;
+    let lp_token_supply = get_lp_token_supply(deps.as_ref(), &lp_token_addr)?;
+    let liquidity_amount = get_liquidity_amount(token1_amount, lp_token_supply, token1.reserve)?;
 
     let token_amount = get_token_amount(
         max_token2,
@@ -312,21 +309,36 @@ pub fn execute_add_liquidity(
 }
 
 fn get_lp_token_supply(deps: Deps, lp_token_addr: &Addr) -> StdResult<Uint128> {
-    let resp: cw20::TokenInfoResponse = deps.querier.query_wasm_smart(lp_token_addr, &cw20_base::msg::QueryMsg::TokenInfo {})?;
+    let resp: cw20::TokenInfoResponse = deps
+        .querier
+        .query_wasm_smart(lp_token_addr, &cw20_base::msg::QueryMsg::TokenInfo {})?;
     Ok(resp.total_supply)
 }
 
-fn mint_lp_tokens(recipient: &Addr, liquidity_amount: Uint128, lp_token_address: &Addr) -> StdResult<CosmosMsg> {
-    let mint_msg = cw20_base::msg::ExecuteMsg::Mint { recipient: recipient.into(), amount: liquidity_amount};
+fn mint_lp_tokens(
+    recipient: &Addr,
+    liquidity_amount: Uint128,
+    lp_token_address: &Addr,
+) -> StdResult<CosmosMsg> {
+    let mint_msg = cw20_base::msg::ExecuteMsg::Mint {
+        recipient: recipient.into(),
+        amount: liquidity_amount,
+    };
     Ok(WasmMsg::Execute {
         contract_addr: lp_token_address.to_string(),
         msg: to_binary(&mint_msg)?,
-        funds: vec![]
-    }.into())
+        funds: vec![],
+    }
+    .into())
 }
 
 fn get_token_balance(deps: Deps, contract: &Addr, addr: &Addr) -> StdResult<Uint128> {
-    let resp: cw20::BalanceResponse = deps.querier.query_wasm_smart(contract, &cw20_base::msg::QueryMsg::Balance { address: addr.to_string() })?;
+    let resp: cw20::BalanceResponse = deps.querier.query_wasm_smart(
+        contract,
+        &cw20_base::msg::QueryMsg::Balance {
+            address: addr.to_string(),
+        },
+    )?;
     Ok(resp.balance)
 }
 
@@ -465,7 +477,11 @@ pub fn execute_remove_liquidity(
     let lp_token_burn_msg = get_burn_msg(&lp_token_addr, &info.sender, amount)?;
 
     Ok(Response::new()
-        .add_messages(vec![token1_transfer_msg, token2_transfer_msg, lp_token_burn_msg])
+        .add_messages(vec![
+            token1_transfer_msg,
+            token2_transfer_msg,
+            lp_token_burn_msg,
+        ])
         .add_attributes(vec![
             attr("liquidity_burned", amount),
             attr("native_returned", native_amount),
@@ -474,12 +490,16 @@ pub fn execute_remove_liquidity(
 }
 
 fn get_burn_msg(contract: &Addr, owner: &Addr, amount: Uint128) -> StdResult<CosmosMsg> {
-    let msg = cw20_base::msg::ExecuteMsg::BurnFrom { owner: owner.to_string(), amount };
+    let msg = cw20_base::msg::ExecuteMsg::BurnFrom {
+        owner: owner.to_string(),
+        amount,
+    };
     Ok(WasmMsg::Execute {
         contract_addr: contract.to_string(),
         msg: to_binary(&msg)?,
-        funds: vec![]
-    }.into())
+        funds: vec![],
+    }
+    .into())
 }
 
 fn get_cw20_transfer_to_msg(
@@ -764,7 +784,7 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
         token2_denom: token2.denom,
         token2_address: token2.address.map(|a| a.to_string()),
         lp_token_supply: Uint128::new(100),
-        lp_token_address
+        lp_token_address,
     })
 }
 
@@ -792,7 +812,6 @@ pub fn query_token_for_native_price(
     })
 }
 
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     if msg.id != INSTANTIATE_LP_TOKEN_REPLY_ID {
@@ -816,13 +835,6 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary, Addr};
-
-    fn get_info(deps: Deps) -> InfoResponse {
-        query_info(deps).unwrap()
-    }
-
 
     #[test]
     fn test_get_liquidity_amount() {
