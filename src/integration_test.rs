@@ -32,6 +32,15 @@ pub fn contract_cw20() -> Box<dyn Contract<Empty>> {
     Box::new(contract)
 }
 
+pub fn contract_cw20_stakeable() -> Box<dyn Contract<Empty>> {
+    let contract = ContractWrapper::new(
+        cw20_stakeable::contract::execute,
+        cw20_stakeable::contract::instantiate,
+        cw20_stakeable::contract::query,
+    );
+    Box::new(contract)
+}
+
 fn get_info(router: &App, contract_addr: &Addr) -> InfoResponse {
     router
         .wrap()
@@ -41,7 +50,7 @@ fn get_info(router: &App, contract_addr: &Addr) -> InfoResponse {
 
 fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom: String) -> Addr {
     // set up amm contract
-    let cw20_id = router.store_code(contract_cw20());
+    let cw20_id = router.store_code(contract_cw20_stakeable());
     let amm_id = router.store_code(contract_amm());
     let msg = InstantiateMsg {
         token1_denom: native_denom,
@@ -481,7 +490,7 @@ fn swap_native_to_native_tokens_happy_path() {
     });
 
     let amm_id = router.store_code(contract_amm());
-    let lp_token_id = router.store_code(contract_cw20());
+    let lp_token_id = router.store_code(contract_cw20_stakeable());
     let msg = InstantiateMsg {
         token1_denom: NATIVE_TOKEN_DENOM.into(),
         token1_address: None,

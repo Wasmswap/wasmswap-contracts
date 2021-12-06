@@ -45,7 +45,7 @@ pub fn instantiate(
         funds: vec![],
         admin: None,
         label: "lp_token".to_string(),
-        msg: to_binary(&cw20_base::msg::InstantiateMsg {
+        msg: to_binary(&cw20_stakeable::msg::InstantiateMsg{cw20_base: cw20_base::msg::InstantiateMsg {
             name: "CRUST_LIQUIDITY_TOKEN".into(),
             symbol: "CRUST".into(),
             decimals: 18,
@@ -55,6 +55,7 @@ pub fn instantiate(
                 cap: None,
             }),
             marketing: None,
+        }, unstaking_duration: None
         })?,
     };
 
