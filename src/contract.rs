@@ -828,7 +828,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 
             Ok(Response::new())
         }
-        Err(_) => Err(ContractError::InstantiateLPTokenError {}),
+        Err(_) => Err(ContractError::InstantiateLpTokenError {}),
     }
 }
 
