@@ -65,5 +65,5 @@ pub enum ContractError {
     UnknownReplyId { id: u64 },
 
     #[error("Failed to instantiate lp token")]
-    InstantiateLPTokenError {},
+    InstantiateLpTokenError {},
 }
