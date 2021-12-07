@@ -556,9 +556,9 @@ fn get_input_price(
         .checked_add(input_amount_with_fee)
         .map_err(StdError::overflow)?;
 
-    Ok(numerator
+    numerator
         .checked_div(denominator)
-        .map_err(StdError::divide_by_zero)?)
+        .map_err(StdError::divide_by_zero)
 }
 
 fn get_amount_for_denom(coins: &[Coin], denom: &str) -> Coin {
