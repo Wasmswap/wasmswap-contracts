@@ -4,7 +4,7 @@ use std::borrow::BorrowMut;
 
 use cosmwasm_std::{coins, Addr, Coin, Empty, Uint128};
 
-use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg};
+use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg, Denom};
 use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
 use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, TokenSelect};
@@ -53,10 +53,8 @@ fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom:
     let cw20_id = router.store_code(contract_cw20_stakeable());
     let amm_id = router.store_code(contract_amm());
     let msg = InstantiateMsg {
-        token1_denom: native_denom,
-        token1_address: None,
-        token2_denom: cash.meta(router).unwrap().symbol,
-        token2_address: Some(cash.addr()),
+        token1_denom: Denom::Native(native_denom),
+        token2_denom: Denom::Cw20(cash.addr()),
         lp_token_code_id: cw20_id,
     };
     router
@@ -492,10 +490,8 @@ fn swap_native_to_native_tokens_happy_path() {
     let amm_id = router.store_code(contract_amm());
     let lp_token_id = router.store_code(contract_cw20_stakeable());
     let msg = InstantiateMsg {
-        token1_denom: NATIVE_TOKEN_DENOM.into(),
-        token1_address: None,
-        token2_denom: IBC_TOKEN_DENOM.into(),
-        token2_address: None,
+        token1_denom: Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        token2_denom: Denom::Native(IBC_TOKEN_DENOM.into()),
         lp_token_code_id: lp_token_id,
     };
     let amm_addr = router
