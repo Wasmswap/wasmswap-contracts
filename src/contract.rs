@@ -45,16 +45,19 @@ pub fn instantiate(
         funds: vec![],
         admin: None,
         label: "lp_token".to_string(),
-        msg: to_binary(&cw20_base::msg::InstantiateMsg {
-            name: "CRUST_LIQUIDITY_TOKEN".into(),
-            symbol: "CRUST".into(),
-            decimals: 18,
-            initial_balances: vec![],
-            mint: Some(MinterResponse {
-                minter: _env.contract.address.into(),
-                cap: None,
-            }),
-            marketing: None,
+        msg: to_binary(&cw20_stakeable::msg::InstantiateMsg {
+            cw20_base: cw20_base::msg::InstantiateMsg {
+                name: "CRUST_LIQUIDITY_TOKEN".into(),
+                symbol: "CRUST".into(),
+                decimals: 18,
+                initial_balances: vec![],
+                mint: Some(MinterResponse {
+                    minter: _env.contract.address.into(),
+                    cap: None,
+                }),
+                marketing: None,
+            },
+            unstaking_duration: None,
         })?,
     };
 
