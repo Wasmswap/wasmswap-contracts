@@ -1,11 +1,10 @@
-use std::path::Prefix::DeviceNS;
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw0::parse_reply_instantiate_data;
-use cw20::{Cw20ExecuteMsg, Denom, Expiration, MinterResponse};
 use cw20::Denom::Cw20;
+use cw20::{Cw20ExecuteMsg, Denom, Expiration, MinterResponse};
 use cw20_base::contract::query_balance;
 
 use crate::error::ContractError;
@@ -346,19 +345,20 @@ fn validate_input_amount(
 ) -> Result<(), ContractError> {
     match given_denom {
         Denom::Cw20(_) => Ok(()),
-        Denom::Native(denom) => {let actual = get_amount_for_denom(actual_funds, &denom);
-        if actual.amount != given_amount {
-            return Err(ContractError::InsufficientFunds {
-        });
+        Denom::Native(denom) => {
+            let actual = get_amount_for_denom(actual_funds, denom);
+            if actual.amount != given_amount {
+                return Err(ContractError::InsufficientFunds {});
+            }
+            if &actual.denom != denom {
+                return Err(ContractError::IncorrectNativeDenom {
+                    provided: actual.denom,
+                    required: denom.to_string(),
+                });
+            };
+            Ok(())
+        }
     }
-    if &actual.denom != denom {
-        return Err(ContractError::IncorrectNativeDenom {
-            provided: actual.denom,
-            required: denom.to_string(),
-        });
-    };
-    Ok(())}
-}
 }
 
 fn get_cw20_transfer_from_msg(
@@ -468,7 +468,7 @@ pub fn execute_remove_liquidity(
 
     let token1_transfer_msg = match token1.denom {
         Denom::Cw20(addr) => get_cw20_transfer_to_msg(&info.sender, &addr, native_amount)?,
-        Denom::Native(denom)=> get_bank_transfer_to_msg(&info.sender, &denom, native_amount),
+        Denom::Native(denom) => get_bank_transfer_to_msg(&info.sender, &denom, native_amount),
     };
     let token2_transfer_msg = match token2.denom {
         Denom::Cw20(addr) => get_cw20_transfer_to_msg(&info.sender, &addr, token_amount)?,
