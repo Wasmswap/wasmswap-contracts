@@ -231,8 +231,8 @@ pub fn execute_add_liquidity(
 ) -> Result<Response, ContractError> {
     check_expiration(&expiration, &_env.block)?;
 
-    let token1 = TOKEN1.load(deps.storage).unwrap();
-    let token2 = TOKEN2.load(deps.storage).unwrap();
+    let token1 = TOKEN1.load(deps.storage)?;
+    let token2 = TOKEN2.load(deps.storage)?;
     let lp_token_addr = LP_TOKEN.load(deps.storage)?;
 
     // validate funds
@@ -539,9 +539,9 @@ fn get_input_price(
     input_amount: Uint128,
     input_reserve: Uint128,
     output_reserve: Uint128,
-) -> Result<Uint128, ContractError> {
+) -> StdResult<Uint128> {
     if input_reserve == Uint128::zero() || output_reserve == Uint128::zero() {
-        return Err(ContractError::NoLiquidityError {});
+        return Err(StdError::generic_err("No liquidity"));
     };
 
     let input_amount_with_fee = input_amount
@@ -786,7 +786,7 @@ pub fn query_native_for_token_price(
 ) -> StdResult<Token1ForToken2PriceResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
-    let token_amount = get_input_price(native_amount, token1.reserve, token2.reserve).unwrap();
+    let token_amount = get_input_price(native_amount, token1.reserve, token2.reserve)?;
     Ok(Token1ForToken2PriceResponse {
         token2_amount: token_amount,
     })
@@ -798,7 +798,7 @@ pub fn query_token_for_native_price(
 ) -> StdResult<Token2ForToken1PriceResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
-    let native_amount = get_input_price(token_amount, token2.reserve, token1.reserve).unwrap();
+    let native_amount = get_input_price(token_amount, token2.reserve, token1.reserve)?;
     Ok(Token2ForToken1PriceResponse {
         token1_amount: native_amount,
     })
@@ -873,15 +873,15 @@ mod tests {
         // No input reserve error
         let err =
             get_input_price(Uint128::new(10), Uint128::new(0), Uint128::new(100)).unwrap_err();
-        assert_eq!(err, ContractError::NoLiquidityError {});
+        assert_eq!(err, StdError::generic_err("No liquidity"));
 
         // No output reserve error
         let err =
             get_input_price(Uint128::new(10), Uint128::new(100), Uint128::new(0)).unwrap_err();
-        assert_eq!(err, ContractError::NoLiquidityError {});
+        assert_eq!(err, StdError::generic_err("No liquidity"));
 
         // No reserve error
         let err = get_input_price(Uint128::new(10), Uint128::new(0), Uint128::new(0)).unwrap_err();
-        assert_eq!(err, ContractError::NoLiquidityError {});
+        assert_eq!(err, StdError::generic_err("No liquidity"));
     }
 }
