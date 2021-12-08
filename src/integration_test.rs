@@ -494,7 +494,7 @@ fn swap_native_to_native_tokens_happy_path() {
         token1_denom: Denom::Native(NATIVE_TOKEN_DENOM.into()),
         token2_denom: Denom::Native(IBC_TOKEN_DENOM.into()),
         lp_token_code_id: lp_token_id,
-        lp_token_unstaking_duration: None
+        lp_token_unstaking_duration: None,
     };
     let amm_addr = router
         .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)
