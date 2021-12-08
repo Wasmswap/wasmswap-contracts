@@ -1,4 +1,3 @@
-use std::fmt::format;
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
@@ -42,12 +41,12 @@ pub fn instantiate(
 
     let token1_name = match msg.token1_denom {
         Denom::Native(denom) => denom,
-        Cw20(addr) => addr.to_string()
+        Cw20(addr) => addr.to_string(),
     };
 
     let token2_name = match msg.token2_denom {
         Denom::Native(denom) => denom,
-        Cw20(addr) => addr.to_string()
+        Cw20(addr) => addr.to_string(),
     };
 
     let instantiate_lp_token_msg = WasmMsg::Instantiate {
@@ -76,7 +75,6 @@ pub fn instantiate(
 
     Ok(Response::new().add_submessage(reply_msg))
 }
-
 
 // And declare a custom Error variant for the ones where you will want to make use of it
 #[cfg_attr(not(feature = "library"), entry_point)]
