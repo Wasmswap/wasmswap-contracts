@@ -56,6 +56,7 @@ fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom:
         token1_denom: Denom::Native(native_denom),
         token2_denom: Denom::Cw20(cash.addr()),
         lp_token_code_id: cw20_id,
+        lp_token_unstaking_duration: None,
     };
     router
         .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)
@@ -493,6 +494,7 @@ fn swap_native_to_native_tokens_happy_path() {
         token1_denom: Denom::Native(NATIVE_TOKEN_DENOM.into()),
         token2_denom: Denom::Native(IBC_TOKEN_DENOM.into()),
         lp_token_code_id: lp_token_id,
+        lp_token_unstaking_duration: None
     };
     let amm_addr = router
         .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)

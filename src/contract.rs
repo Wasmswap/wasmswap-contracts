@@ -56,7 +56,7 @@ pub fn instantiate(
                 }),
                 marketing: None,
             },
-            unstaking_duration: None,
+            unstaking_duration: msg.lp_token_unstaking_duration,
         })?,
     };
 
