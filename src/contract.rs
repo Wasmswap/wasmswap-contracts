@@ -1,3 +1,4 @@
+use std::fmt::format;
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
@@ -27,17 +28,27 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     let token1 = Token {
         reserve: Uint128::zero(),
-        denom: msg.token1_denom,
+        denom: msg.token1_denom.clone(),
     };
 
     TOKEN1.save(deps.storage, &token1)?;
 
     let token2 = Token {
-        denom: msg.token2_denom,
+        denom: msg.token2_denom.clone(),
         reserve: Uint128::zero(),
     };
 
     TOKEN2.save(deps.storage, &token2)?;
+
+    let token1_name = match msg.token1_denom {
+        Denom::Native(denom) => denom,
+        Cw20(addr) => addr.to_string()
+    };
+
+    let token2_name = match msg.token2_denom {
+        Denom::Native(denom) => denom,
+        Cw20(addr) => addr.to_string()
+    };
 
     let instantiate_lp_token_msg = WasmMsg::Instantiate {
         code_id: msg.lp_token_code_id,
@@ -46,9 +57,9 @@ pub fn instantiate(
         label: "lp_token".to_string(),
         msg: to_binary(&cw20_stakeable::msg::InstantiateMsg {
             cw20_base: cw20_base::msg::InstantiateMsg {
-                name: "CRUST_LIQUIDITY_TOKEN".into(),
-                symbol: "CRUST".into(),
-                decimals: 18,
+                name: format!("{}_{}_{}", "junoswaplptoken", token1_name, token2_name),
+                symbol: "jslpt".into(),
+                decimals: 6,
                 initial_balances: vec![],
                 mint: Some(MinterResponse {
                     minter: env.contract.address.into(),
@@ -65,6 +76,7 @@ pub fn instantiate(
 
     Ok(Response::new().add_submessage(reply_msg))
 }
+
 
 // And declare a custom Error variant for the ones where you will want to make use of it
 #[cfg_attr(not(feature = "library"), entry_point)]
