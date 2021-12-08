@@ -266,22 +266,33 @@ pub fn execute_add_liquidity(
     }
 
     // Generate cw20 transfer messages if necessary
-    let mut cw20_transfer_msgs: Vec<CosmosMsg> = vec![];
+    let mut transfer_msgs: Vec<CosmosMsg> = vec![];
     if let Cw20(addr) = token1.denom {
-        cw20_transfer_msgs.push(get_cw20_transfer_from_msg(
+        transfer_msgs.push(get_cw20_transfer_from_msg(
             &info.sender,
             &env.contract.address,
             &addr,
             token1_amount,
         )?)
     }
-    if let Cw20(addr) = token2.denom {
-        cw20_transfer_msgs.push(get_cw20_transfer_from_msg(
+    if let Cw20(addr) = token2.denom.clone() {
+        transfer_msgs.push(get_cw20_transfer_from_msg(
             &info.sender,
             &env.contract.address,
             &addr,
             token2_amount,
         )?)
+    }
+
+    // Refund token 2 if is a native token and not all is spent
+    if let Denom::Native(denom) = token2.denom {
+        if token2_amount < max_token2 {
+            transfer_msgs.push(get_bank_transfer_to_msg(
+                &info.sender,
+                &denom,
+                max_token2 - token2_amount,
+            ))
+        }
     }
 
     TOKEN1.update(deps.storage, |mut token1| -> Result<_, ContractError> {
@@ -296,7 +307,7 @@ pub fn execute_add_liquidity(
     let mint_msg = mint_lp_tokens(&info.sender, liquidity_amount, &lp_token_addr)?;
 
     Ok(Response::new()
-        .add_messages(cw20_transfer_msgs)
+        .add_messages(transfer_msgs)
         .add_message(mint_msg)
         .add_attributes(vec![
             attr("token1_amount", token1_amount),
