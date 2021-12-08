@@ -2,6 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Uint128};
+use cw0::Duration;
 use cw20::{Denom, Expiration};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -9,6 +10,7 @@ pub struct InstantiateMsg {
     pub token1_denom: Denom,
     pub token2_denom: Denom,
     pub lp_token_code_id: u64,
+    pub lp_token_unstaking_duration: Option<Duration>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
