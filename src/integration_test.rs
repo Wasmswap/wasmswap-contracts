@@ -749,7 +749,7 @@ fn token_to_token_swap() {
         .execute_contract(owner.clone(), token1.addr(), &allowance_msg, &[])
         .unwrap();
 
-    let swap_msg = ExecuteMsg::MultiContractSwap {
+    let swap_msg = ExecuteMsg::PassThroughSwap {
         output_amm_address: amm2.clone(),
         input_token: TokenSelect::Token2,
         output_token: TokenSelect::Token2,
@@ -784,7 +784,7 @@ fn token_to_token_swap() {
         .execute_contract(owner.clone(), token2.addr(), &allowance_msg, &[])
         .unwrap();
 
-    let swap_msg = ExecuteMsg::MultiContractSwap {
+    let swap_msg = ExecuteMsg::PassThroughSwap {
         output_amm_address: amm1.clone(),
         input_token: TokenSelect::Token2,
         output_token: TokenSelect::Token2,

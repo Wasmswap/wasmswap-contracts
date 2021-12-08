@@ -42,7 +42,8 @@ pub enum ExecuteMsg {
         min_token1: Uint128,
         expiration: Option<Expiration>,
     },
-    MultiContractSwap {
+    /// Chained swap converting A -> B and B -> C by leveraging two swap contracts
+    PassThroughSwap {
         output_amm_address: Addr,
         input_token: TokenSelect,
         output_token: TokenSelect,

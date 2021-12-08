@@ -21,7 +21,7 @@ const INSTANTIATE_LP_TOKEN_REPLY_ID: u64 = 0;
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
@@ -51,7 +51,7 @@ pub fn instantiate(
                 decimals: 18,
                 initial_balances: vec![],
                 mint: Some(MinterResponse {
-                    minter: _env.contract.address.into(),
+                    minter: env.contract.address.into(),
                     cap: None,
                 }),
                 marketing: None,
@@ -70,7 +70,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
@@ -83,7 +83,7 @@ pub fn execute(
         } => execute_add_liquidity(
             deps,
             &info,
-            _env,
+            env,
             min_liquidity,
             token1_amount,
             max_token2,
@@ -91,10 +91,10 @@ pub fn execute(
         ),
         ExecuteMsg::RemoveLiquidity {
             amount,
-            min_token1: min_native,
-            min_token2: min_token,
+            min_token1,
+            min_token2,
             expiration,
-        } => execute_remove_liquidity(deps, info, _env, amount, min_native, min_token, expiration),
+        } => execute_remove_liquidity(deps, info, env, amount, min_token1, min_token2, expiration),
         ExecuteMsg::SwapToken1ForToken2 {
             token1_amount,
             min_token2,
@@ -103,7 +103,7 @@ pub fn execute(
             deps,
             &info,
             token1_amount,
-            _env,
+            env,
             TOKEN1,
             TOKEN2,
             &info.sender,
@@ -118,24 +118,24 @@ pub fn execute(
             deps,
             &info,
             token2_amount,
-            _env,
+            env,
             TOKEN2,
             TOKEN1,
             &info.sender,
             min_token1,
             expiration,
         ),
-        ExecuteMsg::MultiContractSwap {
+        ExecuteMsg::PassThroughSwap {
             output_amm_address,
             input_token,
             output_token,
             input_token_amount,
             output_min_token,
             expiration,
-        } => execute_multi_contract_swap(
+        } => execute_pass_through_swap(
             deps,
             info,
-            _env,
+            env,
             output_amm_address,
             input_token,
             input_token_amount,
@@ -153,7 +153,7 @@ pub fn execute(
             deps,
             &info,
             input_amount,
-            _env,
+            env,
             match input_token {
                 TokenSelect::Token1 => TOKEN1,
                 TokenSelect::Token2 => TOKEN2,
@@ -184,36 +184,36 @@ fn check_expiration(
     }
 }
 
-fn get_liquidity_amount(
-    native_amount: Uint128,
+fn get_lp_token_amount_to_mint(
+    token1_amount: Uint128,
     liquidity_supply: Uint128,
-    native_reserve: Uint128,
+    token1_reserve: Uint128,
 ) -> Result<Uint128, ContractError> {
     if liquidity_supply == Uint128::zero() {
-        Ok(native_amount)
+        Ok(token1_amount)
     } else {
-        Ok(native_amount
+        Ok(token1_amount
             .checked_mul(liquidity_supply)
             .map_err(StdError::overflow)?
-            .checked_div(native_reserve)
+            .checked_div(token1_reserve)
             .map_err(StdError::divide_by_zero)?)
     }
 }
 
-fn get_token_amount(
+fn get_token2_amount_required(
     max_token: Uint128,
-    native_amount: Uint128,
+    token1_amount: Uint128,
     liquidity_supply: Uint128,
-    token_reserve: Uint128,
-    native_reserve: Uint128,
+    token2_reserve: Uint128,
+    token1_reserve: Uint128,
 ) -> Result<Uint128, StdError> {
     if liquidity_supply == Uint128::zero() {
         Ok(max_token)
     } else {
-        Ok(native_amount
-            .checked_mul(token_reserve)
+        Ok(token1_amount
+            .checked_mul(token2_reserve)
             .map_err(StdError::overflow)?
-            .checked_div(native_reserve)
+            .checked_div(token1_reserve)
             .map_err(StdError::divide_by_zero)?
             .checked_add(Uint128::new(1))
             .map_err(StdError::overflow)?)
@@ -223,13 +223,13 @@ fn get_token_amount(
 pub fn execute_add_liquidity(
     deps: DepsMut,
     info: &MessageInfo,
-    _env: Env,
+    env: Env,
     min_liquidity: Uint128,
     token1_amount: Uint128,
     max_token2: Uint128,
     expiration: Option<Expiration>,
 ) -> Result<Response, ContractError> {
-    check_expiration(&expiration, &_env.block)?;
+    check_expiration(&expiration, &env.block)?;
 
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
@@ -240,9 +240,10 @@ pub fn execute_add_liquidity(
     validate_input_amount(&info.funds, max_token2, &token2.denom)?;
 
     let lp_token_supply = get_lp_token_supply(deps.as_ref(), &lp_token_addr)?;
-    let liquidity_amount = get_liquidity_amount(token1_amount, lp_token_supply, token1.reserve)?;
+    let liquidity_amount =
+        get_lp_token_amount_to_mint(token1_amount, lp_token_supply, token1.reserve)?;
 
-    let token_amount = get_token_amount(
+    let token2_amount = get_token2_amount_required(
         max_token2,
         token1_amount,
         lp_token_supply,
@@ -257,10 +258,10 @@ pub fn execute_add_liquidity(
         });
     }
 
-    if token_amount > max_token2 {
+    if token2_amount > max_token2 {
         return Err(ContractError::MaxTokenError {
             max_token: max_token2,
-            tokens_required: token_amount,
+            tokens_required: token2_amount,
         });
     }
 
@@ -269,7 +270,7 @@ pub fn execute_add_liquidity(
     if let Cw20(addr) = token1.denom {
         cw20_transfer_msgs.push(get_cw20_transfer_from_msg(
             &info.sender,
-            &_env.contract.address,
+            &env.contract.address,
             &addr,
             token1_amount,
         )?)
@@ -277,9 +278,9 @@ pub fn execute_add_liquidity(
     if let Cw20(addr) = token2.denom {
         cw20_transfer_msgs.push(get_cw20_transfer_from_msg(
             &info.sender,
-            &_env.contract.address,
+            &env.contract.address,
             &addr,
-            token_amount,
+            token2_amount,
         )?)
     }
 
@@ -288,7 +289,7 @@ pub fn execute_add_liquidity(
         Ok(token1)
     })?;
     TOKEN2.update(deps.storage, |mut token2| -> Result<_, ContractError> {
-        token2.reserve += token_amount;
+        token2.reserve += token2_amount;
         Ok(token2)
     })?;
 
@@ -298,8 +299,8 @@ pub fn execute_add_liquidity(
         .add_messages(cw20_transfer_msgs)
         .add_message(mint_msg)
         .add_attributes(vec![
-            attr("native_amount", info.funds[0].clone().amount),
-            attr("token_amount", token_amount),
+            attr("token1_amount", token1_amount),
+            attr("token2_amount", token2_amount),
             attr("liquidity_received", liquidity_amount),
         ]))
 }
@@ -405,13 +406,13 @@ fn get_cw20_increase_allowance_msg(
 pub fn execute_remove_liquidity(
     deps: DepsMut,
     info: MessageInfo,
-    _env: Env,
+    env: Env,
     amount: Uint128,
-    min_native: Uint128,
-    min_token: Uint128,
+    min_token1: Uint128,
+    min_token2: Uint128,
     expiration: Option<Expiration>,
 ) -> Result<Response, ContractError> {
-    check_expiration(&expiration, &_env.block)?;
+    check_expiration(&expiration, &env.block)?;
 
     let lp_token_addr = LP_TOKEN.load(deps.storage)?;
     let balance = get_token_balance(deps.as_ref(), &lp_token_addr, &info.sender)?;
@@ -426,34 +427,34 @@ pub fn execute_remove_liquidity(
         });
     }
 
-    let native_amount = amount
+    let token1_amount = amount
         .checked_mul(token1.reserve)
         .map_err(StdError::overflow)?
         .checked_div(lp_token_supply)
         .map_err(StdError::divide_by_zero)?;
-    if native_amount < min_native {
+    if token1_amount < min_token1 {
         return Err(ContractError::MinNative {
-            requested: min_native,
-            available: native_amount,
+            requested: min_token1,
+            available: token1_amount,
         });
     }
 
-    let token_amount = amount
+    let token2_amount = amount
         .checked_mul(token2.reserve)
         .map_err(StdError::overflow)?
         .checked_div(lp_token_supply)
         .map_err(StdError::divide_by_zero)?;
-    if token_amount < min_token {
+    if token2_amount < min_token2 {
         return Err(ContractError::MinToken {
-            requested: min_token,
-            available: token_amount,
+            requested: min_token2,
+            available: token2_amount,
         });
     }
 
     TOKEN1.update(deps.storage, |mut token1| -> Result<_, ContractError> {
         token1.reserve = token1
             .reserve
-            .checked_sub(native_amount)
+            .checked_sub(token1_amount)
             .map_err(StdError::overflow)?;
         Ok(token1)
     })?;
@@ -461,18 +462,18 @@ pub fn execute_remove_liquidity(
     TOKEN2.update(deps.storage, |mut token2| -> Result<_, ContractError> {
         token2.reserve = token2
             .reserve
-            .checked_sub(token_amount)
+            .checked_sub(token2_amount)
             .map_err(StdError::overflow)?;
         Ok(token2)
     })?;
 
     let token1_transfer_msg = match token1.denom {
-        Denom::Cw20(addr) => get_cw20_transfer_to_msg(&info.sender, &addr, native_amount)?,
-        Denom::Native(denom) => get_bank_transfer_to_msg(&info.sender, &denom, native_amount),
+        Denom::Cw20(addr) => get_cw20_transfer_to_msg(&info.sender, &addr, token1_amount)?,
+        Denom::Native(denom) => get_bank_transfer_to_msg(&info.sender, &denom, token1_amount),
     };
     let token2_transfer_msg = match token2.denom {
-        Denom::Cw20(addr) => get_cw20_transfer_to_msg(&info.sender, &addr, token_amount)?,
-        Denom::Native(denom) => get_bank_transfer_to_msg(&info.sender, &denom, token_amount),
+        Denom::Cw20(addr) => get_cw20_transfer_to_msg(&info.sender, &addr, token2_amount)?,
+        Denom::Native(denom) => get_bank_transfer_to_msg(&info.sender, &denom, token2_amount),
     };
 
     let lp_token_burn_msg = get_burn_msg(&lp_token_addr, &info.sender, amount)?;
@@ -485,8 +486,8 @@ pub fn execute_remove_liquidity(
         ])
         .add_attributes(vec![
             attr("liquidity_burned", amount),
-            attr("native_returned", native_amount),
-            attr("token_returned", token_amount),
+            attr("token1_returned", token1_amount),
+            attr("token2_returned", token2_amount),
         ]))
 }
 
@@ -650,7 +651,7 @@ pub fn execute_swap(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn execute_multi_contract_swap(
+pub fn execute_pass_through_swap(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
@@ -756,12 +757,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Balance { address } => to_binary(&query_balance(deps, address)?),
         QueryMsg::Info {} => to_binary(&query_info(deps)?),
-        QueryMsg::Token1ForToken2Price {
-            token1_amount: native_amount,
-        } => to_binary(&query_native_for_token_price(deps, native_amount)?),
-        QueryMsg::Token2ForToken1Price {
-            token2_amount: token_amount,
-        } => to_binary(&query_token_for_native_price(deps, token_amount)?),
+        QueryMsg::Token1ForToken2Price { token1_amount } => {
+            to_binary(&query_token1_for_token2_price(deps, token1_amount)?)
+        }
+        QueryMsg::Token2ForToken1Price { token2_amount } => {
+            to_binary(&query_token2_for_token1_price(deps, token2_amount)?)
+        }
     }
 }
 
@@ -780,28 +781,24 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
     })
 }
 
-pub fn query_native_for_token_price(
+pub fn query_token1_for_token2_price(
     deps: Deps,
-    native_amount: Uint128,
+    token1_amount: Uint128,
 ) -> StdResult<Token1ForToken2PriceResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
-    let token_amount = get_input_price(native_amount, token1.reserve, token2.reserve)?;
-    Ok(Token1ForToken2PriceResponse {
-        token2_amount: token_amount,
-    })
+    let token2_amount = get_input_price(token1_amount, token1.reserve, token2.reserve)?;
+    Ok(Token1ForToken2PriceResponse { token2_amount })
 }
 
-pub fn query_token_for_native_price(
+pub fn query_token2_for_token1_price(
     deps: Deps,
-    token_amount: Uint128,
+    token2_amount: Uint128,
 ) -> StdResult<Token2ForToken1PriceResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
-    let native_amount = get_input_price(token_amount, token2.reserve, token1.reserve)?;
-    Ok(Token2ForToken1PriceResponse {
-        token1_amount: native_amount,
-    })
+    let token1_amount = get_input_price(token2_amount, token2.reserve, token1.reserve)?;
+    Ok(Token2ForToken1PriceResponse { token1_amount })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -831,17 +828,19 @@ mod tests {
     #[test]
     fn test_get_liquidity_amount() {
         let liquidity =
-            get_liquidity_amount(Uint128::new(100), Uint128::zero(), Uint128::zero()).unwrap();
+            get_lp_token_amount_to_mint(Uint128::new(100), Uint128::zero(), Uint128::zero())
+                .unwrap();
         assert_eq!(liquidity, Uint128::new(100));
 
         let liquidity =
-            get_liquidity_amount(Uint128::new(100), Uint128::new(50), Uint128::new(25)).unwrap();
+            get_lp_token_amount_to_mint(Uint128::new(100), Uint128::new(50), Uint128::new(25))
+                .unwrap();
         assert_eq!(liquidity, Uint128::new(200));
     }
 
     #[test]
     fn test_get_token_amount() {
-        let liquidity = get_token_amount(
+        let liquidity = get_token2_amount_required(
             Uint128::new(100),
             Uint128::new(50),
             Uint128::zero(),
@@ -851,7 +850,7 @@ mod tests {
         .unwrap();
         assert_eq!(liquidity, Uint128::new(100));
 
-        let liquidity = get_token_amount(
+        let liquidity = get_token2_amount_required(
             Uint128::new(200),
             Uint128::new(50),
             Uint128::new(50),
