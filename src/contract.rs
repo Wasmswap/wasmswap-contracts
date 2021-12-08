@@ -240,7 +240,8 @@ pub fn execute_add_liquidity(
     validate_input_amount(&info.funds, max_token2, &token2.denom)?;
 
     let lp_token_supply = get_lp_token_supply(deps.as_ref(), &lp_token_addr)?;
-    let liquidity_amount = get_lp_token_amount_to_mint(token1_amount, lp_token_supply, token1.reserve)?;
+    let liquidity_amount =
+        get_lp_token_amount_to_mint(token1_amount, lp_token_supply, token1.reserve)?;
 
     let token2_amount = get_token2_amount_required(
         max_token2,
@@ -756,12 +757,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Balance { address } => to_binary(&query_balance(deps, address)?),
         QueryMsg::Info {} => to_binary(&query_info(deps)?),
-        QueryMsg::Token1ForToken2Price {
-            token1_amount,
-        } => to_binary(&query_token1_for_token2_price(deps, token1_amount)?),
-        QueryMsg::Token2ForToken1Price {
-            token2_amount,
-        } => to_binary(&query_token2_for_token1_price(deps, token2_amount)?),
+        QueryMsg::Token1ForToken2Price { token1_amount } => {
+            to_binary(&query_token1_for_token2_price(deps, token1_amount)?)
+        }
+        QueryMsg::Token2ForToken1Price { token2_amount } => {
+            to_binary(&query_token2_for_token1_price(deps, token2_amount)?)
+        }
     }
 }
 
@@ -787,9 +788,7 @@ pub fn query_token1_for_token2_price(
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
     let token2_amount = get_input_price(token1_amount, token1.reserve, token2.reserve)?;
-    Ok(Token1ForToken2PriceResponse {
-        token2_amount,
-    })
+    Ok(Token1ForToken2PriceResponse { token2_amount })
 }
 
 pub fn query_token2_for_token1_price(
@@ -799,9 +798,7 @@ pub fn query_token2_for_token1_price(
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
     let token1_amount = get_input_price(token2_amount, token2.reserve, token1.reserve)?;
-    Ok(Token2ForToken1PriceResponse {
-        token1_amount,
-    })
+    Ok(Token2ForToken1PriceResponse { token1_amount })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -831,11 +828,13 @@ mod tests {
     #[test]
     fn test_get_liquidity_amount() {
         let liquidity =
-            get_lp_token_amount_to_mint(Uint128::new(100), Uint128::zero(), Uint128::zero()).unwrap();
+            get_lp_token_amount_to_mint(Uint128::new(100), Uint128::zero(), Uint128::zero())
+                .unwrap();
         assert_eq!(liquidity, Uint128::new(100));
 
         let liquidity =
-            get_lp_token_amount_to_mint(Uint128::new(100), Uint128::new(50), Uint128::new(25)).unwrap();
+            get_lp_token_amount_to_mint(Uint128::new(100), Uint128::new(50), Uint128::new(25))
+                .unwrap();
         assert_eq!(liquidity, Uint128::new(200));
     }
 
