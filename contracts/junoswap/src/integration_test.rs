@@ -5,9 +5,9 @@ use std::borrow::BorrowMut;
 use cosmwasm_std::{coins, Addr, Coin, Empty, Uint128};
 use cw0::Expiration;
 
+use crate::error::ContractError;
 use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg, Denom};
 use cw_multi_test::{App, Contract, ContractWrapper, Executor};
-use crate::error::ContractError;
 
 use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, TokenSelect};
 
@@ -261,7 +261,13 @@ fn amm_add_and_remove_liquidity() {
         )
         .unwrap_err();
 
-    assert_eq!(ContractError::MaxTokenError { max_token: Uint128::new(45), tokens_required: Uint128::new(51) }, err.downcast().unwrap());
+    assert_eq!(
+        ContractError::MaxTokenError {
+            max_token: Uint128::new(45),
+            tokens_required: Uint128::new(51)
+        },
+        err.downcast().unwrap()
+    );
 
     // too high min liquidity
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
@@ -291,7 +297,13 @@ fn amm_add_and_remove_liquidity() {
         )
         .unwrap_err();
 
-    assert_eq!(ContractError::MinLiquidityError { min_liquidity: Uint128::new(500), liquidity_available: Uint128::new(50) }, err.downcast().unwrap());
+    assert_eq!(
+        ContractError::MinLiquidityError {
+            min_liquidity: Uint128::new(500),
+            liquidity_available: Uint128::new(50)
+        },
+        err.downcast().unwrap()
+    );
 
     // Expired message
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
@@ -321,7 +333,10 @@ fn amm_add_and_remove_liquidity() {
         )
         .unwrap_err();
 
-    assert_eq!(ContractError::MsgExpirationError { }, err.downcast().unwrap());
+    assert_eq!(
+        ContractError::MsgExpirationError {},
+        err.downcast().unwrap()
+    );
 
     // Remove more liquidity then owned
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
@@ -351,7 +366,13 @@ fn amm_add_and_remove_liquidity() {
         )
         .unwrap_err();
 
-    assert_eq!(ContractError::InsufficientLiquidityError { requested: Uint128::new(151), available: Uint128::new(150) }, err.downcast().unwrap());
+    assert_eq!(
+        ContractError::InsufficientLiquidityError {
+            requested: Uint128::new(151),
+            available: Uint128::new(150)
+        },
+        err.downcast().unwrap()
+    );
 
     // Remove some liquidity
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
