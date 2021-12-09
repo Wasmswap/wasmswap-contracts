@@ -3,7 +3,9 @@
 use std::borrow::BorrowMut;
 
 use cosmwasm_std::{coins, Addr, Coin, Empty, Uint128};
+use cw0::Expiration;
 
+use crate::error::ContractError;
 use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg, Denom};
 use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
@@ -231,7 +233,148 @@ fn amm_add_and_remove_liquidity() {
     let crust_balance = lp_token.balance(&router, owner.clone()).unwrap();
     assert_eq!(crust_balance, Uint128::new(150));
 
-    // Allowance to burn tokens
+    // too low max token error
+    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: amm_addr.to_string(),
+        amount: Uint128::new(51u128),
+        expires: None,
+    };
+    let _res = router
+        .execute_contract(owner.clone(), cw20_token.addr(), &allowance_msg, &[])
+        .unwrap();
+
+    let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128::new(50),
+        min_liquidity: Uint128::new(50),
+        max_token2: Uint128::new(45),
+        expiration: None,
+    };
+    let err = router
+        .execute_contract(
+            owner.clone(),
+            amm_addr.clone(),
+            &add_liquidity_msg,
+            &[Coin {
+                denom: NATIVE_TOKEN_DENOM.into(),
+                amount: Uint128::new(50),
+            }],
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        ContractError::MaxTokenError {
+            max_token: Uint128::new(45),
+            tokens_required: Uint128::new(51)
+        },
+        err.downcast().unwrap()
+    );
+
+    // too high min liquidity
+    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: amm_addr.to_string(),
+        amount: Uint128::new(51u128),
+        expires: None,
+    };
+    let _res = router
+        .execute_contract(owner.clone(), cw20_token.addr(), &allowance_msg, &[])
+        .unwrap();
+
+    let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128::new(50),
+        min_liquidity: Uint128::new(500),
+        max_token2: Uint128::new(50),
+        expiration: None,
+    };
+    let err = router
+        .execute_contract(
+            owner.clone(),
+            amm_addr.clone(),
+            &add_liquidity_msg,
+            &[Coin {
+                denom: NATIVE_TOKEN_DENOM.into(),
+                amount: Uint128::new(50),
+            }],
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        ContractError::MinLiquidityError {
+            min_liquidity: Uint128::new(500),
+            liquidity_available: Uint128::new(50)
+        },
+        err.downcast().unwrap()
+    );
+
+    // Expired message
+    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: amm_addr.to_string(),
+        amount: Uint128::new(51u128),
+        expires: None,
+    };
+    let _res = router
+        .execute_contract(owner.clone(), cw20_token.addr(), &allowance_msg, &[])
+        .unwrap();
+
+    let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128::new(50),
+        min_liquidity: Uint128::new(50),
+        max_token2: Uint128::new(50),
+        expiration: Some(Expiration::AtHeight(0)),
+    };
+    let err = router
+        .execute_contract(
+            owner.clone(),
+            amm_addr.clone(),
+            &add_liquidity_msg,
+            &[Coin {
+                denom: NATIVE_TOKEN_DENOM.into(),
+                amount: Uint128::new(50),
+            }],
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        ContractError::MsgExpirationError {},
+        err.downcast().unwrap()
+    );
+
+    // Remove more liquidity then owned
+    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: amm_addr.to_string(),
+        amount: Uint128::new(50u128),
+        expires: None,
+    };
+    let _res = router
+        .execute_contract(owner.clone(), lp_token.addr(), &allowance_msg, &[])
+        .unwrap();
+
+    let remove_liquidity_msg = ExecuteMsg::RemoveLiquidity {
+        amount: Uint128::new(151),
+        min_token1: Uint128::new(0),
+        min_token2: Uint128::new(0),
+        expiration: None,
+    };
+    let err = router
+        .execute_contract(
+            owner.clone(),
+            amm_addr.clone(),
+            &remove_liquidity_msg,
+            &[Coin {
+                denom: NATIVE_TOKEN_DENOM.into(),
+                amount: Uint128::new(50),
+            }],
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        ContractError::InsufficientLiquidityError {
+            requested: Uint128::new(151),
+            available: Uint128::new(150)
+        },
+        err.downcast().unwrap()
+    );
+
+    // Remove some liquidity
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
         spender: amm_addr.to_string(),
         amount: Uint128::new(50u128),
@@ -266,6 +409,42 @@ fn amm_add_and_remove_liquidity() {
     assert_eq!(amm_balance, Uint128::new(101));
     let crust_balance = lp_token.balance(&router, owner.clone()).unwrap();
     assert_eq!(crust_balance, Uint128::new(100));
+
+    // Remove rest of liquidity
+    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: amm_addr.to_string(),
+        amount: Uint128::new(100u128),
+        expires: None,
+    };
+    let _res = router
+        .execute_contract(owner.clone(), lp_token.addr(), &allowance_msg, &[])
+        .unwrap();
+
+    let remove_liquidity_msg = ExecuteMsg::RemoveLiquidity {
+        amount: Uint128::new(100),
+        min_token1: Uint128::new(100),
+        min_token2: Uint128::new(100),
+        expiration: None,
+    };
+    let _res = router
+        .execute_contract(
+            owner.clone(),
+            amm_addr.clone(),
+            &remove_liquidity_msg,
+            &[Coin {
+                denom: NATIVE_TOKEN_DENOM.into(),
+                amount: Uint128::new(50),
+            }],
+        )
+        .unwrap();
+
+    // ensure balances updated
+    let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
+    assert_eq!(owner_balance, Uint128::new(5000));
+    let amm_balance = cw20_token.balance(&router, amm_addr.clone()).unwrap();
+    assert_eq!(amm_balance, Uint128::new(0));
+    let crust_balance = lp_token.balance(&router, owner.clone()).unwrap();
+    assert_eq!(crust_balance, Uint128::new(0));
 }
 
 #[test]
