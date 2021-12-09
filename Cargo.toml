@@ -5,6 +5,11 @@ members = ["contracts/*"]
 codegen-units = 1
 incremental = false
 
+
+[profile.release.package.factory]
+codegen-units = 1
+incremental = false
+
 [profile.release]
 opt-level = 3
 debug = false
