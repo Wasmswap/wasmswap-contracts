@@ -112,12 +112,12 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetCount {} => to_binary(&query_count(deps)?),
+        QueryMsg::GetCount {} => to_binary(&query_count(deps)),
     }
 }
 
-fn query_count(_deps: Deps) -> StdResult<CountResponse> {
-    Ok(CountResponse { count: 100 })
+fn query_count(_deps: Deps) -> CountResponse {
+    CountResponse { count: 100 }
 }
 
 #[cfg(test)]
