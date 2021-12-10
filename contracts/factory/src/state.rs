@@ -7,9 +7,9 @@ use cw_storage_plus::{Item, Map};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-   pub swap_code_id: u64,
-   pub lp_token_code_id: u64,
-   pub unstaking_duration: Option<Duration>
+    pub swap_code_id: u64,
+    pub lp_token_code_id: u64,
+    pub unstaking_duration: Option<Duration>,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

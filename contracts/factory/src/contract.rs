@@ -3,13 +3,13 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult, SubMsg, WasmMsg,
 };
-use cw0::{Duration, parse_reply_instantiate_data};
+use cw0::parse_reply_instantiate_data;
 use cw2::set_contract_version;
 use cw20::Denom;
 
 use crate::error::ContractError;
 use crate::msg::{CountResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{get_denom_primary_key, Swap, SWAPS, Config, CONFIG};
+use crate::state::{get_denom_primary_key, Config, Swap, CONFIG, SWAPS};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:factory";
@@ -28,9 +28,9 @@ pub fn instantiate(
     let config = Config {
         swap_code_id: msg.swap_code_id,
         lp_token_code_id: msg.lp_token_code_id,
-        unstaking_duration: msg.unstaking_duration
+        unstaking_duration: msg.unstaking_duration,
     };
-    CONFIG.save(deps.storage,&config)?;
+    CONFIG.save(deps.storage, &config)?;
     Ok(Response::new()
         .add_attribute("method", "instantiate")
         .add_attribute("sender", info.sender)
@@ -130,10 +130,10 @@ mod tests {
     use crate::msg::{ExecuteMsg, InstantiateMsg};
     use crate::ContractError;
     use cosmwasm_std::{coins, Addr, Empty, Uint128};
+    use cw0::Duration;
     use cw20::{Cw20Coin, Cw20Contract, Denom};
     use cw_multi_test::{App, Contract, ContractWrapper, Executor};
     use std::borrow::BorrowMut;
-    use cw0::Duration;
 
     fn mock_app() -> App {
         App::default()
@@ -228,7 +228,7 @@ mod tests {
         let instatiate_msg = InstantiateMsg {
             swap_code_id,
             lp_token_code_id,
-            unstaking_duration: Some(Duration::Time(100))
+            unstaking_duration: Some(Duration::Time(100)),
         };
         let factory_addr = app
             .instantiate_contract(factory_code_id, owner, &instatiate_msg, &[], "asdf", None)
