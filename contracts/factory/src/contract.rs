@@ -9,7 +9,7 @@ use cw20::Denom;
 
 use crate::error::ContractError;
 use crate::msg::{CountResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{get_denom_primary_key, Swap, LP_TOKEN_CODE_ID, SWAPS, SWAP_CODE_ID};
+use crate::state::{get_denom_primary_key, Config, Swap, CONFIG, SWAPS};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:factory";
@@ -25,8 +25,12 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    SWAP_CODE_ID.save(deps.storage, &msg.swap_code_id)?;
-    LP_TOKEN_CODE_ID.save(deps.storage, &msg.lp_token_code_id)?;
+    let config = Config {
+        swap_code_id: msg.swap_code_id,
+        lp_token_code_id: msg.lp_token_code_id,
+        unstaking_duration: msg.unstaking_duration,
+    };
+    CONFIG.save(deps.storage, &config)?;
     Ok(Response::new()
         .add_attribute("method", "instantiate")
         .add_attribute("sender", info.sender)
@@ -54,16 +58,17 @@ pub fn try_create_swap(deps: DepsMut, token_denom: Denom) -> Result<Response, Co
     {
         return Err(ContractError::SwapAlreadyExists {});
     }
+    let config = CONFIG.load(deps.storage)?;
     let instantiate_msg = junoswap::msg::InstantiateMsg {
         token1_denom: Denom::Native("ujuno".to_string()),
         token2_denom: token_denom,
-        lp_token_code_id: LP_TOKEN_CODE_ID.load(deps.storage)?,
-        lp_token_unstaking_duration: None,
+        lp_token_code_id: config.lp_token_code_id,
+        lp_token_unstaking_duration: config.unstaking_duration,
     };
 
     let instantiate_msg = WasmMsg::Instantiate {
         admin: None,
-        code_id: SWAP_CODE_ID.load(deps.storage)?,
+        code_id: config.swap_code_id,
         msg: to_binary(&instantiate_msg)?,
         funds: vec![],
         label: "TODO_improve_label".to_string(),
@@ -125,6 +130,7 @@ mod tests {
     use crate::msg::{ExecuteMsg, InstantiateMsg};
     use crate::ContractError;
     use cosmwasm_std::{coins, Addr, Empty, Uint128};
+    use cw0::Duration;
     use cw20::{Cw20Coin, Cw20Contract, Denom};
     use cw_multi_test::{App, Contract, ContractWrapper, Executor};
     use std::borrow::BorrowMut;
@@ -222,6 +228,7 @@ mod tests {
         let instatiate_msg = InstantiateMsg {
             swap_code_id,
             lp_token_code_id,
+            unstaking_duration: Some(Duration::Time(100)),
         };
         let factory_addr = app
             .instantiate_contract(factory_code_id, owner, &instatiate_msg, &[], "asdf", None)
