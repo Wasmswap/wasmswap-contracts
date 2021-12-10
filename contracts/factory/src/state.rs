@@ -1,11 +1,18 @@
+use cw0::Duration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cw20::Denom;
 use cw_storage_plus::{Item, Map};
 
-pub const SWAP_CODE_ID: Item<u64> = Item::new("swap_code_id");
-pub const LP_TOKEN_CODE_ID: Item<u64> = Item::new("lp_token_code_id");
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Config {
+   pub swap_code_id: u64,
+   pub lp_token_code_id: u64,
+   pub unstaking_duration: Option<Duration>
+}
+
+pub const CONFIG: Item<Config> = Item::new("config");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Swap {

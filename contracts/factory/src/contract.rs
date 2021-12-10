@@ -3,13 +3,13 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult, SubMsg, WasmMsg,
 };
-use cw0::parse_reply_instantiate_data;
+use cw0::{Duration, parse_reply_instantiate_data};
 use cw2::set_contract_version;
 use cw20::Denom;
 
 use crate::error::ContractError;
 use crate::msg::{CountResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{get_denom_primary_key, Swap, LP_TOKEN_CODE_ID, SWAPS, SWAP_CODE_ID};
+use crate::state::{get_denom_primary_key, Swap, SWAPS, Config, CONFIG};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:factory";
@@ -25,8 +25,12 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    SWAP_CODE_ID.save(deps.storage, &msg.swap_code_id)?;
-    LP_TOKEN_CODE_ID.save(deps.storage, &msg.lp_token_code_id)?;
+    let config = Config {
+        swap_code_id: msg.swap_code_id,
+        lp_token_code_id: msg.lp_token_code_id,
+        unstaking_duration: Some(Duration::Time(100))
+    };
+    CONFIG.save(deps.storage,&config)?;
     Ok(Response::new()
         .add_attribute("method", "instantiate")
         .add_attribute("sender", info.sender)
@@ -54,16 +58,17 @@ pub fn try_create_swap(deps: DepsMut, token_denom: Denom) -> Result<Response, Co
     {
         return Err(ContractError::SwapAlreadyExists {});
     }
+    let config = CONFIG.load(deps.storage)?;
     let instantiate_msg = junoswap::msg::InstantiateMsg {
         token1_denom: Denom::Native("ujuno".to_string()),
         token2_denom: token_denom,
-        lp_token_code_id: LP_TOKEN_CODE_ID.load(deps.storage)?,
-        lp_token_unstaking_duration: None,
+        lp_token_code_id: config.lp_token_code_id,
+        lp_token_unstaking_duration: config.unstaking_duration,
     };
 
     let instantiate_msg = WasmMsg::Instantiate {
         admin: None,
-        code_id: SWAP_CODE_ID.load(deps.storage)?,
+        code_id: config.swap_code_id,
         msg: to_binary(&instantiate_msg)?,
         funds: vec![],
         label: "TODO_improve_label".to_string(),
