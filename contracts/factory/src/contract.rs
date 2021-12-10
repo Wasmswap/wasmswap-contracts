@@ -1,13 +1,15 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, WasmMsg, SubMsg, Reply};
+use cosmwasm_std::{
+    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult, SubMsg, WasmMsg,
+};
 use cw0::parse_reply_instantiate_data;
-use cw20::Denom;
 use cw2::set_contract_version;
+use cw20::Denom;
 
 use crate::error::ContractError;
 use crate::msg::{CountResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{getDenomPrimaryKey, LP_TOKEN_CODE_ID, Swap, SWAP_CODE_ID, SWAPS};
+use crate::state::{get_denom_primary_key, Swap, LP_TOKEN_CODE_ID, SWAPS, SWAP_CODE_ID};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:factory";
@@ -23,14 +25,13 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    SWAP_CODE_ID.save(deps.storage,&msg.swap_code_id)?;
-    LP_TOKEN_CODE_ID.save(deps.storage,&msg.lp_token_code_id)?;
+    SWAP_CODE_ID.save(deps.storage, &msg.swap_code_id)?;
+    LP_TOKEN_CODE_ID.save(deps.storage, &msg.lp_token_code_id)?;
     Ok(Response::new()
         .add_attribute("method", "instantiate")
         .add_attribute("sender", info.sender)
         .add_attribute("swap_code_id", msg.swap_code_id.to_string())
-        .add_attribute("lp_token_code_id", msg.lp_token_code_id.to_string())
-    )
+        .add_attribute("lp_token_code_id", msg.lp_token_code_id.to_string()))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -41,20 +42,23 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::CreateSwap {token_denom} => try_create_swap(deps, token_denom),
+        ExecuteMsg::CreateSwap { token_denom } => try_create_swap(deps, token_denom),
     }
 }
 
 pub fn try_create_swap(deps: DepsMut, token_denom: Denom) -> Result<Response, ContractError> {
     // TODO improve label
-    if let Some(_) = SWAPS.may_load(deps.storage, getDenomPrimaryKey(&token_denom))? {
+    if SWAPS
+        .may_load(deps.storage, get_denom_primary_key(&token_denom))?
+        .is_some()
+    {
         return Err(ContractError::SwapAlreadyExists {});
     }
-    let instantiate_msg = junoswap::msg::InstantiateMsg{
+    let instantiate_msg = junoswap::msg::InstantiateMsg {
         token1_denom: Denom::Native("ujuno".to_string()),
         token2_denom: token_denom,
         lp_token_code_id: LP_TOKEN_CODE_ID.load(deps.storage)?,
-        lp_token_unstaking_duration: None
+        lp_token_unstaking_duration: None,
     };
 
     let instantiate_msg = WasmMsg::Instantiate {
@@ -65,16 +69,13 @@ pub fn try_create_swap(deps: DepsMut, token_denom: Denom) -> Result<Response, Co
         label: "TODO_improve_label".to_string(),
     };
 
-    let replyMsg = SubMsg::reply_on_success(instantiate_msg, INSTANTIATE_SWAP_REPLY_ID);
+    let reply_msg = SubMsg::reply_on_success(instantiate_msg, INSTANTIATE_SWAP_REPLY_ID);
 
     println!("created reply msg");
-    Ok(
-        Response::new()
-        .add_submessage(replyMsg)
-        .add_attribute("method", "create_swap")
-    )
+    Ok(Response::new()
+        .add_submessage(reply_msg)
+        .add_attribute("method", "create_swap"))
 }
-
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
@@ -88,11 +89,19 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
             // Validate contract address
             let swap_addr = deps.api.addr_validate(&res.contract_address)?;
             let query_msg = junoswap::msg::QueryMsg::Info {};
-            let info: junoswap::msg::InfoResponse = deps.querier.query_wasm_smart(swap_addr,&query_msg)?;
+            let info: junoswap::msg::InfoResponse =
+                deps.querier.query_wasm_smart(swap_addr, &query_msg)?;
 
-            let swap = Swap{ token1: info.token1_denom, token2: info.token2_denom.clone() };
+            let swap = Swap {
+                token1: info.token1_denom,
+                token2: info.token2_denom.clone(),
+            };
 
-            SWAPS.save(deps.storage, getDenomPrimaryKey(&info.token2_denom), &swap);
+            SWAPS.save(
+                deps.storage,
+                get_denom_primary_key(&info.token2_denom),
+                &swap,
+            )?;
 
             Ok(Response::new())
         }
@@ -107,18 +116,18 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_count(deps: Deps) -> StdResult<CountResponse> {
+fn query_count(_deps: Deps) -> StdResult<CountResponse> {
     Ok(CountResponse { count: 100 })
 }
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::BorrowMut;
-    use cosmwasm_std::{Addr, coins, Empty, Uint128};
+    use crate::msg::{ExecuteMsg, InstantiateMsg};
+    use crate::ContractError;
+    use cosmwasm_std::{coins, Addr, Empty, Uint128};
     use cw20::{Cw20Coin, Cw20Contract, Denom};
     use cw_multi_test::{App, Contract, ContractWrapper, Executor};
-    use crate::ContractError;
-    use crate::msg::{ExecuteMsg, InstantiateMsg};
+    use std::borrow::BorrowMut;
 
     fn mock_app() -> App {
         App::default()
@@ -148,7 +157,7 @@ mod tests {
             junoswap::contract::instantiate,
             junoswap::contract::query,
         )
-            .with_reply(junoswap::contract::reply);
+        .with_reply(junoswap::contract::reply);
         Box::new(contract)
     }
 
@@ -158,7 +167,7 @@ mod tests {
             crate::contract::instantiate,
             crate::contract::query,
         )
-            .with_reply(crate::contract::reply);
+        .with_reply(crate::contract::reply);
         Box::new(contract)
     }
 
@@ -210,8 +219,13 @@ mod tests {
         let lp_token_code_id = app.store_code(contract_cw20_stakeable());
         let factory_code_id = app.store_code(contract_factory());
 
-        let instatiate_msg = InstantiateMsg{ swap_code_id, lp_token_code_id };
-        let factory_addr = app.instantiate_contract(factory_code_id, owner,&instatiate_msg,&[],"asdf", None).unwrap();
+        let instatiate_msg = InstantiateMsg {
+            swap_code_id,
+            lp_token_code_id,
+        };
+        let factory_addr = app
+            .instantiate_contract(factory_code_id, owner, &instatiate_msg, &[], "asdf", None)
+            .unwrap();
         (factory_addr, cw20_token.addr())
     }
 
@@ -232,7 +246,9 @@ mod tests {
             token_denom: Denom::Cw20(cw20_addr),
         };
 
-        app.borrow_mut().execute_contract(sender, factory_addr, &create_msg, &[]).unwrap();
+        app.borrow_mut()
+            .execute_contract(sender, factory_addr, &create_msg, &[])
+            .unwrap();
     }
 
     #[test]
@@ -245,20 +261,9 @@ mod tests {
         let create_msg = ExecuteMsg::CreateSwap {
             token_denom: Denom::Cw20(cw20_addr),
         };
-        app.borrow_mut().execute_contract(sender.clone(), factory_addr.clone(), &create_msg, &[]).unwrap();
-
-
-        let cw20_token = create_cw20(
-            app.borrow_mut(),
-            &sender,
-            "token".to_string(),
-            "CWTOKEN".to_string(),
-            Uint128::new(5000),
-        );
-        let create_msg = ExecuteMsg::CreateSwap {
-            token_denom: Denom::Cw20(cw20_token.addr()),
-        };
-        app.borrow_mut().execute_contract(sender.clone(), factory_addr.clone(), &create_msg, &[]).unwrap();
+        app.borrow_mut()
+            .execute_contract(sender.clone(), factory_addr.clone(), &create_msg, &[])
+            .unwrap();
 
         let cw20_token = create_cw20(
             app.borrow_mut(),
@@ -270,7 +275,23 @@ mod tests {
         let create_msg = ExecuteMsg::CreateSwap {
             token_denom: Denom::Cw20(cw20_token.addr()),
         };
-        app.borrow_mut().execute_contract(sender.clone(), factory_addr.clone(), &create_msg, &[]).unwrap();
+        app.borrow_mut()
+            .execute_contract(sender.clone(), factory_addr.clone(), &create_msg, &[])
+            .unwrap();
+
+        let cw20_token = create_cw20(
+            app.borrow_mut(),
+            &sender,
+            "token".to_string(),
+            "CWTOKEN".to_string(),
+            Uint128::new(5000),
+        );
+        let create_msg = ExecuteMsg::CreateSwap {
+            token_denom: Denom::Cw20(cw20_token.addr()),
+        };
+        app.borrow_mut()
+            .execute_contract(sender.clone(), factory_addr.clone(), &create_msg, &[])
+            .unwrap();
     }
 
     #[test]
@@ -284,10 +305,14 @@ mod tests {
             token_denom: Denom::Cw20(cw20_addr),
         };
 
-        app.borrow_mut().execute_contract(sender.clone(), factory_addr.clone(), &create_msg, &[]).unwrap();
+        app.borrow_mut()
+            .execute_contract(sender.clone(), factory_addr.clone(), &create_msg, &[])
+            .unwrap();
 
-        let err = app.borrow_mut().execute_contract(sender, factory_addr, &create_msg, &[]).unwrap_err();
+        let err = app
+            .borrow_mut()
+            .execute_contract(sender, factory_addr, &create_msg, &[])
+            .unwrap_err();
         assert_eq!(ContractError::SwapAlreadyExists {}, err.downcast().unwrap())
     }
-
 }

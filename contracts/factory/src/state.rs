@@ -1,7 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::Addr;
 use cw20::Denom;
 use cw_storage_plus::{Item, Map};
 
@@ -16,9 +15,9 @@ pub struct Swap {
 
 pub const SWAPS: Map<String, Swap> = Map::new("swaps");
 
-pub fn getDenomPrimaryKey(denom: &Denom) -> String {
+pub fn get_denom_primary_key(denom: &Denom) -> String {
     match denom {
-        Denom::Native(denom) => format!("{}_{}","native",denom),
-        Denom::Cw20(addr) => format!("{}_{}","cw20",addr.to_string()),
+        Denom::Native(denom) => format!("{}_{}", "native", denom),
+        Denom::Cw20(addr) => format!("{}_{}", "cw20", addr.to_string()),
     }
 }
