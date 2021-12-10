@@ -1,3 +1,4 @@
+use cw0::Duration;
 use cw20::Denom;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -6,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct InstantiateMsg {
     pub swap_code_id: u64,
     pub lp_token_code_id: u64,
+    pub unstaking_duration: Option<Duration>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
