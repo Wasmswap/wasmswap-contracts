@@ -1,7 +1,6 @@
 use cosmwasm_std::Addr;
 use cw0::Duration;
 use cw20::Denom;
-use junoswap::msg::InfoResponse;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -36,7 +35,7 @@ pub struct GetSwapsResponse {
 #[serde(rename_all = "snake_case")]
 pub struct SwapDetails {
     pub addr: Addr,
-    pub details: InfoResponse,
+    pub details: junoswap::msg::InfoResponse,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
