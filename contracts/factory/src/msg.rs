@@ -1,9 +1,9 @@
 use cosmwasm_std::Addr;
 use cw0::Duration;
 use cw20::Denom;
+use junoswap::msg::InfoResponse;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use junoswap::msg::InfoResponse;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -29,19 +29,18 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct GetSwapsResponse {
-    pub swaps: Vec<Addr>
+    pub swaps: Vec<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct SwapDetails {
     pub addr: Addr,
-    pub details: InfoResponse
+    pub details: InfoResponse,
 }
-
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct GetSwapsDetailedResponse {
-    pub swaps: Vec<SwapDetails>
+    pub swaps: Vec<SwapDetails>,
 }

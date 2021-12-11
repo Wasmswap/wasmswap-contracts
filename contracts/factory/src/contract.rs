@@ -1,14 +1,18 @@
-use std::ops::Add;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult, SubMsg, WasmMsg, Order, Addr};
+use cosmwasm_std::{
+    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Reply, Response, StdResult,
+    SubMsg, WasmMsg,
+};
 use cw0::parse_reply_instantiate_data;
 use cw2::set_contract_version;
 use cw20::Denom;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, GetSwapsDetailedResponse, GetSwapsResponse, InstantiateMsg, QueryMsg, SwapDetails};
-use crate::msg::QueryMsg::GetSwapsDetailed;
+use crate::msg::{
+    ExecuteMsg, GetSwapsDetailedResponse, GetSwapsResponse, InstantiateMsg, QueryMsg, SwapDetails,
+};
+
 use crate::state::{get_denom_primary_key, Config, Swap, CONFIG, SWAPS};
 
 // version info for migration info
@@ -94,8 +98,9 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
             // Validate contract address
             let swap_addr = deps.api.addr_validate(&res.contract_address)?;
             let query_msg = junoswap::msg::QueryMsg::Info {};
-            let info: junoswap::msg::InfoResponse =
-                deps.querier.query_wasm_smart(swap_addr.clone(), &query_msg)?;
+            let info: junoswap::msg::InfoResponse = deps
+                .querier
+                .query_wasm_smart(swap_addr.clone(), &query_msg)?;
 
             let swap = Swap {
                 address: swap_addr,
@@ -119,34 +124,45 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetSwaps {} => to_binary(&query_swaps(deps)?),
-        QueryMsg::GetSwapsDetailed { .. } => {to_binary(&query_swaps_detailed(deps)?)}
+        QueryMsg::GetSwapsDetailed { .. } => to_binary(&query_swaps_detailed(deps)?),
     }
 }
 
 fn query_swaps(deps: Deps) -> StdResult<GetSwapsResponse> {
-    let swaps: StdResult<Vec<Addr>> = SWAPS.range(deps.storage, None, None, Order::Ascending).map(|s| Ok(s?.1.address)).collect();
+    let swaps: StdResult<Vec<Addr>> = SWAPS
+        .range(deps.storage, None, None, Order::Ascending)
+        .map(|s| Ok(s?.1.address))
+        .collect();
     Ok(GetSwapsResponse { swaps: swaps? })
 }
 
 fn query_swaps_detailed(deps: Deps) -> StdResult<GetSwapsDetailedResponse> {
-    let swaps: StdResult<Vec<Addr>> = SWAPS.range(deps.storage, None, None, Order::Ascending).map(|s| Ok(s?.1.address)).collect();
-    let details: StdResult<Vec<SwapDetails>> = swaps?.into_iter().map(|addr| {
-        let info = deps.querier.query_wasm_smart(addr.clone(), &junoswap::msg::QueryMsg::Info {})?;
-        Ok(
-        SwapDetails {
-            addr,
-            details: info
-        }
-        )
-    }).collect();
+    let swaps: StdResult<Vec<Addr>> = SWAPS
+        .range(deps.storage, None, None, Order::Ascending)
+        .map(|s| Ok(s?.1.address))
+        .collect();
+    let details: StdResult<Vec<SwapDetails>> = swaps?
+        .into_iter()
+        .map(|addr| {
+            let info = deps
+                .querier
+                .query_wasm_smart(addr.clone(), &junoswap::msg::QueryMsg::Info {})?;
+            Ok(SwapDetails {
+                addr,
+                details: info,
+            })
+        })
+        .collect();
     Ok(GetSwapsDetailedResponse { swaps: details? })
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::msg::{ExecuteMsg, GetSwapsDetailedResponse, GetSwapsResponse, InstantiateMsg, QueryMsg};
+    use crate::msg::{
+        ExecuteMsg, GetSwapsDetailedResponse, GetSwapsResponse, InstantiateMsg, QueryMsg,
+    };
     use crate::ContractError;
-    use cosmwasm_std::{coins, Addr, Empty, Uint128, Querier};
+    use cosmwasm_std::{coins, Addr, Empty, Uint128};
     use cw0::Duration;
     use cw20::{Cw20Coin, Cw20Contract, Denom};
     use cw_multi_test::{App, Contract, ContractWrapper, Executor};
@@ -387,16 +403,24 @@ mod tests {
             .execute_contract(sender.clone(), factory_addr.clone(), &create_msg, &[])
             .unwrap();
 
-        let res: GetSwapsResponse = app.borrow_mut().wrap().query_wasm_smart(factory_addr.clone(),&QueryMsg::GetSwaps {}).unwrap();
+        let res: GetSwapsResponse = app
+            .borrow_mut()
+            .wrap()
+            .query_wasm_smart(factory_addr.clone(), &QueryMsg::GetSwaps {})
+            .unwrap();
         assert_eq!(res.swaps.len(), 3);
 
-        let res: GetSwapsDetailedResponse = app.borrow_mut().wrap().query_wasm_smart(factory_addr,&QueryMsg::GetSwapsDetailed {}).unwrap();
+        let res: GetSwapsDetailedResponse = app
+            .borrow_mut()
+            .wrap()
+            .query_wasm_smart(factory_addr, &QueryMsg::GetSwapsDetailed {})
+            .unwrap();
         assert_eq!(res.swaps.len(), 3);
         let mut result_cw20_addr_set = HashSet::new();
         for s in res.swaps {
-           if let Denom::Cw20(addr)  = s.details.token2_denom {
-               result_cw20_addr_set.insert(addr);
-           }
+            if let Denom::Cw20(addr) = s.details.token2_denom {
+                result_cw20_addr_set.insert(addr);
+            }
         }
         assert!(result_cw20_addr_set.is_superset(&cw20_addr_set))
     }

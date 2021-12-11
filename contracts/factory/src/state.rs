@@ -1,4 +1,3 @@
-use std::ops::Add;
 use cosmwasm_std::Addr;
 use cw0::Duration;
 use schemars::JsonSchema;
