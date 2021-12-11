@@ -1,3 +1,5 @@
+use std::ops::Add;
+use cosmwasm_std::Addr;
 use cw0::Duration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -16,6 +18,7 @@ pub const CONFIG: Item<Config> = Item::new("config");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Swap {
+    pub address: Addr,
     pub token1: Denom,
     pub token2: Denom,
 }

@@ -1,7 +1,9 @@
+use cosmwasm_std::Addr;
 use cw0::Duration;
 use cw20::Denom;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use junoswap::msg::InfoResponse;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -20,11 +22,26 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     // GetCount returns the current count as a json-encoded number
-    GetCount {},
+    GetSwaps {},
+    GetSwapsDetailed {},
 }
 
-// We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct CountResponse {
-    pub count: i32,
+#[serde(rename_all = "snake_case")]
+pub struct GetSwapsResponse {
+    pub swaps: Vec<Addr>
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct SwapDetails {
+    pub addr: Addr,
+    pub details: InfoResponse
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct GetSwapsDetailedResponse {
+    pub swaps: Vec<SwapDetails>
 }
