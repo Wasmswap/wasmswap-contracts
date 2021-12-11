@@ -1,4 +1,4 @@
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Uint128};
 use cw0::Duration;
 use cw20::Denom;
 use schemars::JsonSchema;
@@ -32,10 +32,20 @@ pub struct GetSwapsResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct InfoResponse {
+    pub token1_reserve: Uint128,
+    pub token1_denom: Denom,
+    pub token2_reserve: Uint128,
+    pub token2_denom: Denom,
+    pub lp_token_supply: Uint128,
+    pub lp_token_address: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct SwapDetails {
     pub addr: Addr,
-    pub details: junoswap::msg::InfoResponse,
+    pub details: InfoResponse,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
