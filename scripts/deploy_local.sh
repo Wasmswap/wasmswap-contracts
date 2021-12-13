@@ -8,6 +8,7 @@ BINARY='docker exec -i cosmwasm junod'
 DENOM='ujuno'
 CHAIN_ID='testing'
 RPC='http://localhost:26657/'
+REST='http://localhost:1317/'
 TXFLAG="--gas-prices 0.01$DENOM --gas auto --gas-adjustment 1.3 -y -b block --chain-id $CHAIN_ID --node $RPC"
 
 if [ "$1" = "" ]
@@ -86,15 +87,82 @@ echo $JUNOSWAP_CODE
 
 # Initialize factory contract
 SWAP_1_INIT='{
-    "token1_denom": {"native","ujuno"},
-    "token2_denom": {"cw20","'"$CW20_CONTRACT"'"},
-    "lp_token_code_id": '$CW20_CODE',
+    "token1_denom": {"native": "ujuno"},
+    "token2_denom": {"cw20": "'"$CW20_CONTRACT"'"},
+    "lp_token_code_id": '$CW20_CODE'
 }'
 
 echo "$SWAP_1_INIT"
-echo xxxxxxxxx | $BINARY tx wasm instantiate $JUNOSWAP_CODE "$SWAP_1_INIT" --from "validator" --label "factory" $TXFLAG
+echo xxxxxxxxx | $BINARY tx wasm instantiate $JUNOSWAP_CODE "$SWAP_1_INIT" --from "validator" --label "swap_1" $TXFLAG
 SWAP_1_CONTRACT=$($BINARY q wasm list-contract-by-code $JUNOSWAP_CODE --output json | jq -r '.contracts[-1]')
 echo $SWAP_1_CONTRACT
+
+# Instantiate cw20 contract
+CW20_INIT_2='{
+ "cw20_base" : {
+    "name": "DAO Coin",
+    "symbol": "DAO",
+    "decimals": 6,
+    "initial_balances": [{"address":"'"$1"'","amount":"1000000000"}]
+  }
+}'
+echo "$CW20_INIT_2"
+echo xxxxxxxxx | $BINARY tx wasm instantiate $CW20_CODE "$CW20_INIT_2" --from "validator" --label "token" $TXFLAG
+
+# Get cw20 contract address
+CW20_CONTRACT_2=$($BINARY q wasm list-contract-by-code $CW20_CODE --output json | jq -r '.contracts[-1]')
+echo $CW20_CONTRACT_2
+
+# Initialize factory contract
+SWAP_2_INIT='{
+    "token1_denom": {"native": "ujuno"},
+    "token2_denom": {"cw20": "'"$CW20_CONTRACT_2"'"},
+    "lp_token_code_id": '$CW20_CODE'
+}'
+
+echo "$SWAP_2_INIT"
+echo xxxxxxxxx | $BINARY tx wasm instantiate $JUNOSWAP_CODE "$SWAP_2_INIT" --from "validator" --label "swap_2" $TXFLAG
+SWAP_2_CONTRACT=$($BINARY q wasm list-contract-by-code $JUNOSWAP_CODE --output json | jq -r '.contracts[-1]')
+
+# Instantiate cw20 contract
+CW20_INIT_3='{
+ "cw20_base" : {
+    "name": "POOD Coin",
+    "symbol": "POOD",
+    "decimals": 6,
+    "initial_balances": [{"address":"'"$1"'","amount":"1000000000"}]
+  }
+}'
+echo "$CW20_INIT_3"
+echo xxxxxxxxx | $BINARY tx wasm instantiate $CW20_CODE "$CW20_INIT_3" --from "validator" --label "token" $TXFLAG
+
+# Get cw20 contract address
+CW20_CONTRACT_3=$($BINARY q wasm list-contract-by-code $CW20_CODE --output json | jq -r '.contracts[-1]')
+echo $CW20_CONTRACT_3
+
+# Initialize factory contract
+SWAP_3_INIT='{
+    "token1_denom": {"native": "ujuno"},
+    "token2_denom": {"cw20": "'"$CW20_CONTRACT_3"'"},
+    "lp_token_code_id": '$CW20_CODE'
+}'
+
+echo "$SWAP_3_INIT"
+echo xxxxxxxxx | $BINARY tx wasm instantiate $JUNOSWAP_CODE "$SWAP_3_INIT" --from "validator" --label "swap_2" $TXFLAG
+SWAP_3_CONTRACT=$($BINARY q wasm list-contract-by-code $JUNOSWAP_CODE --output json | jq -r '.contracts[-1]')
+
+echo "CRAB cw20 contract 1"
+echo $CW20_CONTRACT
+echo "CRAB Swap contract 1"
+echo $SWAP_1_CONTRACT
+echo "DAO cw20 contract 2"
+echo $CW20_CONTRACT_2
+echo "DAO Swap contract 2"
+echo $SWAP_2_CONTRACT
+echo "POOD cw20 contract 2"
+echo $CW20_CONTRACT_3
+echo "POOD Swap contract 2"
+echo $SWAP_3_CONTRACT
 
 
 
