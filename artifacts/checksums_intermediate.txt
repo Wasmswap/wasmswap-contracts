@@ -1,0 +1,2 @@
+7f2e7f5b210ce500c2790991485780da05bc79ea1b1800c496da44195bca7a15  ./target/wasm32-unknown-unknown/release/factory.wasm
+2d2f805147b8b9ee40985615baf26c2e07710699ff5a7eb46e8e475da2cbd7ba  ./target/wasm32-unknown-unknown/release/junoswap.wasm
