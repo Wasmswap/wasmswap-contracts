@@ -39,16 +39,6 @@ pub fn instantiate(
 
     TOKEN2.save(deps.storage, &token2)?;
 
-    let token1_name = match msg.token1_denom {
-        Denom::Native(denom) => denom,
-        Cw20(addr) => addr.to_string(),
-    };
-
-    let token2_name = match msg.token2_denom {
-        Denom::Native(denom) => denom,
-        Cw20(addr) => addr.to_string(),
-    };
-
     let instantiate_lp_token_msg = WasmMsg::Instantiate {
         code_id: msg.lp_token_code_id,
         funds: vec![],
@@ -56,7 +46,7 @@ pub fn instantiate(
         label: "lp_token".to_string(),
         msg: to_binary(&cw20_stakeable::msg::InstantiateMsg {
             cw20_base: cw20_base::msg::InstantiateMsg {
-                name: format!("{}_{}_{}", "junoswaplptoken", token1_name, token2_name),
+                name: "JunoSwap_Liquidity_Token".into(),
                 symbol: "jslpt".into(),
                 decimals: 6,
                 initial_balances: vec![],
