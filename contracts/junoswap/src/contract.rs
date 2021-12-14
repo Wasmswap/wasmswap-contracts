@@ -780,15 +780,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
-    let lp_token_address = LP_TOKEN.load(deps.storage)?.to_string();
+    let lp_token_address = LP_TOKEN.load(deps.storage)?;
     // TODO get total supply
     Ok(InfoResponse {
         token1_reserve: token1.reserve,
         token1_denom: token1.denom,
         token2_reserve: token2.reserve,
         token2_denom: token2.denom,
-        lp_token_supply: Uint128::new(100),
-        lp_token_address,
+        lp_token_supply: get_lp_token_supply(deps,&lp_token_address)?,
+        lp_token_address: lp_token_address.to_string(),
     })
 }
 
