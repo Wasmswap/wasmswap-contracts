@@ -787,7 +787,7 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
         token1_denom: token1.denom,
         token2_reserve: token2.reserve,
         token2_denom: token2.denom,
-        lp_token_supply: get_lp_token_supply(deps,&lp_token_address)?,
+        lp_token_supply: get_lp_token_supply(deps, &lp_token_address)?,
         lp_token_address: lp_token_address.to_string(),
     })
 }
