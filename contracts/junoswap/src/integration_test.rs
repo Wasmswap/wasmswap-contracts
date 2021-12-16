@@ -591,7 +591,7 @@ fn swap_tokens_happy_path() {
         .unwrap();
 
     let swap_msg = ExecuteMsg::Swap {
-        input_token: TokenSelect::Token1,
+        input_token: TokenSelect::Token2,
         input_amount: Uint128::new(16),
         min_output: Uint128::new(19),
         expiration: None,
