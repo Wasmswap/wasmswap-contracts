@@ -613,7 +613,7 @@ fn swap_tokens_happy_path() {
     let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
     assert_eq!(owner_balance, Uint128::new(4900));
 
-    let swap_msg = ExecuteMsg::SwapTo {
+    let swap_msg = ExecuteMsg::SwapAndSendTo {
         input_token: TokenSelect::Token1,
         input_amount: Uint128::new(10),
         recipient: owner.clone(),

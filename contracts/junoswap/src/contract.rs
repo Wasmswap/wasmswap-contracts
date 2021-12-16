@@ -143,7 +143,7 @@ pub fn execute(
             output_min_token,
             expiration,
         ),
-        ExecuteMsg::SwapTo {
+        ExecuteMsg::SwapAndSendTo {
             input_token,
             input_amount,
             recipient,
@@ -715,7 +715,7 @@ pub fn execute_pass_through_swap(
         )?)
     };
 
-    let swap_msg = ExecuteMsg::SwapTo {
+    let swap_msg = ExecuteMsg::SwapAndSendTo {
         input_token: match output_token_enum {
             TokenSelect::Token1 => TokenSelect::Token2,
             TokenSelect::Token2 => TokenSelect::Token1,

@@ -53,7 +53,7 @@ pub enum ExecuteMsg {
         output_min_token: Uint128,
         expiration: Option<Expiration>,
     },
-    SwapTo {
+    SwapAndSendTo {
         input_token: TokenSelect,
         input_amount: Uint128,
         recipient: Addr,
