@@ -113,7 +113,6 @@ pub fn execute(
         ExecuteMsg::PassThroughSwap {
             output_amm_address,
             input_token,
-            output_token,
             input_token_amount,
             output_min_token,
             expiration,

@@ -939,7 +939,6 @@ fn token_to_token_swap() {
     let swap_msg = ExecuteMsg::PassThroughSwap {
         output_amm_address: amm2.clone(),
         input_token: TokenSelect::Token2,
-        output_token: TokenSelect::Token2,
         input_token_amount: Uint128::new(10),
         output_min_token: Uint128::new(8),
         expiration: None,
@@ -974,7 +973,6 @@ fn token_to_token_swap() {
     let swap_msg = ExecuteMsg::PassThroughSwap {
         output_amm_address: amm1.clone(),
         input_token: TokenSelect::Token2,
-        output_token: TokenSelect::Token2,
         input_token_amount: Uint128::new(10),
         output_min_token: Uint128::new(1),
         expiration: None,

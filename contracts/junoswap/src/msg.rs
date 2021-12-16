@@ -44,7 +44,6 @@ pub enum ExecuteMsg {
     PassThroughSwap {
         output_amm_address: Addr,
         input_token: TokenSelect,
-        output_token: TokenSelect,
         input_token_amount: Uint128,
         output_min_token: Uint128,
         expiration: Option<Expiration>,
