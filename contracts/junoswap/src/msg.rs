@@ -34,26 +34,21 @@ pub enum ExecuteMsg {
         min_token2: Uint128,
         expiration: Option<Expiration>,
     },
-    SwapToken1ForToken2 {
-        token1_amount: Uint128,
-        min_token2: Uint128,
-        expiration: Option<Expiration>,
-    },
-    SwapToken2ForToken1 {
-        token2_amount: Uint128,
-        min_token1: Uint128,
+    Swap {
+        input_token: TokenSelect,
+        input_amount: Uint128,
+        min_output: Uint128,
         expiration: Option<Expiration>,
     },
     /// Chained swap converting A -> B and B -> C by leveraging two swap contracts
     PassThroughSwap {
         output_amm_address: Addr,
         input_token: TokenSelect,
-        output_token: TokenSelect,
         input_token_amount: Uint128,
         output_min_token: Uint128,
         expiration: Option<Expiration>,
     },
-    SwapTo {
+    SwapAndSendTo {
         input_token: TokenSelect,
         input_amount: Uint128,
         recipient: Addr,

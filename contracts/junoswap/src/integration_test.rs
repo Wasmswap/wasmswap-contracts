@@ -518,9 +518,10 @@ fn swap_tokens_happy_path() {
         router.bank.init_balance(storage, &buyer, funds).unwrap()
     });
 
-    let add_liquidity_msg = ExecuteMsg::SwapToken1ForToken2 {
-        token1_amount: Uint128::new(10),
-        min_token2: Uint128::new(9),
+    let add_liquidity_msg = ExecuteMsg::Swap {
+        input_token: TokenSelect::Token1,
+        input_amount: Uint128::new(10),
+        min_output: Uint128::new(9),
         expiration: None,
     };
     let _res = router
@@ -547,9 +548,10 @@ fn swap_tokens_happy_path() {
     let balance: Coin = bank_balance(&mut router, &buyer, NATIVE_TOKEN_DENOM.to_string());
     assert_eq!(balance.amount, Uint128::new(1990));
 
-    let swap_msg = ExecuteMsg::SwapToken1ForToken2 {
-        token1_amount: Uint128::new(10),
-        min_token2: Uint128::new(7),
+    let swap_msg = ExecuteMsg::Swap {
+        input_token: TokenSelect::Token1,
+        input_amount: Uint128::new(10),
+        min_output: Uint128::new(7),
         expiration: None,
     };
     let _res = router
@@ -588,9 +590,10 @@ fn swap_tokens_happy_path() {
         .execute_contract(buyer.clone(), cw20_token.addr(), &allowance_msg, &[])
         .unwrap();
 
-    let swap_msg = ExecuteMsg::SwapToken2ForToken1 {
-        token2_amount: Uint128::new(16),
-        min_token1: Uint128::new(19),
+    let swap_msg = ExecuteMsg::Swap {
+        input_token: TokenSelect::Token2,
+        input_amount: Uint128::new(16),
+        min_output: Uint128::new(19),
         expiration: None,
     };
     let _res = router
@@ -613,7 +616,7 @@ fn swap_tokens_happy_path() {
     let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
     assert_eq!(owner_balance, Uint128::new(4900));
 
-    let swap_msg = ExecuteMsg::SwapTo {
+    let swap_msg = ExecuteMsg::SwapAndSendTo {
         input_token: TokenSelect::Token1,
         input_amount: Uint128::new(10),
         recipient: owner.clone(),
@@ -714,9 +717,10 @@ fn swap_native_to_native_tokens_happy_path() {
         router.bank.init_balance(storage, &buyer, funds).unwrap()
     });
 
-    let add_liquidity_msg = ExecuteMsg::SwapToken1ForToken2 {
-        token1_amount: Uint128::new(10),
-        min_token2: Uint128::new(9),
+    let add_liquidity_msg = ExecuteMsg::Swap {
+        input_token: TokenSelect::Token1,
+        input_amount: Uint128::new(10),
+        min_output: Uint128::new(9),
         expiration: None,
     };
     let _res = router
@@ -741,9 +745,10 @@ fn swap_native_to_native_tokens_happy_path() {
     let ibc_balance: Coin = bank_balance(&mut router, &buyer, IBC_TOKEN_DENOM.to_string());
     assert_eq!(ibc_balance.amount, Uint128::new(9));
 
-    let swap_msg = ExecuteMsg::SwapToken1ForToken2 {
-        token1_amount: Uint128::new(10),
-        min_token2: Uint128::new(7),
+    let swap_msg = ExecuteMsg::Swap {
+        input_token: TokenSelect::Token1,
+        input_amount: Uint128::new(10),
+        min_output: Uint128::new(7),
         expiration: None,
     };
     let _res = router
@@ -769,9 +774,10 @@ fn swap_native_to_native_tokens_happy_path() {
     assert_eq!(ibc_balance.amount, Uint128::new(16));
 
     // Swap token for native
-    let swap_msg = ExecuteMsg::SwapToken2ForToken1 {
-        token2_amount: Uint128::new(16),
-        min_token1: Uint128::new(19),
+    let swap_msg = ExecuteMsg::Swap {
+        input_token: TokenSelect::Token2,
+        input_amount: Uint128::new(16),
+        min_output: Uint128::new(19),
         expiration: None,
     };
     let _res = router
@@ -933,7 +939,6 @@ fn token_to_token_swap() {
     let swap_msg = ExecuteMsg::PassThroughSwap {
         output_amm_address: amm2.clone(),
         input_token: TokenSelect::Token2,
-        output_token: TokenSelect::Token2,
         input_token_amount: Uint128::new(10),
         output_min_token: Uint128::new(8),
         expiration: None,
@@ -968,7 +973,6 @@ fn token_to_token_swap() {
     let swap_msg = ExecuteMsg::PassThroughSwap {
         output_amm_address: amm1.clone(),
         input_token: TokenSelect::Token2,
-        output_token: TokenSelect::Token2,
         input_token_amount: Uint128::new(10),
         output_min_token: Uint128::new(1),
         expiration: None,

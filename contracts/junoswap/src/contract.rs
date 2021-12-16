@@ -13,7 +13,6 @@ use crate::msg::{
     Token2ForToken1PriceResponse, TokenSelect,
 };
 use crate::state::{Token, LP_TOKEN, TOKEN1, TOKEN2};
-use cw_storage_plus::Item;
 
 const INSTANTIATE_LP_TOKEN_REPLY_ID: u64 = 0;
 // Note, you can use StdResult in some functions where you do not
@@ -95,40 +94,25 @@ pub fn execute(
             min_token2,
             expiration,
         } => execute_remove_liquidity(deps, info, env, amount, min_token1, min_token2, expiration),
-        ExecuteMsg::SwapToken1ForToken2 {
-            token1_amount,
-            min_token2,
+        ExecuteMsg::Swap {
+            input_token,
+            input_amount,
+            min_output,
             expiration,
+            ..
         } => execute_swap(
             deps,
             &info,
-            token1_amount,
+            input_amount,
             env,
-            TOKEN1,
-            TOKEN2,
+            input_token,
             &info.sender,
-            min_token2,
-            expiration,
-        ),
-        ExecuteMsg::SwapToken2ForToken1 {
-            token2_amount,
-            min_token1,
-            expiration,
-        } => execute_swap(
-            deps,
-            &info,
-            token2_amount,
-            env,
-            TOKEN2,
-            TOKEN1,
-            &info.sender,
-            min_token1,
+            min_output,
             expiration,
         ),
         ExecuteMsg::PassThroughSwap {
             output_amm_address,
             input_token,
-            output_token,
             input_token_amount,
             output_min_token,
             expiration,
@@ -139,11 +123,10 @@ pub fn execute(
             output_amm_address,
             input_token,
             input_token_amount,
-            output_token,
             output_min_token,
             expiration,
         ),
-        ExecuteMsg::SwapTo {
+        ExecuteMsg::SwapAndSendTo {
             input_token,
             input_amount,
             recipient,
@@ -154,14 +137,7 @@ pub fn execute(
             &info,
             input_amount,
             env,
-            match input_token {
-                TokenSelect::Token1 => TOKEN1,
-                TokenSelect::Token2 => TOKEN2,
-            },
-            match input_token {
-                TokenSelect::Token1 => TOKEN2,
-                TokenSelect::Token2 => TOKEN1,
-            },
+            input_token,
             &recipient,
             min_token,
             expiration,
@@ -591,15 +567,22 @@ pub fn execute_swap(
     info: &MessageInfo,
     input_amount: Uint128,
     _env: Env,
-    input_token_item: Item<Token>,
-    output_token_item: Item<Token>,
+    input_token_enum: TokenSelect,
     recipient: &Addr,
     min_token: Uint128,
     expiration: Option<Expiration>,
 ) -> Result<Response, ContractError> {
     check_expiration(&expiration, &_env.block)?;
 
+    let input_token_item = match input_token_enum {
+        TokenSelect::Token1 => TOKEN1,
+        TokenSelect::Token2 => TOKEN2,
+    };
     let input_token = input_token_item.load(deps.storage)?;
+    let output_token_item = match input_token_enum {
+        TokenSelect::Token1 => TOKEN2,
+        TokenSelect::Token2 => TOKEN1,
+    };
     let output_token = output_token_item.load(deps.storage)?;
 
     // validate input_amount if native input token
@@ -669,7 +652,6 @@ pub fn execute_pass_through_swap(
     output_amm_address: Addr,
     input_token_enum: TokenSelect,
     input_token_amount: Uint128,
-    output_token_enum: TokenSelect,
     output_min_token: Uint128,
     expiration: Option<Expiration>,
 ) -> Result<Response, ContractError> {
@@ -715,8 +697,8 @@ pub fn execute_pass_through_swap(
         )?)
     };
 
-    let swap_msg = ExecuteMsg::SwapTo {
-        input_token: match output_token_enum {
+    let swap_msg = ExecuteMsg::SwapAndSendTo {
+        input_token: match input_token_enum {
             TokenSelect::Token1 => TokenSelect::Token2,
             TokenSelect::Token2 => TokenSelect::Token1,
         },
