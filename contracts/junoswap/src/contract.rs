@@ -13,7 +13,6 @@ use crate::msg::{
     Token2ForToken1PriceResponse, TokenSelect,
 };
 use crate::state::{Token, LP_TOKEN, TOKEN1, TOKEN2};
-use cw_storage_plus::Item;
 
 const INSTANTIATE_LP_TOKEN_REPLY_ID: u64 = 0;
 // Note, you can use StdResult in some functions where you do not
@@ -99,7 +98,8 @@ pub fn execute(
             input_token,
             input_amount,
             min_output,
-            expiration, ..
+            expiration,
+            ..
         } => execute_swap(
             deps,
             &info,
@@ -576,12 +576,12 @@ pub fn execute_swap(
 
     let input_token_item = match input_token_enum {
         TokenSelect::Token1 => TOKEN1,
-        TokenSelect::Token2 => TOKEN2
+        TokenSelect::Token2 => TOKEN2,
     };
     let input_token = input_token_item.load(deps.storage)?;
     let output_token_item = match input_token_enum {
         TokenSelect::Token1 => TOKEN2,
-        TokenSelect::Token2 => TOKEN1
+        TokenSelect::Token2 => TOKEN1,
     };
     let output_token = output_token_item.load(deps.storage)?;
 
