@@ -59,6 +59,8 @@ pub fn instantiate(
         })?,
     };
 
+    FEE.save(deps.storage, &30u64)?;
+
     let reply_msg =
         SubMsg::reply_on_success(instantiate_lp_token_msg, INSTANTIATE_LP_TOKEN_REPLY_ID);
 
@@ -588,7 +590,7 @@ pub fn execute_swap(
     // validate input_amount if native input token
     validate_input_amount(&info.funds, input_amount, &input_token.denom)?;
 
-    let token_bought = get_input_price(input_amount, input_token.reserve, output_token.reserve, 30)?;
+    let token_bought = get_input_price(input_amount, input_token.reserve, output_token.reserve, FEE.load(deps.storage)?)?;
 
     if min_token > token_bought {
         return Err(ContractError::SwapMinError {
@@ -674,7 +676,7 @@ pub fn execute_pass_through_swap(
         input_token_amount,
         input_token.reserve,
         transfer_token.reserve,
-        30
+        FEE.load(deps.storage)?
     )?;
 
     // Transfer tokens to contract
