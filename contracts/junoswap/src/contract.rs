@@ -12,7 +12,7 @@ use crate::msg::{
     ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, Token1ForToken2PriceResponse,
     Token2ForToken1PriceResponse, TokenSelect,
 };
-use crate::state::{Token, LP_TOKEN, TOKEN1, TOKEN2, FEE};
+use crate::state::{Token, FEE, LP_TOKEN, TOKEN1, TOKEN2};
 
 const INSTANTIATE_LP_TOKEN_REPLY_ID: u64 = 0;
 // Note, you can use StdResult in some functions where you do not
@@ -591,7 +591,12 @@ pub fn execute_swap(
     // validate input_amount if native input token
     validate_input_amount(&info.funds, input_amount, &input_token.denom)?;
 
-    let token_bought = get_input_price(input_amount, input_token.reserve, output_token.reserve, FEE.load(deps.storage)?)?;
+    let token_bought = get_input_price(
+        input_amount,
+        input_token.reserve,
+        output_token.reserve,
+        FEE.load(deps.storage)?,
+    )?;
 
     if min_token > token_bought {
         return Err(ContractError::SwapMinError {
@@ -677,7 +682,7 @@ pub fn execute_pass_through_swap(
         input_token_amount,
         input_token.reserve,
         transfer_token.reserve,
-        FEE.load(deps.storage)?
+        FEE.load(deps.storage)?,
     )?;
 
     // Transfer tokens to contract
@@ -776,7 +781,7 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
         token2_denom: token2.denom,
         lp_token_supply: get_lp_token_supply(deps, &lp_token_address)?,
         lp_token_address: lp_token_address.to_string(),
-        fee
+        fee,
     })
 }
 
@@ -879,7 +884,8 @@ mod tests {
         assert_eq!(err, StdError::generic_err("No liquidity"));
 
         // No reserve error
-        let err = get_input_price(Uint128::new(10), Uint128::new(0), Uint128::new(0), 30).unwrap_err();
+        let err =
+            get_input_price(Uint128::new(10), Uint128::new(0), Uint128::new(0), 30).unwrap_err();
         assert_eq!(err, StdError::generic_err("No liquidity"));
     }
 }

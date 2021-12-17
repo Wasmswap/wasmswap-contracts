@@ -11,7 +11,7 @@ pub struct InstantiateMsg {
     pub token2_denom: Denom,
     pub lp_token_code_id: u64,
     pub lp_token_unstaking_duration: Option<Duration>,
-    pub fee: Option<u64>
+    pub fee: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

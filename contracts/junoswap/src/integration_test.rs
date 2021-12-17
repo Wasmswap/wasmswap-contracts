@@ -50,7 +50,13 @@ fn get_info(router: &App, contract_addr: &Addr) -> InfoResponse {
         .unwrap()
 }
 
-fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom: String, fee: Option<u64>) -> Addr {
+fn create_amm(
+    router: &mut App,
+    owner: &Addr,
+    cash: &Cw20Contract,
+    native_denom: String,
+    fee: Option<u64>,
+) -> Addr {
     // set up amm contract
     let cw20_id = router.store_code(contract_cw20_stakeable());
     let amm_id = router.store_code(contract_amm());
@@ -59,7 +65,7 @@ fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom:
         token2_denom: Denom::Cw20(cash.addr()),
         lp_token_code_id: cw20_id,
         lp_token_unstaking_duration: None,
-        fee
+        fee,
     };
     router
         .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)
@@ -121,7 +127,13 @@ fn test_instantiate() {
         Uint128::new(5000),
     );
 
-    let amm_addr = create_amm(&mut router, &owner, &cw20_token, NATIVE_TOKEN_DENOM.into(), None);
+    let amm_addr = create_amm(
+        &mut router,
+        &owner,
+        &cw20_token,
+        NATIVE_TOKEN_DENOM.into(),
+        None,
+    );
 
     assert_ne!(cw20_token.addr(), amm_addr);
 
@@ -150,7 +162,13 @@ fn amm_add_and_remove_liquidity() {
         Uint128::new(5000),
     );
 
-    let amm_addr = create_amm(&mut router, &owner, &cw20_token, NATIVE_TOKEN_DENOM.into(), None);
+    let amm_addr = create_amm(
+        &mut router,
+        &owner,
+        &cw20_token,
+        NATIVE_TOKEN_DENOM.into(),
+        None,
+    );
 
     assert_ne!(cw20_token.addr(), amm_addr);
 
@@ -473,7 +491,7 @@ fn swap_tokens_happy_path() {
         &owner,
         &cw20_token,
         NATIVE_TOKEN_DENOM.to_string(),
-        None
+        None,
     );
 
     assert_ne!(cw20_token.addr(), amm_addr);
@@ -871,8 +889,20 @@ fn token_to_token_swap() {
         Uint128::new(5000),
     );
 
-    let amm1 = create_amm(&mut router, &owner, &token1, NATIVE_TOKEN_DENOM.to_string(), None);
-    let amm2 = create_amm(&mut router, &owner, &token2, NATIVE_TOKEN_DENOM.to_string(), None);
+    let amm1 = create_amm(
+        &mut router,
+        &owner,
+        &token1,
+        NATIVE_TOKEN_DENOM.to_string(),
+        None,
+    );
+    let amm2 = create_amm(
+        &mut router,
+        &owner,
+        &token2,
+        NATIVE_TOKEN_DENOM.to_string(),
+        None,
+    );
 
     // Add initial liquidity to both pools
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
