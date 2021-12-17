@@ -6,6 +6,7 @@ use cw20::Denom;
 use cw_storage_plus::Item;
 
 pub const LP_TOKEN: Item<Addr> = Item::new("lp_token");
+pub const FEE: Item<u64> = Item::new("fee");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Token {
