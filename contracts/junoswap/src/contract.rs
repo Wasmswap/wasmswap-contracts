@@ -59,7 +59,8 @@ pub fn instantiate(
         })?,
     };
 
-    FEE.save(deps.storage, &30u64)?;
+    let fee = msg.fee.unwrap_or(30);
+    FEE.save(deps.storage, &fee)?;
 
     let reply_msg =
         SubMsg::reply_on_success(instantiate_lp_token_msg, INSTANTIATE_LP_TOKEN_REPLY_ID);
@@ -766,6 +767,7 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
     let lp_token_address = LP_TOKEN.load(deps.storage)?;
+    let fee = FEE.load(deps.storage)?;
     // TODO get total supply
     Ok(InfoResponse {
         token1_reserve: token1.reserve,
@@ -774,6 +776,7 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
         token2_denom: token2.denom,
         lp_token_supply: get_lp_token_supply(deps, &lp_token_address)?,
         lp_token_address: lp_token_address.to_string(),
+        fee
     })
 }
 
