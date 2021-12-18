@@ -50,7 +50,13 @@ fn get_info(router: &App, contract_addr: &Addr) -> InfoResponse {
         .unwrap()
 }
 
-fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom: String) -> Addr {
+fn create_amm(
+    router: &mut App,
+    owner: &Addr,
+    cash: &Cw20Contract,
+    native_denom: String,
+    fee: Option<u64>,
+) -> Addr {
     // set up amm contract
     let cw20_id = router.store_code(contract_cw20_stakeable());
     let amm_id = router.store_code(contract_amm());
@@ -59,6 +65,7 @@ fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom:
         token2_denom: Denom::Cw20(cash.addr()),
         lp_token_code_id: cw20_id,
         lp_token_unstaking_duration: None,
+        fee,
     };
     router
         .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)
@@ -120,7 +127,13 @@ fn test_instantiate() {
         Uint128::new(5000),
     );
 
-    let amm_addr = create_amm(&mut router, &owner, &cw20_token, NATIVE_TOKEN_DENOM.into());
+    let amm_addr = create_amm(
+        &mut router,
+        &owner,
+        &cw20_token,
+        NATIVE_TOKEN_DENOM.into(),
+        None,
+    );
 
     assert_ne!(cw20_token.addr(), amm_addr);
 
@@ -149,7 +162,13 @@ fn amm_add_and_remove_liquidity() {
         Uint128::new(5000),
     );
 
-    let amm_addr = create_amm(&mut router, &owner, &cw20_token, NATIVE_TOKEN_DENOM.into());
+    let amm_addr = create_amm(
+        &mut router,
+        &owner,
+        &cw20_token,
+        NATIVE_TOKEN_DENOM.into(),
+        None,
+    );
 
     assert_ne!(cw20_token.addr(), amm_addr);
 
@@ -472,6 +491,7 @@ fn swap_tokens_happy_path() {
         &owner,
         &cw20_token,
         NATIVE_TOKEN_DENOM.to_string(),
+        None,
     );
 
     assert_ne!(cw20_token.addr(), amm_addr);
@@ -677,6 +697,7 @@ fn swap_native_to_native_tokens_happy_path() {
         token2_denom: Denom::Native(IBC_TOKEN_DENOM.into()),
         lp_token_code_id: lp_token_id,
         lp_token_unstaking_duration: None,
+        fee: None,
     };
     let amm_addr = router
         .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)
@@ -868,8 +889,20 @@ fn token_to_token_swap() {
         Uint128::new(5000),
     );
 
-    let amm1 = create_amm(&mut router, &owner, &token1, NATIVE_TOKEN_DENOM.to_string());
-    let amm2 = create_amm(&mut router, &owner, &token2, NATIVE_TOKEN_DENOM.to_string());
+    let amm1 = create_amm(
+        &mut router,
+        &owner,
+        &token1,
+        NATIVE_TOKEN_DENOM.to_string(),
+        None,
+    );
+    let amm2 = create_amm(
+        &mut router,
+        &owner,
+        &token2,
+        NATIVE_TOKEN_DENOM.to_string(),
+        None,
+    );
 
     // Add initial liquidity to both pools
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
@@ -1004,4 +1037,99 @@ fn token_to_token_swap() {
     let token2_balance = token2.balance(&router, amm2.clone()).unwrap();
     assert_eq!(info_amm2.token2_reserve, token2_balance);
     assert_eq!(info_amm2.token1_reserve, amm2_native_balance.amount);
+}
+
+#[test]
+fn swap_tokens_non_default_fee() {
+    let mut router = mock_app();
+
+    const NATIVE_TOKEN_DENOM: &str = "juno";
+
+    let owner = Addr::unchecked("owner");
+    let funds = coins(2000000000, NATIVE_TOKEN_DENOM);
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &owner, funds).unwrap()
+    });
+
+    let cw20_token = create_cw20(
+        &mut router,
+        &owner,
+        "token".to_string(),
+        "CWTOKEN".to_string(),
+        Uint128::new(1000000000),
+    );
+
+    let amm_addr = create_amm(
+        &mut router,
+        &owner,
+        &cw20_token,
+        NATIVE_TOKEN_DENOM.to_string(),
+        Some(100),
+    );
+
+    assert_ne!(cw20_token.addr(), amm_addr);
+
+    // check initial balances
+    let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
+    assert_eq!(owner_balance, Uint128::new(1000000000));
+
+    // send tokens to contract address
+    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: amm_addr.to_string(),
+        amount: Uint128::new(100000000u128),
+        expires: None,
+    };
+    let _res = router
+        .execute_contract(owner.clone(), cw20_token.addr(), &allowance_msg, &[])
+        .unwrap();
+
+    let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128::new(100000000),
+        min_liquidity: Uint128::new(100000000),
+        max_token2: Uint128::new(100000000),
+        expiration: None,
+    };
+    let _res = router
+        .execute_contract(
+            owner.clone(),
+            amm_addr.clone(),
+            &add_liquidity_msg,
+            &[Coin {
+                denom: NATIVE_TOKEN_DENOM.into(),
+                amount: Uint128::new(100000000),
+            }],
+        )
+        .unwrap();
+
+    let info = get_info(&router, &amm_addr);
+    assert_eq!(info.token1_reserve, Uint128::new(100000000));
+    assert_eq!(info.token2_reserve, Uint128::new(100000000));
+
+    let buyer = Addr::unchecked("buyer");
+    let funds = coins(2000000000, NATIVE_TOKEN_DENOM);
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &buyer, funds).unwrap()
+    });
+
+    let add_liquidity_msg = ExecuteMsg::Swap {
+        input_token: TokenSelect::Token1,
+        input_amount: Uint128::new(10000000),
+        min_output: Uint128::new(9000000),
+        expiration: None,
+    };
+    let _res = router
+        .execute_contract(
+            buyer.clone(),
+            amm_addr.clone(),
+            &add_liquidity_msg,
+            &[Coin {
+                denom: NATIVE_TOKEN_DENOM.into(),
+                amount: Uint128::new(10000000),
+            }],
+        )
+        .unwrap();
+
+    let info = get_info(&router, &amm_addr);
+    assert_eq!(info.token1_reserve, Uint128::new(110000000));
+    assert_eq!(info.token2_reserve, Uint128::new(90991811));
 }

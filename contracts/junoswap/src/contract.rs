@@ -12,7 +12,7 @@ use crate::msg::{
     ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, Token1ForToken2PriceResponse,
     Token2ForToken1PriceResponse, TokenSelect,
 };
-use crate::state::{Token, LP_TOKEN, TOKEN1, TOKEN2};
+use crate::state::{Token, FEE, LP_TOKEN, TOKEN1, TOKEN2};
 
 const INSTANTIATE_LP_TOKEN_REPLY_ID: u64 = 0;
 // Note, you can use StdResult in some functions where you do not
@@ -58,6 +58,9 @@ pub fn instantiate(
             unstaking_duration: msg.lp_token_unstaking_duration,
         })?,
     };
+
+    let fee = msg.fee.unwrap_or(30);
+    FEE.save(deps.storage, &fee)?;
 
     let reply_msg =
         SubMsg::reply_on_success(instantiate_lp_token_msg, INSTANTIATE_LP_TOKEN_REPLY_ID);
@@ -527,19 +530,19 @@ fn get_input_price(
     input_amount: Uint128,
     input_reserve: Uint128,
     output_reserve: Uint128,
+    fee: u64,
 ) -> StdResult<Uint128> {
     if input_reserve == Uint128::zero() || output_reserve == Uint128::zero() {
         return Err(StdError::generic_err("No liquidity"));
     };
-
     let input_amount_with_fee = input_amount
-        .checked_mul(Uint128::new(997))
+        .checked_mul(Uint128::from(10000 - fee))
         .map_err(StdError::overflow)?;
     let numerator = input_amount_with_fee
         .checked_mul(output_reserve)
         .map_err(StdError::overflow)?;
     let denominator = input_reserve
-        .checked_mul(Uint128::new(1000))
+        .checked_mul(Uint128::new(10000))
         .map_err(StdError::overflow)?
         .checked_add(input_amount_with_fee)
         .map_err(StdError::overflow)?;
@@ -588,7 +591,12 @@ pub fn execute_swap(
     // validate input_amount if native input token
     validate_input_amount(&info.funds, input_amount, &input_token.denom)?;
 
-    let token_bought = get_input_price(input_amount, input_token.reserve, output_token.reserve)?;
+    let token_bought = get_input_price(
+        input_amount,
+        input_token.reserve,
+        output_token.reserve,
+        FEE.load(deps.storage)?,
+    )?;
 
     if min_token > token_bought {
         return Err(ContractError::SwapMinError {
@@ -674,6 +682,7 @@ pub fn execute_pass_through_swap(
         input_token_amount,
         input_token.reserve,
         transfer_token.reserve,
+        FEE.load(deps.storage)?,
     )?;
 
     // Transfer tokens to contract
@@ -763,6 +772,7 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
     let lp_token_address = LP_TOKEN.load(deps.storage)?;
+    let fee = FEE.load(deps.storage)?;
     // TODO get total supply
     Ok(InfoResponse {
         token1_reserve: token1.reserve,
@@ -771,6 +781,7 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
         token2_denom: token2.denom,
         lp_token_supply: get_lp_token_supply(deps, &lp_token_address)?,
         lp_token_address: lp_token_address.to_string(),
+        fee,
     })
 }
 
@@ -780,7 +791,7 @@ pub fn query_token1_for_token2_price(
 ) -> StdResult<Token1ForToken2PriceResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
-    let token2_amount = get_input_price(token1_amount, token1.reserve, token2.reserve)?;
+    let token2_amount = get_input_price(token1_amount, token1.reserve, token2.reserve, 30)?;
     Ok(Token1ForToken2PriceResponse { token2_amount })
 }
 
@@ -790,7 +801,7 @@ pub fn query_token2_for_token1_price(
 ) -> StdResult<Token2ForToken1PriceResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
-    let token1_amount = get_input_price(token2_amount, token2.reserve, token1.reserve)?;
+    let token1_amount = get_input_price(token2_amount, token2.reserve, token1.reserve, 30)?;
     Ok(Token2ForToken1PriceResponse { token1_amount })
 }
 
@@ -858,22 +869,23 @@ mod tests {
     fn test_get_input_price() {
         // Base case
         assert_eq!(
-            get_input_price(Uint128::new(10), Uint128::new(100), Uint128::new(100)).unwrap(),
+            get_input_price(Uint128::new(10), Uint128::new(100), Uint128::new(100), 30).unwrap(),
             Uint128::new(9)
         );
 
         // No input reserve error
         let err =
-            get_input_price(Uint128::new(10), Uint128::new(0), Uint128::new(100)).unwrap_err();
+            get_input_price(Uint128::new(10), Uint128::new(0), Uint128::new(100), 30).unwrap_err();
         assert_eq!(err, StdError::generic_err("No liquidity"));
 
         // No output reserve error
         let err =
-            get_input_price(Uint128::new(10), Uint128::new(100), Uint128::new(0)).unwrap_err();
+            get_input_price(Uint128::new(10), Uint128::new(100), Uint128::new(0), 30).unwrap_err();
         assert_eq!(err, StdError::generic_err("No liquidity"));
 
         // No reserve error
-        let err = get_input_price(Uint128::new(10), Uint128::new(0), Uint128::new(0)).unwrap_err();
+        let err =
+            get_input_price(Uint128::new(10), Uint128::new(0), Uint128::new(0), 30).unwrap_err();
         assert_eq!(err, StdError::generic_err("No liquidity"));
     }
 }
