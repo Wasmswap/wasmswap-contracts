@@ -68,7 +68,6 @@ pub fn try_create_swap(deps: DepsMut, token_denom: Denom) -> Result<Response, Co
         token2_denom: token_denom,
         lp_token_code_id: config.lp_token_code_id,
         lp_token_unstaking_duration: config.unstaking_duration,
-        fee: Some(30),
     };
 
     let instantiate_msg = WasmMsg::Instantiate {
