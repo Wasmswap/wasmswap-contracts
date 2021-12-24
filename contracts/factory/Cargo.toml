@@ -44,4 +44,3 @@ junoswap = {path = "../junoswap", feature = ["library"]}
 cosmwasm-schema = { version = "1.0.0-beta" }
 cw20-base = { version = "0.10.0", features = ["library"] }
 cw-multi-test = {  version = "0.10.3" }
-cw20-stakeable = { version = "0.1.1", features = ["library"] }

@@ -67,7 +67,6 @@ pub fn try_create_swap(deps: DepsMut, token_denom: Denom) -> Result<Response, Co
         token1_denom: Denom::Native("ujuno".to_string()),
         token2_denom: token_denom,
         lp_token_code_id: config.lp_token_code_id,
-        lp_token_unstaking_duration: config.unstaking_duration,
     };
 
     let instantiate_msg = WasmMsg::Instantiate {
@@ -182,15 +181,6 @@ mod tests {
         Box::new(contract)
     }
 
-    pub fn contract_cw20_stakeable() -> Box<dyn Contract<Empty>> {
-        let contract = ContractWrapper::new(
-            cw20_stakeable::contract::execute,
-            cw20_stakeable::contract::instantiate,
-            cw20_stakeable::contract::query,
-        );
-        Box::new(contract)
-    }
-
     pub fn contract_swap() -> Box<dyn Contract<Empty>> {
         let contract = ContractWrapper::new(
             junoswap::contract::execute,
@@ -256,7 +246,7 @@ mod tests {
         );
 
         let swap_code_id = app.store_code(contract_swap());
-        let lp_token_code_id = app.store_code(contract_cw20_stakeable());
+        let lp_token_code_id = app.store_code(contract_cw20());
         let factory_code_id = app.store_code(contract_factory());
 
         let instatiate_msg = InstantiateMsg {

@@ -43,8 +43,7 @@ pub fn instantiate(
         funds: vec![],
         admin: None,
         label: "lp_token".to_string(),
-        msg: to_binary(&cw20_stakeable::msg::InstantiateMsg {
-            cw20_base: cw20_base::msg::InstantiateMsg {
+        msg: to_binary(&cw20_base::msg::InstantiateMsg {
                 name: "JunoSwap_Liquidity_Token".into(),
                 symbol: "jslpt".into(),
                 decimals: 6,
@@ -54,9 +53,8 @@ pub fn instantiate(
                     cap: None,
                 }),
                 marketing: None,
-            },
-            unstaking_duration: msg.lp_token_unstaking_duration,
-        })?,
+            }
+        )?,
     };
 
     let reply_msg =
