@@ -44,17 +44,16 @@ pub fn instantiate(
         admin: None,
         label: "lp_token".to_string(),
         msg: to_binary(&cw20_base::msg::InstantiateMsg {
-                name: "JunoSwap_Liquidity_Token".into(),
-                symbol: "jslpt".into(),
-                decimals: 6,
-                initial_balances: vec![],
-                mint: Some(MinterResponse {
-                    minter: env.contract.address.into(),
-                    cap: None,
-                }),
-                marketing: None,
-            }
-        )?,
+            name: "JunoSwap_Liquidity_Token".into(),
+            symbol: "jslpt".into(),
+            decimals: 6,
+            initial_balances: vec![],
+            mint: Some(MinterResponse {
+                minter: env.contract.address.into(),
+                cap: None,
+            }),
+            marketing: None,
+        })?,
     };
 
     let reply_msg =

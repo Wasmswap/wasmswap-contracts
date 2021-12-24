@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Uint128};
-use cw0::Duration;
+
 use cw20::{Denom, Expiration};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
