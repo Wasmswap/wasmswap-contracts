@@ -38,7 +38,7 @@ docker rm helper
 # Start junod
 docker run --rm -d --name cosmwasm -p 26657:26657 -p 26656:26656 -p 1317:1317 \
     --mount type=volume,source=junod_data,target=/root \
-    ghcr.io/cosmoscontracts/juno:pr-105 /opt/run_junod.sh
+    ghcr.io/cosmoscontracts/juno:v2.1.0 /opt/run_junod.sh
 
 # Compile code
 docker run --rm -v "$(pwd)":/code \
