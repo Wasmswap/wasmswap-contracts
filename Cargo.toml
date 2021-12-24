@@ -1,14 +1,19 @@
-[workspace]
-members = ["contracts/*"]
+[package]
+name = "junoswap"
+version = "0.1.0"
+authors = ["ben2x4 <ben2x4@protonmail.com>"]
+edition = "2018"
 
-[profile.release.package.junoswap]
-codegen-units = 1
-incremental = false
+exclude = [
+  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+  "contract.wasm",
+  "hash.txt",
+]
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[profile.release.package.factory]
-codegen-units = 1
-incremental = false
+[lib]
+crate-type = ["cdylib", "rlib"]
 
 [profile.release]
 opt-level = 3
@@ -16,6 +21,28 @@ debug = false
 rpath = false
 lto = true
 debug-assertions = false
+codegen-units = 1
 panic = 'abort'
 incremental = false
 overflow-checks = true
+
+[features]
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+
+[dependencies]
+cw0 = {  version = "0.10.0" }
+cw20 = { version = "0.10.0" }
+cw20-base = { version = "0.10.0", features = ["library"] }
+cosmwasm-std = { version = "1.0.0-beta" }
+cosmwasm-storage = { version = "1.0.0-beta" }
+cw-storage-plus = "0.10"
+schemars = "0.8.3"
+serde = { version = "1.0.127", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0.26" }
+
+[dev-dependencies]
+cosmwasm-schema = { version = "1.0.0-beta" }
+cw-multi-test = {  version = "0.10.3" }
