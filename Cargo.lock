@@ -156,20 +156,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cw-controllers"
-version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75f703e4d6a955bf16ce5864c7883f324d8c17fd49b1250aaebc95f9d4ae7db3"
-dependencies = [
- "cosmwasm-std",
- "cw-storage-plus",
- "cw0",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
 name = "cw-multi-test"
 version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -246,25 +232,6 @@ dependencies = [
  "cw0",
  "cw2",
  "cw20",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "cw20-stakeable"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6c021c9586e68e0e1e3ffbb08bc182d81679fc81d7bbb7ccfb3c3bc1914bf54"
-dependencies = [
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-controllers",
- "cw-storage-plus",
- "cw0",
- "cw2",
- "cw20",
- "cw20-base",
  "schemars",
  "serde",
  "thiserror",
@@ -366,7 +333,6 @@ dependencies = [
  "cw2",
  "cw20",
  "cw20-base",
- "cw20-stakeable",
  "junoswap",
  "schemars",
  "serde",
@@ -469,7 +435,6 @@ dependencies = [
  "cw0",
  "cw20",
  "cw20-base",
- "cw20-stakeable",
  "schemars",
  "serde",
  "thiserror",

@@ -34,15 +34,6 @@ pub fn contract_cw20() -> Box<dyn Contract<Empty>> {
     Box::new(contract)
 }
 
-pub fn contract_cw20_stakeable() -> Box<dyn Contract<Empty>> {
-    let contract = ContractWrapper::new(
-        cw20_stakeable::contract::execute,
-        cw20_stakeable::contract::instantiate,
-        cw20_stakeable::contract::query,
-    );
-    Box::new(contract)
-}
-
 fn get_info(router: &App, contract_addr: &Addr) -> InfoResponse {
     router
         .wrap()
@@ -52,13 +43,12 @@ fn get_info(router: &App, contract_addr: &Addr) -> InfoResponse {
 
 fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom: String) -> Addr {
     // set up amm contract
-    let cw20_id = router.store_code(contract_cw20_stakeable());
+    let cw20_id = router.store_code(contract_cw20());
     let amm_id = router.store_code(contract_amm());
     let msg = InstantiateMsg {
         token1_denom: Denom::Native(native_denom),
         token2_denom: Denom::Cw20(cash.addr()),
         lp_token_code_id: cw20_id,
-        lp_token_unstaking_duration: None,
     };
     router
         .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)
@@ -671,12 +661,11 @@ fn swap_native_to_native_tokens_happy_path() {
     });
 
     let amm_id = router.store_code(contract_amm());
-    let lp_token_id = router.store_code(contract_cw20_stakeable());
+    let lp_token_id = router.store_code(contract_cw20());
     let msg = InstantiateMsg {
         token1_denom: Denom::Native(NATIVE_TOKEN_DENOM.into()),
         token2_denom: Denom::Native(IBC_TOKEN_DENOM.into()),
         lp_token_code_id: lp_token_id,
-        lp_token_unstaking_duration: None,
     };
     let amm_addr = router
         .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)
