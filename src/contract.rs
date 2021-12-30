@@ -417,7 +417,7 @@ pub fn execute_remove_liquidity(
         .checked_div(lp_token_supply)
         .map_err(StdError::divide_by_zero)?;
     if token1_amount < min_token1 {
-        return Err(ContractError::MinNative {
+        return Err(ContractError::MinToken1Error {
             requested: min_token1,
             available: token1_amount,
         });
@@ -429,7 +429,7 @@ pub fn execute_remove_liquidity(
         .checked_div(lp_token_supply)
         .map_err(StdError::divide_by_zero)?;
     if token2_amount < min_token2 {
-        return Err(ContractError::MinToken {
+        return Err(ContractError::MinToken2Error {
             requested: min_token2,
             available: token2_amount,
         });
