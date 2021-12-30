@@ -58,7 +58,7 @@ pub enum ContractError {
     #[error("InsufficientFunds")]
     InsufficientFunds {},
 
-    #[error("Uknown reply id: {u64}")]
+    #[error("Uknown reply id: {id}")]
     UnknownReplyId { id: u64 },
 
     #[error("Failed to instantiate lp token")]
