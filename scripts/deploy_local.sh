@@ -9,7 +9,7 @@ DENOM='ujuno'
 CHAIN_ID='testing'
 RPC='http://localhost:26657/'
 REST='http://localhost:1317/'
-TXFLAG="--gas-prices 0.01$DENOM --gas auto --gas-adjustment 1.3 -y -b block --chain-id $CHAIN_ID --node $RPC"
+TXFLAG="--gas-prices 0.025$DENOM --gas auto --gas-adjustment 1.3 -y -b block --chain-id $CHAIN_ID --node $RPC"
 
 if [ "$1" = "" ]
 then
@@ -27,7 +27,7 @@ docker run --rm -it \
     -e STAKE_TOKEN=$DENOM \
     -e PASSWORD=xxxxxxxxx \
     --mount type=volume,source=junod_data,target=/root \
-    ghcr.io/cosmoscontracts/juno:pr-105 /opt/setup_junod.sh $1
+    ghcr.io/cosmoscontracts/juno:v2.0.1 /opt/setup_junod.sh $1
 
 # Add custom app.toml to junod_data volume
 docker run -v junod_data:/root --name helper busybox true
@@ -48,8 +48,7 @@ docker run --rm -v "$(pwd)":/code \
 
 # Copy binaries to docker container
 docker cp artifacts/junoswap.wasm cosmwasm:/junoswap.wasm
-docker cp artifacts/factory.wasm cosmwasm:/factory.wasm
-docker cp scripts/cw20_stakeable.wasm cosmwasm:/cw20_stakeable.wasm
+docker cp scripts/cw20_base.wasm cosmwasm:/cw20_base.wasm
 
 # Sleep while waiting for chain to post genesis block
 sleep 3
@@ -61,17 +60,15 @@ echo "TX Flags: $TXFLAG"
 
 #### CW20-GOV ####
 # Upload cw20 contract code
-echo xxxxxxxxx | $BINARY tx wasm store "/cw20_stakeable.wasm" --from validator $TXFLAG
+echo xxxxxxxxx | $BINARY tx wasm store "/cw20_base.wasm" --from validator $TXFLAG
 CW20_CODE=1
 
 # Instantiate cw20 contract
 CW20_INIT='{
- "cw20_base" : {
     "name": "Crab Coin",
     "symbol": "CRAB",
     "decimals": 6,
     "initial_balances": [{"address":"'"$1"'","amount":"1000000000"}]
-  }
 }'
 echo "$CW20_INIT"
 echo xxxxxxxxx | $BINARY tx wasm instantiate $CW20_CODE "$CW20_INIT" --from "validator" --label "token" $TXFLAG
@@ -102,12 +99,10 @@ $BINARY tx wasm execute $SWAP_1_CONTRACT '{"add_liquidity":{"token1_amount":"100
 
 # Instantiate cw20 contract
 CW20_INIT_2='{
- "cw20_base" : {
     "name": "DAO Coin",
     "symbol": "DAO",
     "decimals": 6,
     "initial_balances": [{"address":"'"$1"'","amount":"1000000000"}]
-  }
 }'
 echo "$CW20_INIT_2"
 echo xxxxxxxxx | $BINARY tx wasm instantiate $CW20_CODE "$CW20_INIT_2" --from "validator" --label "token" $TXFLAG
@@ -131,12 +126,10 @@ $BINARY tx wasm execute $SWAP_2_CONTRACT '{"add_liquidity":{"token1_amount":"100
 
 # Instantiate cw20 contract
 CW20_INIT_3='{
- "cw20_base" : {
     "name": "POOD Coin",
     "symbol": "POOD",
     "decimals": 6,
     "initial_balances": [{"address":"'"$1"'","amount":"1000000000"}]
-  }
 }'
 echo "$CW20_INIT_3"
 echo xxxxxxxxx | $BINARY tx wasm instantiate $CW20_CODE "$CW20_INIT_3" --from "validator" --label "token" $TXFLAG
