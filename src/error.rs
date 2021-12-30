@@ -16,40 +16,40 @@ pub enum ContractError {
     Unauthorized {},
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
-    #[error("MinLiquidityError")]
+    #[error("Min liquidity error: requested: {min_liquidity}, available: {liquidity_available}")]
     MinLiquidityError {
         min_liquidity: Uint128,
         liquidity_available: Uint128,
     },
 
-    #[error("MaxTokenError")]
+    #[error("Max token error: max_token: {max_token}, tokens_required: {tokens_required}")]
     MaxTokenError {
         max_token: Uint128,
         tokens_required: Uint128,
     },
 
-    #[error("InsufficientLiquidityError")]
+    #[error("Insufficient liquidity error: requested: {requested}, available: {available}")]
     InsufficientLiquidityError {
         requested: Uint128,
         available: Uint128,
     },
 
-    #[error("MinNativeError")]
-    MinNative {
+    #[error("Min token1 error: requested: {requested}, available: {available}")]
+    MinToken1Error {
         requested: Uint128,
         available: Uint128,
     },
 
-    #[error("MinTokenError")]
-    MinToken {
+    #[error("Min token2 error: requested: {requested}, available: {available}")]
+    MinToken2Error {
         requested: Uint128,
         available: Uint128,
     },
 
-    #[error("IncorrectNativeDenom")]
+    #[error("Incorrect native denom: provided: {provided}, required: {required}")]
     IncorrectNativeDenom { provided: String, required: String },
 
-    #[error("SwapMinError")]
+    #[error("Swap min error: min: {min}, available: {available}")]
     SwapMinError { min: Uint128, available: Uint128 },
 
     #[error("MsgExpirationError")]
@@ -58,7 +58,7 @@ pub enum ContractError {
     #[error("InsufficientFunds")]
     InsufficientFunds {},
 
-    #[error("UknownReplyId")]
+    #[error("Uknown reply id: {u64}")]
     UnknownReplyId { id: u64 },
 
     #[error("Failed to instantiate lp token")]
