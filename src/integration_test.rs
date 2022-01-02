@@ -66,8 +66,8 @@ fn create_cw20(
     // set up cw20 contract with some tokens
     let cw20_id = router.store_code(contract_cw20());
     let msg = cw20_base::msg::InstantiateMsg {
-        name: name,
-        symbol: symbol,
+        name,
+        symbol,
         decimals: 2,
         initial_balances: vec![Cw20Coin {
             address: owner.to_string(),
@@ -431,7 +431,7 @@ fn amm_add_and_remove_liquidity() {
     // ensure balances updated
     let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
     assert_eq!(owner_balance, Uint128::new(5000));
-    let amm_balance = cw20_token.balance(&router, amm_addr.clone()).unwrap();
+    let amm_balance = cw20_token.balance(&router, amm_addr).unwrap();
     assert_eq!(amm_balance, Uint128::new(0));
     let crust_balance = lp_token.balance(&router, owner.clone()).unwrap();
     assert_eq!(crust_balance, Uint128::new(0));
@@ -587,7 +587,7 @@ fn swap_tokens_happy_path() {
         expiration: None,
     };
     let _res = router
-        .execute_contract(buyer.clone(), amm_addr.clone(), &swap_msg, &vec![])
+        .execute_contract(buyer.clone(), amm_addr.clone(), &swap_msg, &[])
         .unwrap();
 
     let info = get_info(&router, &amm_addr);
@@ -680,7 +680,7 @@ fn swap_native_to_native_tokens_happy_path() {
     };
     let _res = router
         .execute_contract(
-            owner.clone(),
+            owner,
             amm_addr.clone(),
             &add_liquidity_msg,
             &[
@@ -774,7 +774,7 @@ fn swap_native_to_native_tokens_happy_path() {
             buyer.clone(),
             amm_addr.clone(),
             &swap_msg,
-            &vec![Coin {
+            &[Coin {
                 denom: IBC_TOKEN_DENOM.into(),
                 amount: Uint128::new(16),
             }],
