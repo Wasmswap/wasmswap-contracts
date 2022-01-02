@@ -6,6 +6,7 @@ use cw0::parse_reply_instantiate_data;
 use cw20::Denom::Cw20;
 use cw20::{Cw20ExecuteMsg, Denom, Expiration, MinterResponse};
 use cw20_base::contract::query_balance;
+use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{
@@ -13,6 +14,10 @@ use crate::msg::{
     Token2ForToken1PriceResponse, TokenSelect,
 };
 use crate::state::{Token, LP_TOKEN, TOKEN1, TOKEN2};
+
+// Version info for migration info
+pub const CONTRACT_NAME: &str = "crates.io:junoswap";
+pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const INSTANTIATE_LP_TOKEN_REPLY_ID: u64 = 0;
 // Note, you can use StdResult in some functions where you do not
@@ -24,6 +29,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     let token1 = Token {
         reserve: Uint128::zero(),
         denom: msg.token1_denom.clone(),
