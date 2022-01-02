@@ -34,6 +34,7 @@ library = []
 
 [dependencies]
 cw0 = {  version = "0.10.0" }
+cw2 = { version = "0.11" }
 cw20 = { version = "0.10.0" }
 cw20-base = { version = "0.10.0", features = ["library"] }
 cosmwasm-std = { version = "1.0.0-beta" }
