@@ -22,22 +22,22 @@ Token denom can be either `native` for tokens tracked by the bank module (includ
 
 # Messages
 
-## Add Liquidity
+### Add Liquidity
 
 Allows a user to add liquidity to the pool.
 
-## Remove Liquidity
+### Remove Liquidity
 
 Allows a user to remove liquidity from the pool.
 
-## Swap
+### Swap
 
 Swap one asset for the other
 
-## Pass Through Swap
+### Pass Through Swap
 
 Execute a multi contract swap where A is swapped for B and then B is sent to another contract where it is swapped for C.
 
-## Swap And Send To
+### Swap And Send To
 
 Execute a swap and send the new asset to the given recipient. This is mostly used for `PassThroughSwaps`.
