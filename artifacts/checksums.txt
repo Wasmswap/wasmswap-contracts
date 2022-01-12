@@ -1,1 +1,2 @@
 d67a34883c00c72fc1b8a82aee451236aeff56b6a3ddc77d911e273d6f67e12e  junoswap.wasm
+abf51913d6cf037f001cb0c709bedbf8a61c2b1b8a3ed589a2c4e053e505d228  wasmswap.wasm
