@@ -1,6 +1,6 @@
 [package]
-name = "junoswap"
-version = "0.1.0"
+name = "wasmswap"
+version = "1.0.0-beta"
 authors = ["ben2x4 <ben2x4@protonmail.com>"]
 edition = "2018"
 

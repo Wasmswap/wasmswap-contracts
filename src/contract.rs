@@ -16,7 +16,7 @@ use crate::msg::{
 use crate::state::{Token, LP_TOKEN, TOKEN1, TOKEN2};
 
 // Version info for migration info
-pub const CONTRACT_NAME: &str = "crates.io:junoswap";
+pub const CONTRACT_NAME: &str = "crates.io:wasmswap";
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const INSTANTIATE_LP_TOKEN_REPLY_ID: u64 = 0;
@@ -51,8 +51,8 @@ pub fn instantiate(
         admin: None,
         label: "lp_token".to_string(),
         msg: to_binary(&cw20_base::msg::InstantiateMsg {
-            name: "JunoSwap_Liquidity_Token".into(),
-            symbol: "jslpt".into(),
+            name: "WasmSwap_Liquidity_Token".into(),
+            symbol: "wslpt".into(),
             decimals: 6,
             initial_balances: vec![],
             mint: Some(MinterResponse {

@@ -47,7 +47,7 @@ docker run --rm -v "$(pwd)":/code \
   cosmwasm/rust-optimizer:0.12.3
 
 # Copy binaries to docker container
-docker cp artifacts/junoswap.wasm cosmwasm:/junoswap.wasm
+docker cp artifacts/wasmswap.wasm cosmwasm:/wasmswap.wasm
 docker cp scripts/cw20_base.wasm cosmwasm:/cw20_base.wasm
 
 # Sleep while waiting for chain to post genesis block
@@ -78,10 +78,10 @@ CW20_CONTRACT=$($BINARY q wasm list-contract-by-code $CW20_CODE --output json | 
 echo $CW20_CONTRACT
 
 # Upload cw-dao contract code
-echo xxxxxxxxx | $BINARY tx wasm store "/junoswap.wasm" --from validator $TXFLAG
-JUNOSWAP_CODE=2
+echo xxxxxxxxx | $BINARY tx wasm store "/wasmswap.wasm" --from validator $TXFLAG
+WASMSWAP_CODE=2
 
-echo $JUNOSWAP_CODE
+echo $WASMSWAP_CODE
 
 # Initialize factory contract
 SWAP_1_INIT='{
@@ -91,8 +91,8 @@ SWAP_1_INIT='{
 }'
 
 echo "$SWAP_1_INIT"
-echo xxxxxxxxx | $BINARY tx wasm instantiate $JUNOSWAP_CODE "$SWAP_1_INIT" --from "validator" --label "swap_1" $TXFLAG
-SWAP_1_CONTRACT=$($BINARY q wasm list-contract-by-code $JUNOSWAP_CODE --output json | jq -r '.contracts[-1]')
+echo xxxxxxxxx | $BINARY tx wasm instantiate $WASMSWAP_CODE "$SWAP_1_INIT" --from "validator" --label "swap_1" $TXFLAG
+SWAP_1_CONTRACT=$($BINARY q wasm list-contract-by-code $WASMSWAP_CODE --output json | jq -r '.contracts[-1]')
 echo $SWAP_1_CONTRACT
 $BINARY tx wasm execute $CW20_CONTRACT '{"increase_allowance":{"amount":"100000000","spender":"'"$SWAP_1_CONTRACT"'"}}' --from test $TXFLAG
 $BINARY tx wasm execute $SWAP_1_CONTRACT '{"add_liquidity":{"token1_amount":"100000000","max_token2":"100000000","min_liquidity":"1"}}' --from test --amount "100000000ujuno" $TXFLAG
@@ -119,8 +119,8 @@ SWAP_2_INIT='{
 }'
 
 echo "$SWAP_2_INIT"
-echo xxxxxxxxx | $BINARY tx wasm instantiate $JUNOSWAP_CODE "$SWAP_2_INIT" --from "validator" --label "swap_2" $TXFLAG
-SWAP_2_CONTRACT=$($BINARY q wasm list-contract-by-code $JUNOSWAP_CODE --output json | jq -r '.contracts[-1]')
+echo xxxxxxxxx | $BINARY tx wasm instantiate $WASMSWAP_CODE "$SWAP_2_INIT" --from "validator" --label "swap_2" $TXFLAG
+SWAP_2_CONTRACT=$($BINARY q wasm list-contract-by-code $WASMSWAP_CODE --output json | jq -r '.contracts[-1]')
 $BINARY tx wasm execute $CW20_CONTRACT_2 '{"increase_allowance":{"amount":"100000000","spender":"'"$SWAP_2_CONTRACT"'"}}' --from test $TXFLAG
 $BINARY tx wasm execute $SWAP_2_CONTRACT '{"add_liquidity":{"token1_amount":"100000000","max_token2":"100000000","min_liquidity":"1"}}' --from test --amount "100000000ujuno" $TXFLAG
 
@@ -146,8 +146,8 @@ SWAP_3_INIT='{
 }'
 
 echo "$SWAP_3_INIT"
-echo xxxxxxxxx | $BINARY tx wasm instantiate $JUNOSWAP_CODE "$SWAP_3_INIT" --from "validator" --label "swap_3" $TXFLAG
-SWAP_3_CONTRACT=$($BINARY q wasm list-contract-by-code $JUNOSWAP_CODE --output json | jq -r '.contracts[-1]')
+echo xxxxxxxxx | $BINARY tx wasm instantiate $WASMSWAP_CODE "$SWAP_3_INIT" --from "validator" --label "swap_3" $TXFLAG
+SWAP_3_CONTRACT=$($BINARY q wasm list-contract-by-code $WASMSWAP_CODE --output json | jq -r '.contracts[-1]')
 
 $BINARY tx wasm execute $CW20_CONTRACT_3 '{"increase_allowance":{"amount":"100000000","spender":"'"$SWAP_3_CONTRACT"'"}}' --from test $TXFLAG
 $BINARY tx wasm execute $SWAP_3_CONTRACT '{"add_liquidity":{"token1_amount":"100000000","max_token2":"100000000","min_liquidity":"1"}}' --from test --amount "100000000ujuno" $TXFLAG
@@ -161,8 +161,8 @@ SWAP_4_INIT='{
 }'
 
 echo "$SWAP_4_INIT"
-echo xxxxxxxxx | $BINARY tx wasm instantiate $JUNOSWAP_CODE "$SWAP_4_INIT" --from "validator" --label "swap_4" $TXFLAG
-SWAP_4_CONTRACT=$($BINARY q wasm list-contract-by-code $JUNOSWAP_CODE --output json | jq -r '.contracts[-1]')
+echo xxxxxxxxx | $BINARY tx wasm instantiate $WASMSWAP_CODE "$SWAP_4_INIT" --from "validator" --label "swap_4" $TXFLAG
+SWAP_4_CONTRACT=$($BINARY q wasm list-contract-by-code $WASMSWAP_CODE --output json | jq -r '.contracts[-1]')
 
 $BINARY tx wasm execute $SWAP_4_CONTRACT '{"add_liquidity":{"token1_amount":"100000000","max_token2":"100000000","min_liquidity":"1"}}' --from test --amount "100000000ujuno,100000000ucosm" $TXFLAG
 
