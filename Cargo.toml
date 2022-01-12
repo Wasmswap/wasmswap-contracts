@@ -3,7 +3,7 @@ name = "wasmswap"
 version = "1.0.0-beta"
 authors = ["ben2x4 <ben2x4@protonmail.com>"]
 edition = "2018"
-description = "Uniswap inspired AMM"
+description = "Cosmwasm AMM"
 license = "Apache 2.0"
 repository = "https://github.com/Wasmswap/wasmswap-contracts"
 
