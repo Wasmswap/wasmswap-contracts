@@ -3,6 +3,9 @@ name = "wasmswap"
 version = "1.0.0-beta"
 authors = ["ben2x4 <ben2x4@protonmail.com>"]
 edition = "2018"
+description = "Cosmwasm AMM"
+license = "Apache 2.0"
+repository = "https://github.com/Wasmswap/wasmswap-contracts"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
