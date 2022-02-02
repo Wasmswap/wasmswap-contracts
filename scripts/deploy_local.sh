@@ -49,6 +49,7 @@ docker run --rm -v "$(pwd)":/code \
 # Copy binaries to docker container
 docker cp artifacts/wasmswap.wasm cosmwasm:/wasmswap.wasm
 docker cp scripts/cw20_base.wasm cosmwasm:/cw20_base.wasm
+docker cp scripts/stake_cw20.wasm cosmwasm:/stake_cw20.wasm
 
 # Sleep while waiting for chain to post genesis block
 sleep 3
@@ -82,6 +83,13 @@ echo xxxxxxxxx | $BINARY tx wasm store "/wasmswap.wasm" --from validator $TXFLAG
 WASMSWAP_CODE=2
 
 echo $WASMSWAP_CODE
+
+# Upload staking contract code
+echo xxxxxxxxx | $BINARY tx wasm store "/stake_cw20.wasm" --from validator $TXFLAG
+STAKING_CODE=3
+
+echo $STAKING_CODE
+
 
 # Initialize factory contract
 SWAP_1_INIT='{
@@ -166,10 +174,25 @@ SWAP_4_CONTRACT=$($BINARY q wasm list-contract-by-code $WASMSWAP_CODE --output j
 
 $BINARY tx wasm execute $SWAP_4_CONTRACT '{"add_liquidity":{"token1_amount":"100000000","max_token2":"100000000","min_liquidity":"1"}}' --from test --amount "100000000ujuno,100000000ucosm" $TXFLAG
 
+SWAP_1_TOKEN_ADDRESS=$($BINARY query wasm contract-state smart $SWAP_1_CONTRACT '{"info":{}}' --output json | jq -r '.data.lp_token_address')
+echo $SWAP_1_TOKEN_ADDRESS
+
+# Instantiate staking contract
+STAKING_1_INIT='{
+    "token_address": "'"$SWAP_1_TOKEN_ADDRESS"'",
+    "unstaking_duration": {"time":30}
+}'
+echo $STAKING_1_INIT
+echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_CODE "$STAKING_1_INIT" --from "validator" --label "staking_1" $TXFLAG
+STAKING_1_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_CODE --output json | jq -r '.contracts[-1]')
+echo $STAKING_1_CONTRACT
+
 echo "CRAB cw20 contract 1"
 echo $CW20_CONTRACT
 echo "CRAB Swap contract 1"
 echo $SWAP_1_CONTRACT
+echo "CRAB Staking contract 1"
+echo $STAKING_1_CONTRACT
 echo "DAO cw20 contract 2"
 echo $CW20_CONTRACT_2
 echo "DAO Swap contract 2"
