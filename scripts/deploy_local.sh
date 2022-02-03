@@ -84,6 +84,12 @@ STAKING_CODE=3
 
 echo $STAKING_CODE
 
+# Upload staking rewards contract code
+echo xxxxxxxxx | $BINARY tx wasm store "/cw20_stakeable_rewards.wasm" --from validator $TXFLAG
+STAKING_REWARDS_CODE=4
+
+echo $STAKING_REWARDS_CODE
+
 
 # Initialize factory contract
 SWAP_1_INIT='{
