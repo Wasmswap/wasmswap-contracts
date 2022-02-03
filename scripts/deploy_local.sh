@@ -40,19 +40,13 @@ docker run --rm -d --name cosmwasm -p 26657:26657 -p 26656:26656 -p 1317:1317 \
     --mount type=volume,source=junod_data,target=/root \
     ghcr.io/cosmoscontracts/juno:v2.1.0 /opt/run_junod.sh
 
-# Compile code
-docker run --rm -v "$(pwd)":/code \
-  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/rust-optimizer:0.12.3
-
 # Copy binaries to docker container
 docker cp artifacts/wasmswap.wasm cosmwasm:/wasmswap.wasm
 docker cp scripts/cw20_base.wasm cosmwasm:/cw20_base.wasm
 docker cp scripts/stake_cw20.wasm cosmwasm:/stake_cw20.wasm
 
 # Sleep while waiting for chain to post genesis block
-sleep 3
+sleep 15
 
 echo "Address to deploy contracts: $1"
 echo "TX Flags: $TXFLAG"
@@ -185,7 +179,45 @@ STAKING_1_INIT='{
 echo $STAKING_1_INIT
 echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_CODE "$STAKING_1_INIT" --from "validator" --label "staking_1" $TXFLAG
 STAKING_1_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_CODE --output json | jq -r '.contracts[-1]')
-echo $STAKING_1_CONTRACT
+
+
+SWAP_2_TOKEN_ADDRESS=$($BINARY query wasm contract-state smart $SWAP_2_CONTRACT '{"info":{}}' --output json | jq -r '.data.lp_token_address')
+echo $SWAP_2_TOKEN_ADDRESS
+
+# Instantiate staking contract
+STAKING_2_INIT='{
+    "token_address": "'"$SWAP_2_TOKEN_ADDRESS"'",
+    "unstaking_duration": {"time":30}
+}'
+echo $STAKING_2_INIT
+echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_CODE "$STAKING_2_INIT" --from "validator" --label "staking_1" $TXFLAG
+STAKING_2_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_CODE --output json | jq -r '.contracts[-1]')
+
+
+SWAP_3_TOKEN_ADDRESS=$($BINARY query wasm contract-state smart $SWAP_3_CONTRACT '{"info":{}}' --output json | jq -r '.data.lp_token_address')
+echo $SWAP_3_TOKEN_ADDRESS
+
+# Instantiate staking contract
+STAKING_3_INIT='{
+    "token_address": "'"$SWAP_3_TOKEN_ADDRESS"'",
+    "unstaking_duration": {"time":30}
+}'
+echo $STAKING_3_INIT
+echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_CODE "$STAKING_3_INIT" --from "validator" --label "staking_1" $TXFLAG
+STAKING_3_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_CODE --output json | jq -r '.contracts[-1]')
+
+
+SWAP_4_TOKEN_ADDRESS=$($BINARY query wasm contract-state smart $SWAP_4_CONTRACT '{"info":{}}' --output json | jq -r '.data.lp_token_address')
+echo $SWAP_4_TOKEN_ADDRESS
+
+# Instantiate staking contract
+STAKING_4_INIT='{
+    "token_address": "'"$SWAP_4_TOKEN_ADDRESS"'",
+    "unstaking_duration": {"time":30}
+}'
+echo $STAKING_4_INIT
+echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_CODE "$STAKING_4_INIT" --from "validator" --label "staking_1" $TXFLAG
+STAKING_4_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_CODE --output json | jq -r '.contracts[-1]')
 
 echo "CRAB cw20 contract 1"
 echo $CW20_CONTRACT
@@ -197,9 +229,15 @@ echo "DAO cw20 contract 2"
 echo $CW20_CONTRACT_2
 echo "DAO Swap contract 2"
 echo $SWAP_2_CONTRACT
+echo "DAO Staking contract 1"
+echo $STAKING_2_CONTRACT
 echo "POOD cw20 contract 3"
 echo $CW20_CONTRACT_3
 echo "POOD Swap contract 3"
 echo $SWAP_3_CONTRACT
+echo "POOD Staking contract 1"
+echo $STAKING_3_CONTRACT
 echo "COSM SWap contract 4"
 echo $SWAP_4_CONTRACT
+echo "POOD Staking contract 1"
+echo $STAKING_4_CONTRACT
