@@ -38,7 +38,15 @@ docker rm helper
 # Start junod
 docker run --rm -d --name cosmwasm -p 26657:26657 -p 26656:26656 -p 1317:1317 \
     --mount type=volume,source=junod_data,target=/root \
+    --platform linux/amd64 \
     ghcr.io/cosmoscontracts/juno:v2.1.0 /opt/run_junod.sh
+
+# Compile code
+docker run --rm -v "$(pwd)":/code \
+--mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
+--mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+--platform linux/amd64 \
+cosmwasm/rust-optimizer:0.12.3
 
 # Copy binaries to docker container
 docker cp artifacts/wasmswap.wasm cosmwasm:/wasmswap.wasm
@@ -46,7 +54,7 @@ docker cp scripts/cw20_base.wasm cosmwasm:/cw20_base.wasm
 docker cp scripts/stake_cw20.wasm cosmwasm:/stake_cw20.wasm
 
 # Sleep while waiting for chain to post genesis block
-sleep 15
+sleep 10
 
 echo "Address to deploy contracts: $1"
 echo "TX Flags: $TXFLAG"
