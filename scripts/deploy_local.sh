@@ -52,6 +52,7 @@ cosmwasm/rust-optimizer:0.12.3
 docker cp artifacts/wasmswap.wasm cosmwasm:/wasmswap.wasm
 docker cp scripts/cw20_base.wasm cosmwasm:/cw20_base.wasm
 docker cp scripts/stake_cw20.wasm cosmwasm:/stake_cw20.wasm
+docker cp scripts/stake_cw20_external_rewards.wasm cosmwasm:/stake_cw20_external_rewards.wasm
 
 # Sleep while waiting for chain to post genesis block
 sleep 10
@@ -93,7 +94,7 @@ STAKING_CODE=3
 echo $STAKING_CODE
 
 # Upload staking rewards contract code
-echo xxxxxxxxx | $BINARY tx wasm store "/cw20_stakeable_rewards.wasm" --from validator $TXFLAG
+echo xxxxxxxxx | $BINARY tx wasm store "/stake_cw20_external_rewards.wasm" --from validator $TXFLAG
 STAKING_REWARDS_CODE=4
 
 echo $STAKING_REWARDS_CODE
@@ -233,12 +234,63 @@ echo $STAKING_4_INIT
 echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_CODE "$STAKING_4_INIT" --from "validator" --label "staking_1" $TXFLAG
 STAKING_4_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_CODE --output json | jq -r '.contracts[-1]')
 
+# Instantiate reward contracts
+REWARDS_1_1_INIT='{
+      "start_block": 100,
+      "end_block": 1100,
+      "payment_per_block": "10000000",
+      "total_amount": "100000000",
+      "denom": {"native": "ujuno"},
+      "distribution_token": "'"$STAKING_1_CONTRACT"'",
+      "payment_block_delta": 100
+}'
+
+echo $REWARDS_1_1_INIT
+echo $STAKING_REWARDS_CODE
+echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_REWARDS_CODE "$REWARDS_1_1_INIT" --from "validator" --label "rewards_1" $TXFLAG --amount "100000000ujuno"
+REWARDS_1_1_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_REWARDS_CODE --output json | jq -r '.contracts[-1]')
+
+REWARDS_1_2_INIT='{
+      "start_block": 100,
+      "end_block": 1100,
+      "payment_per_block": "10000000",
+      "total_amount": "100000000",
+      "denom": {"cw20": "'"$SWAP_1_TOKEN_ADDRESS"'"},
+      "distribution_token": "'"$STAKING_1_CONTRACT"'",
+      "payment_block_delta": 100
+}'
+
+echo $REWARDS_1_2_INIT
+echo $STAKING_REWARDS_CODE
+echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_REWARDS_CODE "$REWARDS_1_2_INIT" --from "validator" --label "rewards_1" $TXFLAG --amount "100000000ujuno"
+REWARDS_1_2_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_REWARDS_CODE --output json | jq -r '.contracts[-1]')
+
+REWARD_2_FUND_SUB_MSG='{"fund":{}}'
+REWARD_2_FUND_SUB_MSG_BINARY="$(echo $REWARD_2_FUND_SUB_MSG | base64)"
+echo $REWARD_2_FUND_SUB_MSG
+echo $REWARD_2_FUND_SUB_MSG_BINARY
+
+REWARD_2_FUND_MSG='{
+ "send":{
+  "contract": "'"$REWARDS_1_2_CONTRACT"'",
+  "amount":"100000000",
+  "msg": "'"$REWARD_2_FUND_SUB_MSG_BINARY"'"
+ }
+}'
+echo $REWARD_2_FUND_MSG
+$BINARY tx wasm execute $SWAP_1_TOKEN_ADDRESS "$REWARD_2_FUND_MSG" --from test $TXFLAG
+
+
 echo "CRAB cw20 contract 1"
 echo $CW20_CONTRACT
 echo "CRAB Swap contract 1"
 echo $SWAP_1_CONTRACT
 echo "CRAB Staking contract 1"
 echo $STAKING_1_CONTRACT
+echo "CRAB Rewards contract 1"
+echo $REWARDS_1_1_CONTRACT
+echo "CRAB Rewards contract 2"
+echo $REWARDS_1_2_CONTRACT
 echo "DAO cw20 contract 2"
 echo $CW20_CONTRACT_2
 echo "DAO Swap contract 2"
@@ -255,3 +307,4 @@ echo "COSM SWap contract 4"
 echo $SWAP_4_CONTRACT
 echo "POOD Staking contract 1"
 echo $STAKING_4_CONTRACT
+
