@@ -64,8 +64,8 @@ echo "TX Flags: $TXFLAG"
 
 #### CW20-GOV ####
 # Upload cw20 contract code
-echo xxxxxxxxx | $BINARY tx wasm store "/cw20_base.wasm" --from validator $TXFLAG
-CW20_CODE=1
+CW20_CODE=$($BINARY tx wasm store "/cw20_base.wasm" --from validator $TXFLAG --output JSON | jq -r '.logs[0].events[-1].attributes[0].value')
+
 
 # Instantiate cw20 contract
 CW20_INIT='{
@@ -83,20 +83,16 @@ echo $CW20_CONTRACT
 
 # Upload cw-dao contract code
 echo xxxxxxxxx | $BINARY tx wasm store "/wasmswap.wasm" --from validator $TXFLAG
-WASMSWAP_CODE=2
-
+WASMSWAP_CODE=$($BINARY tx wasm store "/wasmswap.wasm" --from validator $TXFLAG --output json | jq -r '.logs[0].events[-1].attributes[0].value')
 echo $WASMSWAP_CODE
 
 # Upload staking contract code
 echo xxxxxxxxx | $BINARY tx wasm store "/stake_cw20.wasm" --from validator $TXFLAG
-STAKING_CODE=3
-
+STAKING_CODE=$($BINARY tx wasm store "/stake_cw20.wasm" --from validator $TXFLAG --output json | jq -r '.logs[0].events[-1].attributes[0].value')
 echo $STAKING_CODE
 
 # Upload staking rewards contract code
-echo xxxxxxxxx | $BINARY tx wasm store "/stake_cw20_external_rewards.wasm" --from validator $TXFLAG
-STAKING_REWARDS_CODE=4
-
+STAKING_REWARDS_CODE=$($BINARY tx wasm store "/stake_cw20_external_rewards.wasm" --from validator $TXFLAG --output json | jq -r '.logs[0].events[-1].attributes[0].value')
 echo $STAKING_REWARDS_CODE
 
 
@@ -255,7 +251,7 @@ REWARDS_1_2_INIT='{
       "end_block": 1100,
       "payment_per_block": "10000000",
       "total_amount": "100000000",
-      "denom": {"cw20": "'"$SWAP_1_TOKEN_ADDRESS"'"},
+      "denom": {"cw20": "'"$CW20_CONTRACT"'"},
       "distribution_token": "'"$STAKING_1_CONTRACT"'",
       "payment_block_delta": 100
 }'
@@ -278,7 +274,7 @@ REWARD_2_FUND_MSG='{
  }
 }'
 echo $REWARD_2_FUND_MSG
-$BINARY tx wasm execute $SWAP_1_TOKEN_ADDRESS "$REWARD_2_FUND_MSG" --from test $TXFLAG
+$BINARY tx wasm execute $CW20_CONTRACT "$REWARD_2_FUND_MSG" --from test $TXFLAG
 
 
 echo "CRAB cw20 contract 1"
