@@ -458,28 +458,35 @@ pub fn execute_remove_liquidity(
         Ok(token2)
     })?;
 
-    let token1_transfer_msg = match token1.denom {
-        Denom::Cw20(addr) => get_cw20_transfer_to_msg(&info.sender, &addr, token1_amount)?,
-        Denom::Native(denom) => get_bank_transfer_to_msg(&info.sender, &denom, token1_amount),
-    };
-    let token2_transfer_msg = match token2.denom {
-        Denom::Cw20(addr) => get_cw20_transfer_to_msg(&info.sender, &addr, token2_amount)?,
-        Denom::Native(denom) => get_bank_transfer_to_msg(&info.sender, &denom, token2_amount),
-    };
+
+    let mut msgs: Vec<CosmosMsg> = vec![];
+    let mut attributes = vec![];
+
+    if token1_amount > Uint128::zero() {
+        let token1_transfer_msg = match token1.denom {
+            Denom::Cw20(addr) => get_cw20_transfer_to_msg(&info.sender, &addr, token1_amount)?,
+            Denom::Native(denom) => get_bank_transfer_to_msg(&info.sender, &denom, token1_amount),
+        };
+        msgs.push(token1_transfer_msg);
+        attributes.push(attr("token1_returned", token1_amount));
+    }
+
+    if token2_amount > Uint128::zero() {
+        let token2_transfer_msg = match token2.denom {
+            Denom::Cw20(addr) => get_cw20_transfer_to_msg(&info.sender, &addr, token2_amount)?,
+            Denom::Native(denom) => get_bank_transfer_to_msg(&info.sender, &denom, token2_amount),
+        };
+        msgs.push(token2_transfer_msg);
+        attributes.push(attr("token2_returned", token2_amount));
+    }
 
     let lp_token_burn_msg = get_burn_msg(&lp_token_addr, &info.sender, amount)?;
+    msgs.push(lp_token_burn_msg);
+    attributes.push(attr("liquidity_burned", amount));
 
     Ok(Response::new()
-        .add_messages(vec![
-            token1_transfer_msg,
-            token2_transfer_msg,
-            lp_token_burn_msg,
-        ])
-        .add_attributes(vec![
-            attr("liquidity_burned", amount),
-            attr("token1_returned", token1_amount),
-            attr("token2_returned", token2_amount),
-        ]))
+        .add_messages(msgs)
+        .add_attributes(attributes))
 }
 
 fn get_burn_msg(contract: &Addr, owner: &Addr, amount: Uint128) -> StdResult<CosmosMsg> {
