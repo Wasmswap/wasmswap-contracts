@@ -72,7 +72,7 @@ CW20_INIT='{
     "name": "Crab Coin",
     "symbol": "CRAB",
     "decimals": 6,
-    "initial_balances": [{"address":"'"$1"'","amount":"1000000000"}]
+    "initial_balances": [{"address":"'"$1"'","amount":"1000000000"},{"address":"'"$($BINARY keys show validator -a)"'","amount":"1000000000"}]
 }'
 echo "$CW20_INIT"
 echo xxxxxxxxx | $BINARY tx wasm instantiate $CW20_CODE "$CW20_INIT" --from "validator" --label "token" $TXFLAG
@@ -188,6 +188,7 @@ echo $SWAP_1_TOKEN_ADDRESS
 
 # Instantiate staking contract
 STAKING_1_INIT='{
+    "owner": "'"$($BINARY keys show validator -a)"'",
     "token_address": "'"$SWAP_1_TOKEN_ADDRESS"'",
     "unstaking_duration": {"time":30}
 }'
@@ -201,6 +202,7 @@ echo $SWAP_2_TOKEN_ADDRESS
 
 # Instantiate staking contract
 STAKING_2_INIT='{
+    "owner": "'"$($BINARY keys show validator -a)"'",
     "token_address": "'"$SWAP_2_TOKEN_ADDRESS"'",
     "unstaking_duration": {"time":30}
 }'
@@ -214,6 +216,7 @@ echo $SWAP_3_TOKEN_ADDRESS
 
 # Instantiate staking contract
 STAKING_3_INIT='{
+    "owner": "'"$($BINARY keys show validator -a)"'",
     "token_address": "'"$SWAP_3_TOKEN_ADDRESS"'",
     "unstaking_duration": {"time":30}
 }'
@@ -227,6 +230,7 @@ echo $SWAP_4_TOKEN_ADDRESS
 
 # Instantiate staking contract
 STAKING_4_INIT='{
+    "owner": "'"$($BINARY keys show validator -a)"'",
     "token_address": "'"$SWAP_4_TOKEN_ADDRESS"'",
     "unstaking_duration": {"time":30}
 }'
@@ -236,34 +240,33 @@ STAKING_4_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_CODE --output
 
 # Instantiate reward contracts
 REWARDS_1_1_INIT='{
-      "start_block": 100,
-      "end_block": 1100,
-      "payment_per_block": "10000000",
-      "total_amount": "100000000",
-      "denom": {"native": "ujuno"},
-      "distribution_token": "'"$STAKING_1_CONTRACT"'",
-      "payment_block_delta": 100
+      "owner": "'"$($BINARY keys show validator -a)"'",
+      "staking_contract":"'"$STAKING_1_CONTRACT"'",
+      "reward_token": {"native": "ujuno"}
 }'
 
 echo $REWARDS_1_1_INIT
 echo $STAKING_REWARDS_CODE
-echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_REWARDS_CODE "$REWARDS_1_1_INIT" --from "validator" --label "rewards_1" $TXFLAG --amount "100000000ujuno"
+echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_REWARDS_CODE "$REWARDS_1_1_INIT" --from "validator" --label "rewards_1" $TXFLAG
 REWARDS_1_1_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_REWARDS_CODE --output json | jq -r '.contracts[-1]')
 
+$BINARY tx wasm execute $STAKING_1_CONTRACT '{"add_hook":{"addr":"'$REWARDS_1_1_CONTRACT'"}}' --from validator $TXFLAG
+
+$BINARY tx wasm execute $REWARDS_1_1_CONTRACT '{"fund":{}}' --from validator --amount "100000000ujuno" $TXFLAG
+
+# Instantiate reward contracts
 REWARDS_1_2_INIT='{
-      "start_block": 100,
-      "end_block": 1100,
-      "payment_per_block": "10000000",
-      "total_amount": "100000000",
-      "denom": {"cw20": "'"$SWAP_1_TOKEN_ADDRESS"'"},
-      "distribution_token": "'"$STAKING_1_CONTRACT"'",
-      "payment_block_delta": 100
+      "owner": "'"$($BINARY keys show validator -a)"'",
+      "staking_contract":"'"$STAKING_1_CONTRACT"'",
+      "reward_token": {"cw20": "'"$CW20_CONTRACT"'"}
 }'
 
 echo $REWARDS_1_2_INIT
 echo $STAKING_REWARDS_CODE
-echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_REWARDS_CODE "$REWARDS_1_2_INIT" --from "validator" --label "rewards_1" $TXFLAG --amount "100000000ujuno"
+echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_REWARDS_CODE "$REWARDS_1_2_INIT" --from "validator" --label "rewards_1" $TXFLAG
 REWARDS_1_2_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_REWARDS_CODE --output json | jq -r '.contracts[-1]')
+
+$BINARY tx wasm execute $STAKING_1_CONTRACT '{"add_hook":{"addr":"'$REWARDS_1_2_CONTRACT'"}}' --from validator $TXFLAG
 
 REWARD_2_FUND_SUB_MSG='{"fund":{}}'
 REWARD_2_FUND_SUB_MSG_BINARY="$(echo $REWARD_2_FUND_SUB_MSG | base64)"
@@ -278,7 +281,7 @@ REWARD_2_FUND_MSG='{
  }
 }'
 echo $REWARD_2_FUND_MSG
-$BINARY tx wasm execute $SWAP_1_TOKEN_ADDRESS "$REWARD_2_FUND_MSG" --from test $TXFLAG
+$BINARY tx wasm execute $CW20_CONTRACT "$REWARD_2_FUND_MSG" --from validator $TXFLAG
 
 
 echo "CRAB cw20 contract 1"
