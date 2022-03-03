@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::Uint128;
 
 use cw20::{Denom, Expiration};
 
@@ -41,7 +41,7 @@ pub enum ExecuteMsg {
     },
     /// Chained swap converting A -> B and B -> C by leveraging two swap contracts
     PassThroughSwap {
-        output_amm_address: Addr,
+        output_amm_address: String,
         input_token: TokenSelect,
         input_token_amount: Uint128,
         output_min_token: Uint128,
@@ -50,7 +50,7 @@ pub enum ExecuteMsg {
     SwapAndSendTo {
         input_token: TokenSelect,
         input_amount: Uint128,
-        recipient: Addr,
+        recipient: String,
         min_token: Uint128,
         expiration: Option<Expiration>,
     },
