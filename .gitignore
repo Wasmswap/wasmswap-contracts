@@ -15,3 +15,4 @@
 .idea
 
 /scripts/deploy_uni.sh
+/scripts/deploy_uni_old.sh
