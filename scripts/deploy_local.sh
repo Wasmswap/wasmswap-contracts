@@ -10,6 +10,7 @@ CHAIN_ID='testing'
 RPC='http://localhost:26657/'
 REST='http://localhost:1317/'
 TXFLAG="--gas-prices 0.025$DENOM --gas auto --gas-adjustment 1.3 -y -b block --chain-id $CHAIN_ID --node $RPC"
+QFLAG="--chain-id $CHAIN_ID --node $RPC"
 
 if [ "$1" = "" ]
 then
@@ -65,7 +66,9 @@ echo "TX Flags: $TXFLAG"
 #### CW20-GOV ####
 # Upload cw20 contract code
 echo xxxxxxxxx | $BINARY tx wasm store "/cw20_base.wasm" --from validator $TXFLAG
-CW20_CODE=1
+CW20_CODE=$($BINARY q wasm list-code --reverse --output json $QFLAG | jq -r '.code_infos[0].code_id')
+echo $CW20_CODE
+
 
 # Instantiate cw20 contract
 CW20_INIT='{
@@ -78,41 +81,45 @@ echo "$CW20_INIT"
 echo xxxxxxxxx | $BINARY tx wasm instantiate $CW20_CODE "$CW20_INIT" --from "validator" --label "token" $TXFLAG
 
 # Get cw20 contract address
-CW20_CONTRACT=$($BINARY q wasm list-contract-by-code $CW20_CODE --output json | jq -r '.contracts[-1]')
+CW20_CONTRACT=$($BINARY q wasm list-contract-by-code $CW20_CODE --output json $QFLAG | jq -r '.contracts[-1]')
 echo $CW20_CONTRACT
 
 # Upload cw-dao contract code
 echo xxxxxxxxx | $BINARY tx wasm store "/wasmswap.wasm" --from validator $TXFLAG
-WASMSWAP_CODE=2
-
+WASMSWAP_CODE=$($BINARY q wasm list-code --reverse --output json $QFLAG | jq -r '.code_infos[0].code_id')
 echo $WASMSWAP_CODE
 
 # Upload staking contract code
 echo xxxxxxxxx | $BINARY tx wasm store "/stake_cw20.wasm" --from validator $TXFLAG
-STAKING_CODE=3
+STAKING_CODE=$($BINARY q wasm list-code --reverse --output json $QFLAG | jq -r '.code_infos[0].code_id')
 
 echo $STAKING_CODE
 
 # Upload staking rewards contract code
 echo xxxxxxxxx | $BINARY tx wasm store "/stake_cw20_external_rewards.wasm" --from validator $TXFLAG
-STAKING_REWARDS_CODE=4
+STAKING_REWARDS_CODE=$($BINARY q wasm list-code --reverse --output json $QFLAG | jq -r '.code_infos[0].code_id')
 
 echo $STAKING_REWARDS_CODE
 
 
+echo $CW20_CODE
+echo $WASMSWAP_CODE
+echo $STAKING_CODE
+echo $STAKING_REWARDS_CODE
+
 # Initialize factory contract
 SWAP_1_INIT='{
-    "token1_denom": {"native": "ujuno"},
+    "token1_denom": {"native": "'$DENOM'"},
     "token2_denom": {"cw20": "'"$CW20_CONTRACT"'"},
     "lp_token_code_id": '$CW20_CODE'
 }'
 
 echo "$SWAP_1_INIT"
 echo xxxxxxxxx | $BINARY tx wasm instantiate $WASMSWAP_CODE "$SWAP_1_INIT" --from "validator" --label "swap_1" $TXFLAG
-SWAP_1_CONTRACT=$($BINARY q wasm list-contract-by-code $WASMSWAP_CODE --output json | jq -r '.contracts[-1]')
+SWAP_1_CONTRACT=$($BINARY q wasm list-contract-by-code $WASMSWAP_CODE --output json $QFLAG | jq -r '.contracts[-1]')
 echo $SWAP_1_CONTRACT
 $BINARY tx wasm execute $CW20_CONTRACT '{"increase_allowance":{"amount":"100000000","spender":"'"$SWAP_1_CONTRACT"'"}}' --from test $TXFLAG
-$BINARY tx wasm execute $SWAP_1_CONTRACT '{"add_liquidity":{"token1_amount":"100000000","max_token2":"100000000","min_liquidity":"1"}}' --from test --amount "100000000ujuno" $TXFLAG
+$BINARY tx wasm execute $SWAP_1_CONTRACT '{"add_liquidity":{"token1_amount":"100000000","max_token2":"100000000","min_liquidity":"1"}}' --from test --amount "100000000"$DENOM $TXFLAG
 
 # Instantiate cw20 contract
 CW20_INIT_2='{
@@ -125,21 +132,21 @@ echo "$CW20_INIT_2"
 echo xxxxxxxxx | $BINARY tx wasm instantiate $CW20_CODE "$CW20_INIT_2" --from "validator" --label "token" $TXFLAG
 
 # Get cw20 contract address
-CW20_CONTRACT_2=$($BINARY q wasm list-contract-by-code $CW20_CODE --output json | jq -r '.contracts[-1]')
+CW20_CONTRACT_2=$($BINARY q wasm list-contract-by-code $CW20_CODE --output json $QFLAG | jq -r '.contracts[-1]')
 echo $CW20_CONTRACT_2
 
 # Initialize factory contract
 SWAP_2_INIT='{
-    "token1_denom": {"native": "ujuno"},
+    "token1_denom": {"native": "'$DENOM'"},
     "token2_denom": {"cw20": "'"$CW20_CONTRACT_2"'"},
     "lp_token_code_id": '$CW20_CODE'
 }'
 
 echo "$SWAP_2_INIT"
 echo xxxxxxxxx | $BINARY tx wasm instantiate $WASMSWAP_CODE "$SWAP_2_INIT" --from "validator" --label "swap_2" $TXFLAG
-SWAP_2_CONTRACT=$($BINARY q wasm list-contract-by-code $WASMSWAP_CODE --output json | jq -r '.contracts[-1]')
+SWAP_2_CONTRACT=$($BINARY q wasm list-contract-by-code $WASMSWAP_CODE --output json $QFLAG | jq -r '.contracts[-1]')
 $BINARY tx wasm execute $CW20_CONTRACT_2 '{"increase_allowance":{"amount":"100000000","spender":"'"$SWAP_2_CONTRACT"'"}}' --from test $TXFLAG
-$BINARY tx wasm execute $SWAP_2_CONTRACT '{"add_liquidity":{"token1_amount":"100000000","max_token2":"100000000","min_liquidity":"1"}}' --from test --amount "100000000ujuno" $TXFLAG
+$BINARY tx wasm execute $SWAP_2_CONTRACT '{"add_liquidity":{"token1_amount":"100000000","max_token2":"100000000","min_liquidity":"1"}}' --from test --amount "100000000"$DENOM $TXFLAG
 
 # Instantiate cw20 contract
 CW20_INIT_3='{
@@ -152,38 +159,38 @@ echo "$CW20_INIT_3"
 echo xxxxxxxxx | $BINARY tx wasm instantiate $CW20_CODE "$CW20_INIT_3" --from "validator" --label "token" $TXFLAG
 
 # Get cw20 contract address
-CW20_CONTRACT_3=$($BINARY q wasm list-contract-by-code $CW20_CODE --output json | jq -r '.contracts[-1]')
+CW20_CONTRACT_3=$($BINARY q wasm list-contract-by-code $CW20_CODE --output json $QFLAG | jq -r '.contracts[-1]')
 echo $CW20_CONTRACT_3
 
 # Initialize factory contract
 SWAP_3_INIT='{
-    "token1_denom": {"native": "ujuno"},
+    "token1_denom": {"native": "'$DENOM'"},
     "token2_denom": {"cw20": "'"$CW20_CONTRACT_3"'"},
     "lp_token_code_id": '$CW20_CODE'
 }'
 
 echo "$SWAP_3_INIT"
 echo xxxxxxxxx | $BINARY tx wasm instantiate $WASMSWAP_CODE "$SWAP_3_INIT" --from "validator" --label "swap_3" $TXFLAG
-SWAP_3_CONTRACT=$($BINARY q wasm list-contract-by-code $WASMSWAP_CODE --output json | jq -r '.contracts[-1]')
+SWAP_3_CONTRACT=$($BINARY q wasm list-contract-by-code $WASMSWAP_CODE --output json $QFLAG | jq -r '.contracts[-1]')
 
 $BINARY tx wasm execute $CW20_CONTRACT_3 '{"increase_allowance":{"amount":"100000000","spender":"'"$SWAP_3_CONTRACT"'"}}' --from test $TXFLAG
-$BINARY tx wasm execute $SWAP_3_CONTRACT '{"add_liquidity":{"token1_amount":"100000000","max_token2":"100000000","min_liquidity":"1"}}' --from test --amount "100000000ujuno" $TXFLAG
+$BINARY tx wasm execute $SWAP_3_CONTRACT '{"add_liquidity":{"token1_amount":"100000000","max_token2":"100000000","min_liquidity":"1"}}' --from test --amount "100000000"$DENOM $TXFLAG
 
 
 # Initialize factory contract
 SWAP_4_INIT='{
-    "token1_denom": {"native": "ujuno"},
+    "token1_denom": {"native": "'$DENOM'"},
     "token2_denom": {"native": "ucosm"},
     "lp_token_code_id": '$CW20_CODE'
 }'
 
 echo "$SWAP_4_INIT"
 echo xxxxxxxxx | $BINARY tx wasm instantiate $WASMSWAP_CODE "$SWAP_4_INIT" --from "validator" --label "swap_4" $TXFLAG
-SWAP_4_CONTRACT=$($BINARY q wasm list-contract-by-code $WASMSWAP_CODE --output json | jq -r '.contracts[-1]')
+SWAP_4_CONTRACT=$($BINARY q wasm list-contract-by-code $WASMSWAP_CODE --output json $QFLAG | jq -r '.contracts[-1]')
 
-$BINARY tx wasm execute $SWAP_4_CONTRACT '{"add_liquidity":{"token1_amount":"100000000","max_token2":"100000000","min_liquidity":"1"}}' --from test --amount "100000000ujuno,100000000ucosm" $TXFLAG
+$BINARY tx wasm execute $SWAP_4_CONTRACT '{"add_liquidity":{"token1_amount":"100000000","max_token2":"100000000","min_liquidity":"1"}}' --from test --amount "100000000"$DENOM",100000000ucosm" $TXFLAG
 
-SWAP_1_TOKEN_ADDRESS=$($BINARY query wasm contract-state smart $SWAP_1_CONTRACT '{"info":{}}' --output json | jq -r '.data.lp_token_address')
+SWAP_1_TOKEN_ADDRESS=$($BINARY query wasm contract-state smart $SWAP_1_CONTRACT '{"info":{}}' --output json $QFLAG | jq -r '.data.lp_token_address')
 echo $SWAP_1_TOKEN_ADDRESS
 
 # Instantiate staking contract
@@ -194,10 +201,10 @@ STAKING_1_INIT='{
 }'
 echo $STAKING_1_INIT
 echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_CODE "$STAKING_1_INIT" --from "validator" --label "staking_1" $TXFLAG
-STAKING_1_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_CODE --output json | jq -r '.contracts[-1]')
+STAKING_1_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_CODE --output json $QFLAG | jq -r '.contracts[-1]')
 
 
-SWAP_2_TOKEN_ADDRESS=$($BINARY query wasm contract-state smart $SWAP_2_CONTRACT '{"info":{}}' --output json | jq -r '.data.lp_token_address')
+SWAP_2_TOKEN_ADDRESS=$($BINARY query wasm contract-state smart $SWAP_2_CONTRACT '{"info":{}}' --output json $QFLAG | jq -r '.data.lp_token_address')
 echo $SWAP_2_TOKEN_ADDRESS
 
 # Instantiate staking contract
@@ -208,10 +215,10 @@ STAKING_2_INIT='{
 }'
 echo $STAKING_2_INIT
 echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_CODE "$STAKING_2_INIT" --from "validator" --label "staking_1" $TXFLAG
-STAKING_2_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_CODE --output json | jq -r '.contracts[-1]')
+STAKING_2_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_CODE --output json $QFLAG | jq -r '.contracts[-1]')
 
 
-SWAP_3_TOKEN_ADDRESS=$($BINARY query wasm contract-state smart $SWAP_3_CONTRACT '{"info":{}}' --output json | jq -r '.data.lp_token_address')
+SWAP_3_TOKEN_ADDRESS=$($BINARY query wasm contract-state smart $SWAP_3_CONTRACT '{"info":{}}' --output json $QFLAG | jq -r '.data.lp_token_address')
 echo $SWAP_3_TOKEN_ADDRESS
 
 # Instantiate staking contract
@@ -222,10 +229,10 @@ STAKING_3_INIT='{
 }'
 echo $STAKING_3_INIT
 echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_CODE "$STAKING_3_INIT" --from "validator" --label "staking_1" $TXFLAG
-STAKING_3_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_CODE --output json | jq -r '.contracts[-1]')
+STAKING_3_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_CODE --output json $QFLAG | jq -r '.contracts[-1]')
 
 
-SWAP_4_TOKEN_ADDRESS=$($BINARY query wasm contract-state smart $SWAP_4_CONTRACT '{"info":{}}' --output json | jq -r '.data.lp_token_address')
+SWAP_4_TOKEN_ADDRESS=$($BINARY query wasm contract-state smart $SWAP_4_CONTRACT '{"info":{}}' --output json $QFLAG | jq -r '.data.lp_token_address')
 echo $SWAP_4_TOKEN_ADDRESS
 
 # Instantiate staking contract
@@ -236,23 +243,23 @@ STAKING_4_INIT='{
 }'
 echo $STAKING_4_INIT
 echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_CODE "$STAKING_4_INIT" --from "validator" --label "staking_1" $TXFLAG
-STAKING_4_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_CODE --output json | jq -r '.contracts[-1]')
+STAKING_4_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_CODE --output json $QFLAG | jq -r '.contracts[-1]')
 
 # Instantiate reward contracts
 REWARDS_1_1_INIT='{
       "owner": "'"$($BINARY keys show validator -a)"'",
       "staking_contract":"'"$STAKING_1_CONTRACT"'",
-      "reward_token": {"native": "ujuno"}
+      "reward_token": {"native": "'$DENOM'"}
 }'
 
 echo $REWARDS_1_1_INIT
 echo $STAKING_REWARDS_CODE
 echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_REWARDS_CODE "$REWARDS_1_1_INIT" --from "validator" --label "rewards_1" $TXFLAG
-REWARDS_1_1_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_REWARDS_CODE --output json | jq -r '.contracts[-1]')
+REWARDS_1_1_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_REWARDS_CODE --output json $QFLAG | jq -r '.contracts[-1]')
 
 $BINARY tx wasm execute $STAKING_1_CONTRACT '{"add_hook":{"addr":"'$REWARDS_1_1_CONTRACT'"}}' --from validator $TXFLAG
 
-$BINARY tx wasm execute $REWARDS_1_1_CONTRACT '{"fund":{}}' --from validator --amount "100000000ujuno" $TXFLAG
+$BINARY tx wasm execute $REWARDS_1_1_CONTRACT '{"fund":{}}' --from validator --amount "100000000"$DENOM $TXFLAG
 
 # Instantiate reward contracts
 REWARDS_1_2_INIT='{
@@ -264,7 +271,7 @@ REWARDS_1_2_INIT='{
 echo $REWARDS_1_2_INIT
 echo $STAKING_REWARDS_CODE
 echo xxxxxxxxx | $BINARY tx wasm instantiate $STAKING_REWARDS_CODE "$REWARDS_1_2_INIT" --from "validator" --label "rewards_1" $TXFLAG
-REWARDS_1_2_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_REWARDS_CODE --output json | jq -r '.contracts[-1]')
+REWARDS_1_2_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_REWARDS_CODE --output json $QFLAG | jq -r '.contracts[-1]')
 
 $BINARY tx wasm execute $STAKING_1_CONTRACT '{"add_hook":{"addr":"'$REWARDS_1_2_CONTRACT'"}}' --from validator $TXFLAG
 
