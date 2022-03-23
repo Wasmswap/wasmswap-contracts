@@ -609,7 +609,7 @@ fn swap_tokens_happy_path() {
     let swap_msg = ExecuteMsg::SwapAndSendTo {
         input_token: TokenSelect::Token1,
         input_amount: Uint128::new(10),
-        recipient: owner.clone(),
+        recipient: owner.to_string(),
         min_token: Uint128::new(3),
         expiration: None,
     };
@@ -926,7 +926,7 @@ fn token_to_token_swap() {
         .unwrap();
 
     let swap_msg = ExecuteMsg::PassThroughSwap {
-        output_amm_address: amm2.clone(),
+        output_amm_address: amm2.to_string(),
         input_token: TokenSelect::Token2,
         input_token_amount: Uint128::new(10),
         output_min_token: Uint128::new(8),
@@ -960,7 +960,7 @@ fn token_to_token_swap() {
         .unwrap();
 
     let swap_msg = ExecuteMsg::PassThroughSwap {
-        output_amm_address: amm1.clone(),
+        output_amm_address: amm1.to_string(),
         input_token: TokenSelect::Token2,
         input_token_amount: Uint128::new(10),
         output_min_token: Uint128::new(1),

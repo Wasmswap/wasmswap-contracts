@@ -110,7 +110,7 @@ pub fn execute(
             input_amount,
             env,
             input_token,
-            &info.sender,
+            info.sender.to_string(),
             min_output,
             expiration,
         ),
@@ -142,7 +142,7 @@ pub fn execute(
             input_amount,
             env,
             input_token,
-            &recipient,
+            recipient,
             min_token,
             expiration,
         ),
@@ -572,7 +572,7 @@ pub fn execute_swap(
     input_amount: Uint128,
     _env: Env,
     input_token_enum: TokenSelect,
-    recipient: &Addr,
+    recipient: String,
     min_token: Uint128,
     expiration: Option<Expiration>,
 ) -> Result<Response, ContractError> {
@@ -612,10 +612,11 @@ pub fn execute_swap(
         Denom::Native(_) => vec![],
     };
 
+    let recipient = deps.api.addr_validate(&recipient)?;
     // Create transfer to message
     transfer_msgs.push(match output_token.denom {
-        Denom::Cw20(addr) => get_cw20_transfer_to_msg(recipient, &addr, token_bought)?,
-        Denom::Native(denom) => get_bank_transfer_to_msg(recipient, &denom, token_bought),
+        Denom::Cw20(addr) => get_cw20_transfer_to_msg(&recipient, &addr, token_bought)?,
+        Denom::Native(denom) => get_bank_transfer_to_msg(&recipient, &denom, token_bought),
     });
 
     input_token_item.update(
@@ -653,7 +654,7 @@ pub fn execute_pass_through_swap(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
-    output_amm_address: Addr,
+    output_amm_address: String,
     input_token_enum: TokenSelect,
     input_token_amount: Uint128,
     output_min_token: Uint128,
@@ -691,6 +692,8 @@ pub fn execute_pass_through_swap(
         )?)
     };
 
+    let output_amm_address = deps.api.addr_validate(&output_amm_address)?;
+
     // Increase allowance of output contract is transfer token is cw20
     if let Denom::Cw20(addr) = &transfer_token.denom {
         msgs.push(get_cw20_increase_allowance_msg(
@@ -707,7 +710,7 @@ pub fn execute_pass_through_swap(
             TokenSelect::Token2 => TokenSelect::Token1,
         },
         input_amount: amount_to_transfer,
-        recipient: info.sender,
+        recipient: info.sender.to_string(),
         min_token: output_min_token,
         expiration,
     };
