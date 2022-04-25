@@ -28,7 +28,7 @@ docker run --rm -it \
     -e STAKE_TOKEN=$DENOM \
     -e PASSWORD=xxxxxxxxx \
     --mount type=volume,source=junod_data,target=/root \
-    ghcr.io/cosmoscontracts/juno:v2.0.1 /opt/setup_junod.sh $1
+    ghcr.io/cosmoscontracts/juno:v3.1.0 /opt/setup_junod.sh $1
 
 # Add custom app.toml to junod_data volume
 docker run -v junod_data:/root --name helper busybox true
@@ -248,8 +248,10 @@ STAKING_4_CONTRACT=$($BINARY q wasm list-contract-by-code $STAKING_CODE --output
 # Instantiate reward contracts
 REWARDS_1_1_INIT='{
       "owner": "'"$($BINARY keys show validator -a)"'",
+      "manager": "'"$($BINARY keys show validator -a)"'",
       "staking_contract":"'"$STAKING_1_CONTRACT"'",
-      "reward_token": {"native": "'$DENOM'"}
+      "reward_token": {"native": "'$DENOM'"},
+      "reward_duration": 100000
 }'
 
 echo $REWARDS_1_1_INIT
@@ -265,7 +267,8 @@ $BINARY tx wasm execute $REWARDS_1_1_CONTRACT '{"fund":{}}' --from validator --a
 REWARDS_1_2_INIT='{
       "owner": "'"$($BINARY keys show validator -a)"'",
       "staking_contract":"'"$STAKING_1_CONTRACT"'",
-      "reward_token": {"cw20": "'"$CW20_CONTRACT"'"}
+      "reward_token": {"cw20": "'"$CW20_CONTRACT"'"},
+      "reward_duration": 100000
 }'
 
 echo $REWARDS_1_2_INIT
