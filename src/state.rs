@@ -15,3 +15,14 @@ pub struct Token {
 
 pub const TOKEN1: Item<Token> = Item::new("token1");
 pub const TOKEN2: Item<Token> = Item::new("token2");
+
+pub const OWNER: Item<Addr> = Item::new("owner");
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Fees {
+    pub protocol_fee_recipient: Addr,
+    pub protocol_fee_percent: Uint128,
+    pub lp_fee_percent: Uint128,
+}
+
+pub const FEES: Item<Fees> = Item::new("fees");

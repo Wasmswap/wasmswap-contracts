@@ -41,7 +41,15 @@ fn get_info(router: &App, contract_addr: &Addr) -> InfoResponse {
         .unwrap()
 }
 
-fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom: String) -> Addr {
+fn create_amm(
+    router: &mut App,
+    owner: &Addr,
+    cash: &Cw20Contract,
+    native_denom: String,
+    lp_fee_percent: Uint128,
+    protocol_fee_percent: Uint128,
+    protocol_fee_recipient: String,
+) -> Addr {
     // set up amm contract
     let cw20_id = router.store_code(contract_cw20());
     let amm_id = router.store_code(contract_amm());
@@ -49,6 +57,10 @@ fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom:
         token1_denom: Denom::Native(native_denom),
         token2_denom: Denom::Cw20(cash.addr()),
         lp_token_code_id: cw20_id,
+        owner: owner.to_string(),
+        lp_fee_percent,
+        protocol_fee_percent,
+        protocol_fee_recipient
     };
     router
         .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)
@@ -110,12 +122,28 @@ fn test_instantiate() {
         Uint128::new(5000),
     );
 
-    let amm_addr = create_amm(&mut router, &owner, &cw20_token, NATIVE_TOKEN_DENOM.into());
+    let lp_fee_percent = Uint128::new(30);
+    let protocol_fee_percent = Uint128::new(0);
+    let amm_addr = create_amm(
+        &mut router, 
+        &owner, 
+        &cw20_token, 
+        NATIVE_TOKEN_DENOM.into(), 
+        lp_fee_percent, 
+        protocol_fee_percent, 
+        owner.to_string() 
+    );
 
     assert_ne!(cw20_token.addr(), amm_addr);
 
+
+    
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.lp_token_address, "Contract #2".to_string())
+    assert_eq!(info.lp_token_address, "Contract #2".to_string());
+    assert_eq!(info.lp_fee_percent, lp_fee_percent);
+    assert_eq!(info.protocol_fee_percent, protocol_fee_percent);
+    assert_eq!(info.protocol_fee_recipient, owner.to_string());
+    assert_eq!(info.owner, owner.to_string());
 }
 
 #[test]
@@ -139,7 +167,17 @@ fn amm_add_and_remove_liquidity() {
         Uint128::new(5000),
     );
 
-    let amm_addr = create_amm(&mut router, &owner, &cw20_token, NATIVE_TOKEN_DENOM.into());
+    let lp_fee_percent = Uint128::new(30);
+    let protocol_fee_percent = Uint128::new(0);
+    let amm_addr = create_amm(
+        &mut router, 
+        &owner, 
+        &cw20_token, 
+        NATIVE_TOKEN_DENOM.into(), 
+        lp_fee_percent, 
+        protocol_fee_percent, 
+        owner.to_string()
+    );
 
     assert_ne!(cw20_token.addr(), amm_addr);
 
@@ -457,11 +495,16 @@ fn swap_tokens_happy_path() {
         Uint128::new(5000),
     );
 
+    let lp_fee_percent = Uint128::new(30);
+    let protocol_fee_percent = Uint128::new(0);
     let amm_addr = create_amm(
         &mut router,
         &owner,
         &cw20_token,
         NATIVE_TOKEN_DENOM.to_string(),
+        lp_fee_percent,
+        protocol_fee_percent,
+        owner.to_string(),
     );
 
     assert_ne!(cw20_token.addr(), amm_addr);
@@ -662,10 +705,18 @@ fn swap_native_to_native_tokens_happy_path() {
 
     let amm_id = router.store_code(contract_amm());
     let lp_token_id = router.store_code(contract_cw20());
+    let lp_fee_percent = Uint128::new(30);
+    let protocol_fee_percent = Uint128::new(0);
+
     let msg = InstantiateMsg {
         token1_denom: Denom::Native(NATIVE_TOKEN_DENOM.into()),
         token2_denom: Denom::Native(IBC_TOKEN_DENOM.into()),
         lp_token_code_id: lp_token_id,
+        owner: owner.to_string(),
+        lp_fee_percent,
+        protocol_fee_percent,
+        protocol_fee_recipient: owner.to_string()
+        
     };
     let amm_addr = router
         .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)
@@ -857,8 +908,26 @@ fn token_to_token_swap() {
         Uint128::new(5000),
     );
 
-    let amm1 = create_amm(&mut router, &owner, &token1, NATIVE_TOKEN_DENOM.to_string());
-    let amm2 = create_amm(&mut router, &owner, &token2, NATIVE_TOKEN_DENOM.to_string());
+    let lp_fee_percent = Uint128::new(30);
+    let protocol_fee_percent = Uint128::new(0);
+    let amm1 = create_amm(
+        &mut router, 
+        &owner, 
+        &token1, 
+        NATIVE_TOKEN_DENOM.to_string(),
+        lp_fee_percent,
+        protocol_fee_percent,
+        owner.to_string()
+    );
+    let amm2 = create_amm(
+        &mut router, 
+        &owner, 
+        &token2, 
+        NATIVE_TOKEN_DENOM.to_string(),
+        lp_fee_percent,
+        protocol_fee_percent,
+        owner.to_string()
+    );
 
     // Add initial liquidity to both pools
     let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
