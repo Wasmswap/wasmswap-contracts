@@ -13,7 +13,7 @@ use crate::msg::{
     ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, Token1ForToken2PriceResponse,
     Token2ForToken1PriceResponse, TokenSelect,
 };
-use crate::state::{Token, LP_TOKEN, TOKEN1, TOKEN2, OWNER, FEES, Fees };
+use crate::state::{Fees, Token, FEES, LP_TOKEN, OWNER, TOKEN1, TOKEN2};
 
 // Version info for migration info
 pub const CONTRACT_NAME: &str = "crates.io:wasmswap";
@@ -48,13 +48,12 @@ pub fn instantiate(
     let owner = deps.api.addr_validate(&msg.owner)?;
     OWNER.save(deps.storage, &owner)?;
 
-
     let protocol_fee_recipient = deps.api.addr_validate(&msg.protocol_fee_recipient)?;
     // TODO: Verify fee percentages are within a safety threshold
     let fees = Fees {
-       lp_fee_percent: msg.lp_fee_percent,
-       protocol_fee_percent: msg.protocol_fee_percent,
-       protocol_fee_recipient,
+        lp_fee_percent: msg.lp_fee_percent,
+        protocol_fee_percent: msg.protocol_fee_percent,
+        protocol_fee_recipient,
     };
     FEES.save(deps.storage, &fees)?;
 
@@ -158,6 +157,17 @@ pub fn execute(
             recipient,
             min_token,
             expiration,
+        ),
+        ExecuteMsg::UpdateFees {
+            protocol_fee_recipient,
+            lp_fee_percent,
+            protocol_fee_percent,
+        } => execute_update_fees(
+            deps,
+            info,
+            lp_fee_percent,
+            protocol_fee_percent,
+            protocol_fee_recipient,
         ),
     }
 }
@@ -406,6 +416,33 @@ fn get_cw20_increase_allowance_msg(
     Ok(exec_allowance.into())
 }
 
+pub fn execute_update_fees(
+    deps: DepsMut,
+    info: MessageInfo,
+    lp_fee_percent: Uint128,
+    protocol_fee_percent: Uint128,
+    protocol_fee_recipient: String,
+) -> Result<Response, ContractError> {
+    let owner = OWNER.load(deps.storage)?;
+    if info.sender != owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let protocol_fee_recipient = deps.api.addr_validate(&protocol_fee_recipient)?;
+    let updated_fees = Fees {
+        protocol_fee_recipient: protocol_fee_recipient.clone(),
+        lp_fee_percent,
+        protocol_fee_percent,
+    };
+    FEES.save(deps.storage, &updated_fees)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("lp_fee_percent", lp_fee_percent),
+        attr("protocol_fee_percent", protocol_fee_percent),
+        attr("protocol_fee_recipient", protocol_fee_recipient.to_string()),
+    ]))
+}
+
 pub fn execute_remove_liquidity(
     deps: DepsMut,
     info: MessageInfo,
@@ -547,7 +584,7 @@ fn get_input_price(
 ) -> StdResult<Uint128> {
     if input_reserve == Uint128::zero() || output_reserve == Uint128::zero() {
         return Err(StdError::generic_err("No liquidity"));
-    }; 
+    };
     let fee_scale_factor = Uint128::new(10_000);
     let fee_reduction_percent = fee_scale_factor - fee_percent;
     let input_amount_with_fee = input_amount
@@ -567,10 +604,7 @@ fn get_input_price(
         .map_err(StdError::divide_by_zero)
 }
 
-fn get_protocol_fee_amount(
-    input_amount: Uint128,
-    fee_percent: Uint128,
-) -> StdResult<Uint128> {
+fn get_protocol_fee_amount(input_amount: Uint128, fee_percent: Uint128) -> StdResult<Uint128> {
     if fee_percent == Uint128::zero() {
         return Ok(Uint128::zero());
     }
@@ -624,7 +658,12 @@ pub fn execute_swap(
 
     let fees = FEES.load(deps.storage)?;
     let total_fee_percent = fees.lp_fee_percent + fees.protocol_fee_percent;
-    let token_bought = get_input_price(input_amount, input_token.reserve, output_token.reserve, total_fee_percent)?;
+    let token_bought = get_input_price(
+        input_amount,
+        input_token.reserve,
+        output_token.reserve,
+        total_fee_percent,
+    )?;
 
     if min_token > token_bought {
         return Err(ContractError::SwapMinError {
@@ -635,7 +674,7 @@ pub fn execute_swap(
 
     let protocol_fee_amount = get_protocol_fee_amount(input_amount, fees.protocol_fee_percent)?;
     let input_amount_with_protocol_fee = input_amount - protocol_fee_amount;
-    
+
     // Create transfer from message
     let mut transfer_msgs = match input_token.denom.clone() {
         Denom::Cw20(addr) => vec![get_cw20_transfer_from_msg(
@@ -649,16 +688,17 @@ pub fn execute_swap(
 
     if protocol_fee_amount > Uint128::zero() {
         transfer_msgs.push(match input_token.denom {
-            Denom::Cw20(addr) =>get_cw20_transfer_from_msg(
+            Denom::Cw20(addr) => get_cw20_transfer_from_msg(
                 &info.sender,
                 &fees.protocol_fee_recipient,
                 &addr,
                 protocol_fee_amount,
             )?,
-            Denom::Native(denom) => get_bank_transfer_to_msg(&fees.protocol_fee_recipient, &denom, protocol_fee_amount),
+            Denom::Native(denom) => {
+                get_bank_transfer_to_msg(&fees.protocol_fee_recipient, &denom, protocol_fee_amount)
+            }
         });
     }
-
 
     let recipient = deps.api.addr_validate(&recipient)?;
     // Create transfer to message
@@ -835,10 +875,10 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
         token2_denom: token2.denom,
         lp_token_supply: get_lp_token_supply(deps, &lp_token_address)?,
         lp_token_address: lp_token_address.to_string(),
-         owner: owner.to_string(),
+        owner: owner.to_string(),
         lp_fee_percent: fees.lp_fee_percent,
         protocol_fee_percent: fees.protocol_fee_percent,
-        protocol_fee_recipient: fees.protocol_fee_recipient.to_string()
+        protocol_fee_recipient: fees.protocol_fee_recipient.to_string(),
     })
 }
 
@@ -851,7 +891,12 @@ pub fn query_token1_for_token2_price(
 
     let fees = FEES.load(deps.storage)?;
     let total_fee_percent = fees.lp_fee_percent + fees.protocol_fee_percent;
-    let token2_amount = get_input_price(token1_amount, token1.reserve, token2.reserve, total_fee_percent)?;
+    let token2_amount = get_input_price(
+        token1_amount,
+        token1.reserve,
+        token2.reserve,
+        total_fee_percent,
+    )?;
     Ok(Token1ForToken2PriceResponse { token2_amount })
 }
 
@@ -861,10 +906,15 @@ pub fn query_token2_for_token1_price(
 ) -> StdResult<Token2ForToken1PriceResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
-    
+
     let fees = FEES.load(deps.storage)?;
     let total_fee_percent = fees.lp_fee_percent + fees.protocol_fee_percent;
-    let token1_amount = get_input_price(token2_amount, token2.reserve, token1.reserve, total_fee_percent)?;
+    let token1_amount = get_input_price(
+        token2_amount,
+        token2.reserve,
+        token1.reserve,
+        total_fee_percent,
+    )?;
     Ok(Token2ForToken1PriceResponse { token1_amount })
 }
 
@@ -932,22 +982,44 @@ mod tests {
     fn test_get_input_price() {
         // Base case
         assert_eq!(
-            get_input_price(Uint128::new(10), Uint128::new(100), Uint128::new(100), Uint128::new(30)).unwrap(),
+            get_input_price(
+                Uint128::new(10),
+                Uint128::new(100),
+                Uint128::new(100),
+                Uint128::new(30)
+            )
+            .unwrap(),
             Uint128::new(9)
         );
 
         // No input reserve error
-        let err =
-            get_input_price(Uint128::new(10), Uint128::new(0), Uint128::new(100), Uint128::new(30)).unwrap_err();
+        let err = get_input_price(
+            Uint128::new(10),
+            Uint128::new(0),
+            Uint128::new(100),
+            Uint128::new(30),
+        )
+        .unwrap_err();
         assert_eq!(err, StdError::generic_err("No liquidity"));
 
         // No output reserve error
-        let err =
-            get_input_price(Uint128::new(10), Uint128::new(100), Uint128::new(0), Uint128::new(30)).unwrap_err();
+        let err = get_input_price(
+            Uint128::new(10),
+            Uint128::new(100),
+            Uint128::new(0),
+            Uint128::new(30),
+        )
+        .unwrap_err();
         assert_eq!(err, StdError::generic_err("No liquidity"));
 
         // No reserve error
-        let err = get_input_price(Uint128::new(10), Uint128::new(0), Uint128::new(0), Uint128::new(30)).unwrap_err();
+        let err = get_input_price(
+            Uint128::new(10),
+            Uint128::new(0),
+            Uint128::new(0),
+            Uint128::new(30),
+        )
+        .unwrap_err();
         assert_eq!(err, StdError::generic_err("No liquidity"));
     }
 }

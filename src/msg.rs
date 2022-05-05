@@ -58,6 +58,11 @@ pub enum ExecuteMsg {
         min_token: Uint128,
         expiration: Option<Expiration>,
     },
+    UpdateFees {
+        lp_fee_percent: Uint128,
+        protocol_fee_percent: Uint128,
+        protocol_fee_recipient: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
