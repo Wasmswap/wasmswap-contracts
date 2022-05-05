@@ -298,7 +298,6 @@ pub fn execute_add_liquidity(
     })?;
 
     let mint_msg = mint_lp_tokens(&info.sender, liquidity_amount, &lp_token_addr)?;
-
     Ok(Response::new()
         .add_messages(transfer_msgs)
         .add_message(mint_msg)
@@ -577,9 +576,8 @@ fn get_protocol_fee_amount(
     }
 
     let fee_scale_factor = Uint128::new(10_000);
-    let fee_reduction_percent = fee_scale_factor - fee_percent;
     input_amount
-        .checked_mul(fee_reduction_percent)
+        .checked_mul(fee_percent)
         .map_err(StdError::overflow)?
         .checked_div(fee_scale_factor)
         .map_err(StdError::divide_by_zero)
@@ -620,7 +618,7 @@ pub fn execute_swap(
         TokenSelect::Token2 => TOKEN1,
     };
     let output_token = output_token_item.load(deps.storage)?;
-    
+
     // validate input_amount if native input token
     validate_input_amount(&info.funds, input_amount, &input_token.denom)?;
 
@@ -635,27 +633,22 @@ pub fn execute_swap(
         });
     }
 
+    let protocol_fee_amount = get_protocol_fee_amount(input_amount, fees.protocol_fee_percent)?;
+    let input_amount_with_protocol_fee = input_amount - protocol_fee_amount;
+    
     // Create transfer from message
-    let mut transfer_msgs = match input_token.denom {
+    let mut transfer_msgs = match input_token.denom.clone() {
         Denom::Cw20(addr) => vec![get_cw20_transfer_from_msg(
             &info.sender,
             &_env.contract.address,
             &addr,
-            input_amount,
+            input_amount_with_protocol_fee,
         )?],
         Denom::Native(_) => vec![],
     };
 
-    let recipient = deps.api.addr_validate(&recipient)?;
-    // Create transfer to message
-    transfer_msgs.push(match output_token.denom.clone() {
-        Denom::Cw20(addr) => get_cw20_transfer_to_msg(&recipient, &addr, token_bought)?,
-        Denom::Native(denom) => get_bank_transfer_to_msg(&recipient, &denom, token_bought),
-    });
-
-    let protocol_fee_amount = get_protocol_fee_amount(input_amount, fees.protocol_fee_percent)?;
     if protocol_fee_amount > Uint128::zero() {
-        transfer_msgs.push(match output_token.denom {
+        transfer_msgs.push(match input_token.denom {
             Denom::Cw20(addr) =>get_cw20_transfer_from_msg(
                 &info.sender,
                 &fees.protocol_fee_recipient,
@@ -666,6 +659,15 @@ pub fn execute_swap(
         });
     }
 
+
+    let recipient = deps.api.addr_validate(&recipient)?;
+    // Create transfer to message
+    transfer_msgs.push(match output_token.denom {
+        Denom::Cw20(addr) => get_cw20_transfer_to_msg(&recipient, &addr, token_bought)?,
+        Denom::Native(denom) => get_bank_transfer_to_msg(&recipient, &denom, token_bought),
+    });
+
+    // TODO: Should we use input_amount with protocol fee subtracted here instead of input_amount?
     input_token_item.update(
         deps.storage,
         |mut input_token| -> Result<_, ContractError> {
