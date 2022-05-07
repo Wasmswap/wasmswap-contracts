@@ -707,13 +707,16 @@ pub fn execute_swap(
         Denom::Native(denom) => get_bank_transfer_to_msg(&recipient, &denom, token_bought),
     });
 
-    // TODO: Should we use input_amount with protocol fee subtracted here instead of input_amount?
     input_token_item.update(
         deps.storage,
         |mut input_token| -> Result<_, ContractError> {
+            println!(
+                "INPUT AMOUNT WITH FEE {} INPUT RESERVE {}",
+                input_amount_with_protocol_fee, input_token.reserve
+            );
             input_token.reserve = input_token
                 .reserve
-                .checked_add(input_amount)
+                .checked_add(input_amount_with_protocol_fee)
                 .map_err(StdError::overflow)?;
             Ok(input_token)
         },
@@ -722,6 +725,10 @@ pub fn execute_swap(
     output_token_item.update(
         deps.storage,
         |mut output_token| -> Result<_, ContractError> {
+            println!(
+                "TOKEN BOUGHT {} OUTPUT RESERVE {}",
+                token_bought, output_token.reserve
+            );
             output_token.reserve = output_token
                 .reserve
                 .checked_sub(token_bought)
