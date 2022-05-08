@@ -863,7 +863,6 @@ fn swap_with_fee_split() {
         .unwrap();
     assert_eq!(fee_recipient_balance, Uint128::new(16_000));
 
-
     let swap_msg = ExecuteMsg::SwapAndSendTo {
         input_token: TokenSelect::Token1,
         input_amount: Uint128::new(10_000_000),
@@ -1164,6 +1163,215 @@ fn swap_native_to_native_tokens_happy_path() {
     assert_eq!(balance.amount.amount, Uint128::new(1989));
 
      */
+}
+
+#[test]
+fn token_to_token_swap_with_fee_split() {
+    let mut router = mock_app();
+
+    const NATIVE_TOKEN_DENOM: &str = "juno";
+
+    let owner = Addr::unchecked("owner");
+    let protocol_fee_recipient = Addr::unchecked("protocol_fee_recipient");
+
+    let funds = coins(2_000_000_000, NATIVE_TOKEN_DENOM);
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &owner, funds).unwrap()
+    });
+
+    let token1 = create_cw20(
+        &mut router,
+        &owner,
+        "token1".to_string(),
+        "TOKENONE".to_string(),
+        Uint128::new(5_000_000_000),
+    );
+    let token2 = create_cw20(
+        &mut router,
+        &owner,
+        "token2".to_string(),
+        "TOKENTWO".to_string(),
+        Uint128::new(5_000_000_000),
+    );
+
+    let lp_fee_percent = Uint128::new(20);
+    let protocol_fee_percent = Uint128::new(10);
+    let amm1 = create_amm(
+        &mut router,
+        &owner,
+        &token1,
+        NATIVE_TOKEN_DENOM.to_string(),
+        lp_fee_percent,
+        protocol_fee_percent,
+        protocol_fee_recipient.to_string(),
+    );
+    let amm2 = create_amm(
+        &mut router,
+        &owner,
+        &token2,
+        NATIVE_TOKEN_DENOM.to_string(),
+        lp_fee_percent,
+        protocol_fee_percent,
+        protocol_fee_recipient.to_string(),
+    );
+
+    // Add initial liquidity to both pools
+    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: amm1.to_string(),
+        amount: Uint128::new(100_000_000),
+        expires: None,
+    };
+    let _res = router
+        .execute_contract(owner.clone(), token1.addr(), &allowance_msg, &[])
+        .unwrap();
+
+    let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128::new(100_000_000),
+        min_liquidity: Uint128::new(10_000_000),
+        max_token2: Uint128::new(100_000_000),
+        expiration: None,
+    };
+    router
+        .execute_contract(
+            owner.clone(),
+            amm1.clone(),
+            &add_liquidity_msg,
+            &[Coin {
+                denom: NATIVE_TOKEN_DENOM.into(),
+                amount: Uint128::new(100_000_000),
+            }],
+        )
+        .unwrap();
+
+    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: amm2.to_string(),
+        amount: Uint128::new(100_000_000),
+        expires: None,
+    };
+    let _res = router
+        .execute_contract(owner.clone(), token2.addr(), &allowance_msg, &[])
+        .unwrap();
+
+    let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128::new(100_000_000),
+        min_liquidity: Uint128::new(100_000_000),
+        max_token2: Uint128::new(100_000_000),
+        expiration: None,
+    };
+    router
+        .execute_contract(
+            owner.clone(),
+            amm2.clone(),
+            &add_liquidity_msg,
+            &[Coin {
+                denom: NATIVE_TOKEN_DENOM.into(),
+                amount: Uint128::new(100_000_000),
+            }],
+        )
+        .unwrap();
+
+    // Swap token1 for token2
+    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: amm1.to_string(),
+        amount: Uint128::new(10_000_000),
+        expires: None,
+    };
+    let _res = router
+        .execute_contract(owner.clone(), token1.addr(), &allowance_msg, &[])
+        .unwrap();
+
+    let swap_msg = ExecuteMsg::PassThroughSwap {
+        output_amm_address: amm2.to_string(),
+        input_token: TokenSelect::Token2,
+        input_token_amount: Uint128::new(10_000_000),
+        output_min_token: Uint128::new(8_000_000),
+        expiration: None,
+    };
+    let _res = router
+        .execute_contract(owner.clone(), amm1.clone(), &swap_msg, &[])
+        .unwrap();
+
+    // ensure balances updated
+    let token1_balance = token1.balance(&router, owner.clone()).unwrap();
+    assert_eq!(token1_balance, Uint128::new(4_890_000_000));
+
+    let token2_balance = token2.balance(&router, owner.clone()).unwrap();
+    assert_eq!(token2_balance, Uint128::new(4_908_289_618));
+
+    let amm1_native_balance = bank_balance(&mut router, &amm1, NATIVE_TOKEN_DENOM.to_string());
+    assert_eq!(amm1_native_balance.amount, Uint128::new(90_933_892));
+
+    let amm2_native_balance = bank_balance(&mut router, &amm2, NATIVE_TOKEN_DENOM.to_string());
+    assert_eq!(amm2_native_balance.amount, Uint128::new(109_057_042));
+
+    let fee_recipient_token1_balance = token1
+        .balance(&router, protocol_fee_recipient.clone())
+        .unwrap();
+    assert_eq!(fee_recipient_token1_balance, Uint128::new(10_000));
+
+    let fee_recipient_native_balance = bank_balance(
+        &mut router,
+        &protocol_fee_recipient.clone(),
+        NATIVE_TOKEN_DENOM.to_string(),
+    );
+    assert_eq!(fee_recipient_native_balance.amount, Uint128::new(9066));
+
+    // Swap token2 for token1
+    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: amm2.to_string(),
+        amount: Uint128::new(10_000_000),
+        expires: None,
+    };
+    let _res = router
+        .execute_contract(owner.clone(), token2.addr(), &allowance_msg, &[])
+        .unwrap();
+
+    let swap_msg = ExecuteMsg::PassThroughSwap {
+        output_amm_address: amm1.to_string(),
+        input_token: TokenSelect::Token2,
+        input_token_amount: Uint128::new(10_000_000),
+        output_min_token: Uint128::new(1_000_000),
+        expiration: None,
+    };
+    let _res = router
+        .execute_contract(owner.clone(), amm2.clone(), &swap_msg, &[])
+        .unwrap();
+
+    // ensure balances updated
+    let token1_balance = token1.balance(&router, owner.clone()).unwrap();
+    assert_eq!(token1_balance, Uint128::new(4_901_542_163));
+
+    let token2_balance = token2.balance(&router, owner.clone()).unwrap();
+    assert_eq!(token2_balance, Uint128::new(4_898_289_618));
+
+    let amm1_native_balance = bank_balance(&mut router, &amm1, NATIVE_TOKEN_DENOM.to_string());
+    assert_eq!(amm1_native_balance.amount, Uint128::new(101_616_497));
+
+    let amm2_native_balance = bank_balance(&mut router, &amm2, NATIVE_TOKEN_DENOM.to_string());
+    assert_eq!(amm2_native_balance.amount, Uint128::new(98_363_744));
+
+    let fee_recipient_token2_balance = token2
+        .balance(&router, protocol_fee_recipient.clone())
+        .unwrap();
+    assert_eq!(fee_recipient_token2_balance, Uint128::new(10_000));
+
+    let fee_recipient_native_balance = bank_balance(
+        &mut router,
+        &protocol_fee_recipient,
+        NATIVE_TOKEN_DENOM.to_string(),
+    );
+    assert_eq!(fee_recipient_native_balance.amount, Uint128::new(19_759));
+
+    // assert internal state is consistent
+    let info_amm1 = get_info(&router, &amm1);
+    let token1_balance = token1.balance(&router, amm1.clone()).unwrap();
+    assert_eq!(info_amm1.token2_reserve, token1_balance);
+    assert_eq!(info_amm1.token1_reserve, amm1_native_balance.amount);
+
+    let info_amm2 = get_info(&router, &amm2);
+    let token2_balance = token2.balance(&router, amm2.clone()).unwrap();
+    assert_eq!(info_amm2.token2_reserve, token2_balance);
+    assert_eq!(info_amm2.token1_reserve, amm2_native_balance.amount);
 }
 
 #[test]

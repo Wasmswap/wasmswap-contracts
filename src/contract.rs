@@ -672,10 +672,11 @@ pub fn execute_swap(
         });
     }
 
+    // Calculate fees
     let protocol_fee_amount = get_protocol_fee_amount(input_amount, fees.protocol_fee_percent)?;
     let input_amount_with_protocol_fee = input_amount - protocol_fee_amount;
 
-    // Create transfer from message
+    // Transfer input amount - protocol fee to contract
     let mut transfer_msgs = match input_token.denom.clone() {
         Denom::Cw20(addr) => vec![get_cw20_transfer_from_msg(
             &info.sender,
@@ -686,6 +687,7 @@ pub fn execute_swap(
         Denom::Native(_) => vec![],
     };
 
+    // Send protocol fee to protocol fee recipient
     if protocol_fee_amount > Uint128::zero() {
         transfer_msgs.push(match input_token.denom {
             Denom::Cw20(addr) => get_cw20_transfer_from_msg(
@@ -710,10 +712,6 @@ pub fn execute_swap(
     input_token_item.update(
         deps.storage,
         |mut input_token| -> Result<_, ContractError> {
-            println!(
-                "INPUT AMOUNT WITH FEE {} INPUT RESERVE {}",
-                input_amount_with_protocol_fee, input_token.reserve
-            );
             input_token.reserve = input_token
                 .reserve
                 .checked_add(input_amount_with_protocol_fee)
@@ -725,10 +723,6 @@ pub fn execute_swap(
     output_token_item.update(
         deps.storage,
         |mut output_token| -> Result<_, ContractError> {
-            println!(
-                "TOKEN BOUGHT {} OUTPUT RESERVE {}",
-                token_bought, output_token.reserve
-            );
             output_token.reserve = output_token
                 .reserve
                 .checked_sub(token_bought)
@@ -780,18 +774,36 @@ pub fn execute_pass_through_swap(
         total_fee_percent,
     )?;
 
-    // TODO: Add fee checks here?
+    // Calculate fees
+    let protocol_fee_amount =
+        get_protocol_fee_amount(input_token_amount, fees.protocol_fee_percent)?;
+    let input_amount_with_protocol_fee = input_token_amount - protocol_fee_amount;
 
-    // Transfer tokens to contract
+    // Transfer input amount - protocol fee to contract
     let mut msgs: Vec<CosmosMsg> = vec![];
     if let Denom::Cw20(addr) = &input_token.denom {
         msgs.push(get_cw20_transfer_from_msg(
             &info.sender,
             &_env.contract.address,
             addr,
-            input_token_amount,
+            input_amount_with_protocol_fee,
         )?)
     };
+
+    // Send protocol fee to protocol fee recipient
+    if protocol_fee_amount > Uint128::zero() {
+        msgs.push(match input_token.denom {
+            Denom::Cw20(addr) => get_cw20_transfer_from_msg(
+                &info.sender,
+                &fees.protocol_fee_recipient,
+                &addr,
+                protocol_fee_amount,
+            )?,
+            Denom::Native(denom) => {
+                get_bank_transfer_to_msg(&fees.protocol_fee_recipient, &denom, protocol_fee_amount)
+            }
+        });
+    }
 
     let output_amm_address = deps.api.addr_validate(&output_amm_address)?;
 
@@ -832,9 +844,10 @@ pub fn execute_pass_through_swap(
     );
 
     input_token_state.update(deps.storage, |mut token| -> Result<_, ContractError> {
+        // Add input amount - protocol fee to input token reserve
         token.reserve = token
             .reserve
-            .checked_add(input_token_amount)
+            .checked_add(input_amount_with_protocol_fee)
             .map_err(StdError::overflow)?;
         Ok(token)
     })?;
