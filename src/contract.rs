@@ -2,12 +2,12 @@ use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, Uint256, WasmMsg,
 };
-use std::convert::TryInto;
 use cw0::parse_reply_instantiate_data;
 use cw2::set_contract_version;
 use cw20::Denom::Cw20;
 use cw20::{Cw20ExecuteMsg, Denom, Expiration, MinterResponse};
 use cw20_base::contract::query_balance;
+use std::convert::TryInto;
 
 use crate::error::ContractError;
 use crate::msg::{
@@ -21,6 +21,9 @@ pub const CONTRACT_NAME: &str = "crates.io:wasmswap";
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const INSTANTIATE_LP_TOKEN_REPLY_ID: u64 = 0;
+
+const FEE_SCALE_FACTOR: Uint128 = Uint128::new(10_000);
+
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -586,16 +589,14 @@ fn get_input_price(
     if input_reserve == Uint128::zero() || output_reserve == Uint128::zero() {
         return Err(StdError::generic_err("No liquidity"));
     };
-    let fee_scale_factor = Uint128::new(10_000);
-    let fee_reduction_percent = fee_scale_factor - fee_percent;
 
-    let input_amount_with_fee = input_amount
-        .full_mul(fee_reduction_percent);
+    let fee_reduction_percent = FEE_SCALE_FACTOR - fee_percent;
+    let input_amount_with_fee = input_amount.full_mul(fee_reduction_percent);
     let numerator = input_amount_with_fee
         .checked_mul(Uint256::from(output_reserve))
         .map_err(StdError::overflow)?;
     let denominator = input_reserve
-        .full_mul(fee_scale_factor)
+        .full_mul(FEE_SCALE_FACTOR)
         .checked_add(input_amount_with_fee)
         .map_err(StdError::overflow)?;
 
@@ -610,11 +611,10 @@ fn get_protocol_fee_amount(input_amount: Uint128, fee_percent: Uint128) -> StdRe
         return Ok(Uint128::zero());
     }
 
-    let fee_scale_factor = Uint128::new(10_000);
     input_amount
         .checked_mul(fee_percent)
         .map_err(StdError::overflow)?
-        .checked_div(fee_scale_factor)
+        .checked_div(FEE_SCALE_FACTOR)
         .map_err(StdError::divide_by_zero)
 }
 
