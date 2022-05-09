@@ -193,6 +193,23 @@ $BINARY tx wasm execute $SWAP_4_CONTRACT '{"add_liquidity":{"token1_amount":"100
 SWAP_1_TOKEN_ADDRESS=$($BINARY query wasm contract-state smart $SWAP_1_CONTRACT '{"info":{}}' --output json $QFLAG | jq -r '.data.lp_token_address')
 echo $SWAP_1_TOKEN_ADDRESS
 
+# Swap 5
+SWAP_5_INIT='{
+    "token1_denom": {"cw20": "'$CW20_CONTRACT'"},
+    "token2_denom": {"cw20": "'"$CW20_CONTRACT_2"'"},
+    "lp_token_code_id": '$CW20_CODE'
+}'
+
+echo "$SWAP_5_INIT"
+echo xxxxxxxxx | $BINARY tx wasm instantiate $WASMSWAP_CODE "$SWAP_5_INIT" --from "validator" --label "swap_5" $TXFLAG
+SWAP_5_CONTRACT=$($BINARY q wasm list-contract-by-code $WASMSWAP_CODE --output json $QFLAG | jq -r '.contracts[-1]')
+
+$BINARY tx wasm execute $CW20_CONTRACT '{"increase_allowance":{"amount":"100000000","spender":"'"$SWAP_5_CONTRACT"'"}}' --from test $TXFLAG
+$BINARY tx wasm execute $CW20_CONTRACT_2 '{"increase_allowance":{"amount":"100000000","spender":"'"$SWAP_5_CONTRACT"'"}}' --from test $TXFLAG
+$BINARY tx wasm execute $SWAP_5_CONTRACT '{"add_liquidity":{"token1_amount":"100000000","max_token2":"100000000","min_liquidity":"1"}}' --from test --amount "100000000"$DENOM $TXFLAG
+
+echo $SWAP_5_CONTRACT
+
 # Instantiate staking contract
 STAKING_1_INIT='{
     "owner": "'"$($BINARY keys show validator -a)"'",
@@ -320,4 +337,6 @@ echo "COSM SWap contract 4"
 echo $SWAP_4_CONTRACT
 echo "POOD Staking contract 1"
 echo $STAKING_4_CONTRACT
+echo "CRAB <> DAO Swap contract 5"
+echo $SWAP_5_CONTRACT
 
