@@ -1,7 +1,8 @@
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, Uint256, WasmMsg,
 };
+use std::convert::TryInto;
 use cw0::parse_reply_instantiate_data;
 use cw2::set_contract_version;
 use cw20::Denom::Cw20;
@@ -587,21 +588,21 @@ fn get_input_price(
     };
     let fee_scale_factor = Uint128::new(10_000);
     let fee_reduction_percent = fee_scale_factor - fee_percent;
+
     let input_amount_with_fee = input_amount
-        .checked_mul(fee_reduction_percent)
-        .map_err(StdError::overflow)?;
+        .full_mul(fee_reduction_percent);
     let numerator = input_amount_with_fee
-        .checked_mul(output_reserve)
+        .checked_mul(Uint256::from(output_reserve))
         .map_err(StdError::overflow)?;
     let denominator = input_reserve
-        .checked_mul(fee_scale_factor)
-        .map_err(StdError::overflow)?
+        .full_mul(fee_scale_factor)
         .checked_add(input_amount_with_fee)
         .map_err(StdError::overflow)?;
 
-    numerator
+    Ok(numerator
         .checked_div(denominator)
-        .map_err(StdError::divide_by_zero)
+        .map_err(StdError::divide_by_zero)?
+        .try_into()?)
 }
 
 fn get_protocol_fee_amount(input_amount: Uint128, fee_percent: Uint128) -> StdResult<Uint128> {
@@ -671,7 +672,6 @@ pub fn execute_swap(
             available: token_bought,
         });
     }
-
     // Calculate fees
     let protocol_fee_amount = get_protocol_fee_amount(input_amount, fees.protocol_fee_percent)?;
     let input_amount_with_protocol_fee = input_amount - protocol_fee_amount;
