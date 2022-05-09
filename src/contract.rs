@@ -23,6 +23,7 @@ pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const INSTANTIATE_LP_TOKEN_REPLY_ID: u64 = 0;
 
 const FEE_SCALE_FACTOR: Uint128 = Uint128::new(10_000);
+const MAX_FEE: Uint128 = Uint128::new(100);
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -53,7 +54,14 @@ pub fn instantiate(
     OWNER.save(deps.storage, &owner)?;
 
     let protocol_fee_recipient = deps.api.addr_validate(&msg.protocol_fee_recipient)?;
-    // TODO: Verify fee percentages are within a safety threshold
+    let fee_total = msg.lp_fee_percent + msg.protocol_fee_percent;
+    if fee_total > MAX_FEE {
+        return Err(ContractError::FeesTooHigh {
+            max_fee: MAX_FEE,
+            fee_total,
+        });
+    }
+
     let fees = Fees {
         lp_fee_percent: msg.lp_fee_percent,
         protocol_fee_percent: msg.protocol_fee_percent,
@@ -430,6 +438,14 @@ pub fn execute_update_fees(
     let owner = OWNER.load(deps.storage)?;
     if info.sender != owner {
         return Err(ContractError::Unauthorized {});
+    }
+
+    let fee_total = lp_fee_percent + protocol_fee_percent;
+    if fee_total > MAX_FEE {
+        return Err(ContractError::FeesTooHigh {
+            max_fee: MAX_FEE,
+            fee_total,
+        });
     }
 
     let protocol_fee_recipient = deps.api.addr_validate(&protocol_fee_recipient)?;

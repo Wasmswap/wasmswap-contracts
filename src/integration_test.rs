@@ -142,6 +142,33 @@ fn test_instantiate() {
     assert_eq!(info.protocol_fee_percent, protocol_fee_percent);
     assert_eq!(info.protocol_fee_recipient, owner.to_string());
     assert_eq!(info.owner, owner.to_string());
+
+    // Test instantiation with invalid fee amount
+    let lp_fee_percent = Uint128::new(101);
+    let protocol_fee_percent = Uint128::new(0);
+    let cw20_id = router.store_code(contract_cw20());
+    let amm_id = router.store_code(contract_amm());
+    let msg = InstantiateMsg {
+        token1_denom: Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        token2_denom: Denom::Cw20(cw20_token.addr()),
+        lp_token_code_id: cw20_id,
+        owner: owner.to_string(),
+        lp_fee_percent,
+        protocol_fee_percent,
+        protocol_fee_recipient: owner.to_string(),
+    };
+    let err = router
+        .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)
+        .unwrap_err()
+        .downcast()
+        .unwrap();
+    assert_eq!(
+        ContractError::FeesTooHigh {
+            max_fee: Uint128::new(100),
+            fee_total: Uint128::new(101)
+        },
+        err
+    );
 }
 
 #[test]
@@ -947,6 +974,25 @@ fn update_fees() {
     assert_eq!(info.lp_fee_percent, Uint128::new(15));
     assert_eq!(info.owner, owner.to_string());
 
+    // Try updating fees with values that are too high
+    let update_fee_msg = ExecuteMsg::UpdateFees {
+        protocol_fee_recipient: "new_fee_recpient".to_string(),
+        lp_fee_percent: Uint128::new(101),
+        protocol_fee_percent: Uint128::new(0),
+    };
+    let err = router
+        .execute_contract(owner.clone(), amm_addr.clone(), &update_fee_msg, &[])
+        .unwrap_err()
+        .downcast()
+        .unwrap();
+    assert_eq!(
+        ContractError::FeesTooHigh {
+            max_fee: Uint128::new(100),
+            fee_total: Uint128::new(101)
+        },
+        err
+    );
+
     // Try updating fees with invalid owner, show throw unauthoritzed error
     let update_fee_msg = ExecuteMsg::UpdateFees {
         protocol_fee_recipient: "owner".to_string(),
@@ -963,7 +1009,7 @@ fn update_fees() {
         .unwrap_err()
         .downcast()
         .unwrap();
-    assert_eq!(ContractError::Unauthorized {}, err)
+    assert_eq!(ContractError::Unauthorized {}, err);
 }
 
 #[test]
