@@ -906,13 +906,10 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
     let lp_token_address = LP_TOKEN.load(deps.storage)?;
-    let owner = OWNER.load(deps.storage)?;
     let fees = FEES.load(deps.storage)?;
 
-    let owner = match owner {
-        Some(o) => Some(o.to_string()),
-        _ => None,
-    };
+    let owner = OWNER.load(deps.storage)?;
+    let owner = Some(owner).map(|o| o.unwrap().to_string());
 
     // TODO get total supply
     Ok(InfoResponse {
