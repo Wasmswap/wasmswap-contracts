@@ -51,9 +51,7 @@ pub fn instantiate(
     TOKEN2.save(deps.storage, &token2)?;
 
     let owner = match msg.owner {
-        Some(o) => {
-            Some(deps.api.addr_validate(&o)?)
-        }
+        Some(o) => Some(deps.api.addr_validate(&o)?),
         _ => None,
     };
     OWNER.save(deps.storage, &owner)?;
