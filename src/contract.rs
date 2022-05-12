@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, Uint256, WasmMsg,
+    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, Uint512, WasmMsg,
 };
 use cw0::parse_reply_instantiate_data;
 use cw2::set_contract_version;
@@ -607,12 +607,13 @@ fn get_input_price(
     };
 
     let fee_reduction_percent = FEE_SCALE_FACTOR - fee_percent;
-    let input_amount_with_fee = input_amount.full_mul(fee_reduction_percent);
+    let input_amount_with_fee = Uint512::from(input_amount.full_mul(fee_reduction_percent));
     let numerator = input_amount_with_fee
-        .checked_mul(Uint256::from(output_reserve))
+        .checked_mul(Uint512::from(output_reserve))
         .map_err(StdError::overflow)?;
-    let denominator = input_reserve
-        .full_mul(FEE_SCALE_FACTOR)
+    let denominator = Uint512::from(input_reserve)
+        .checked_mul(Uint512::from(FEE_SCALE_FACTOR))
+        .map_err(StdError::overflow)?
         .checked_add(input_amount_with_fee)
         .map_err(StdError::overflow)?;
 
