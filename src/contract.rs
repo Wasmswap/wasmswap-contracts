@@ -50,7 +50,12 @@ pub fn instantiate(
 
     TOKEN2.save(deps.storage, &token2)?;
 
-    let owner = deps.api.addr_validate(&msg.owner)?;
+    let owner = match msg.owner {
+        Some(o) => {
+            Some(deps.api.addr_validate(&o)?)
+        }
+        _ => None,
+    };
     OWNER.save(deps.storage, &owner)?;
 
     let protocol_fee_recipient = deps.api.addr_validate(&msg.protocol_fee_recipient)?;
@@ -436,7 +441,7 @@ pub fn execute_update_fees(
     protocol_fee_recipient: String,
 ) -> Result<Response, ContractError> {
     let owner = OWNER.load(deps.storage)?;
-    if info.sender != owner {
+    if owner.is_some() && info.sender != owner.unwrap() {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -904,6 +909,11 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
     let owner = OWNER.load(deps.storage)?;
     let fees = FEES.load(deps.storage)?;
 
+    let owner = match owner {
+        Some(o) => Some(o.to_string()),
+        _ => None,
+    };
+
     // TODO get total supply
     Ok(InfoResponse {
         token1_reserve: token1.reserve,
@@ -912,7 +922,7 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
         token2_denom: token2.denom,
         lp_token_supply: get_lp_token_supply(deps, &lp_token_address)?,
         lp_token_address: lp_token_address.to_string(),
-        owner: owner.to_string(),
+        owner,
         lp_fee_percent: fees.lp_fee_percent,
         protocol_fee_percent: fees.protocol_fee_percent,
         protocol_fee_recipient: fees.protocol_fee_recipient.to_string(),

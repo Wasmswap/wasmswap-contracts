@@ -57,7 +57,7 @@ fn create_amm(
         token1_denom: Denom::Native(native_denom),
         token2_denom: Denom::Cw20(cash.addr()),
         lp_token_code_id: cw20_id,
-        owner: owner.to_string(),
+        owner: Some(owner.to_string()),
         lp_fee_percent,
         protocol_fee_percent,
         protocol_fee_recipient,
@@ -141,7 +141,7 @@ fn test_instantiate() {
     assert_eq!(info.lp_fee_percent, lp_fee_percent);
     assert_eq!(info.protocol_fee_percent, protocol_fee_percent);
     assert_eq!(info.protocol_fee_recipient, owner.to_string());
-    assert_eq!(info.owner, owner.to_string());
+    assert_eq!(info.owner.unwrap(), owner.to_string());
 
     // Test instantiation with invalid fee amount
     let lp_fee_percent = Uint128::new(101);
@@ -152,7 +152,7 @@ fn test_instantiate() {
         token1_denom: Denom::Native(NATIVE_TOKEN_DENOM.into()),
         token2_denom: Denom::Cw20(cw20_token.addr()),
         lp_token_code_id: cw20_id,
-        owner: owner.to_string(),
+        owner: Some(owner.to_string()),
         lp_fee_percent,
         protocol_fee_percent,
         protocol_fee_recipient: owner.to_string(),
@@ -972,7 +972,7 @@ fn update_fees() {
     assert_eq!(info.protocol_fee_recipient, "new_fee_recpient".to_string());
     assert_eq!(info.protocol_fee_percent, Uint128::new(15));
     assert_eq!(info.lp_fee_percent, Uint128::new(15));
-    assert_eq!(info.owner, owner.to_string());
+    assert_eq!(info.owner.unwrap(), owner.to_string());
 
     // Try updating fees with values that are too high
     let update_fee_msg = ExecuteMsg::UpdateFees {
@@ -1043,7 +1043,7 @@ fn swap_native_to_native_tokens_happy_path() {
         token1_denom: Denom::Native(NATIVE_TOKEN_DENOM.into()),
         token2_denom: Denom::Native(IBC_TOKEN_DENOM.into()),
         lp_token_code_id: lp_token_id,
-        owner: owner.to_string(),
+        owner: Some(owner.to_string()),
         lp_fee_percent,
         protocol_fee_percent,
         protocol_fee_recipient: owner.to_string(),

@@ -16,7 +16,7 @@ pub struct Token {
 pub const TOKEN1: Item<Token> = Item::new("token1");
 pub const TOKEN2: Item<Token> = Item::new("token2");
 
-pub const OWNER: Item<Addr> = Item::new("owner");
+pub const OWNER: Item<Option<Addr>> = Item::new("owner");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Fees {
