@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, Uint512, WasmMsg,
+    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, Uint256, Uint512, WasmMsg,
 };
 use cw0::parse_reply_instantiate_data;
 use cw2::set_contract_version;
@@ -629,15 +629,15 @@ fn get_input_price(
 }
 
 fn get_protocol_fee_amount(input_amount: Uint128, fee_percent: Uint128) -> StdResult<Uint128> {
-    if fee_percent == Uint128::zero() {
+    if fee_percent.is_zero() {
         return Ok(Uint128::zero());
     }
 
-    input_amount
-        .checked_mul(fee_percent)
-        .map_err(StdError::overflow)?
-        .checked_div(FEE_SCALE_FACTOR)
-        .map_err(StdError::divide_by_zero)
+    Ok(input_amount
+        .full_mul(fee_percent)
+        .checked_div(Uint256::from(FEE_SCALE_FACTOR))
+        .map_err(StdError::divide_by_zero)?
+        .try_into()?)
 }
 
 fn get_amount_for_denom(coins: &[Coin], denom: &str) -> Coin {
