@@ -10,6 +10,10 @@ pub struct InstantiateMsg {
     pub token1_denom: Denom,
     pub token2_denom: Denom,
     pub lp_token_code_id: u64,
+    pub owner: Option<String>,
+    pub protocol_fee_recipient: String,
+    pub protocol_fee_percent: Uint128,
+    pub lp_fee_percent: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -54,6 +58,12 @@ pub enum ExecuteMsg {
         min_token: Uint128,
         expiration: Option<Expiration>,
     },
+    UpdateConfig {
+        owner: Option<String>,
+        lp_fee_percent: Uint128,
+        protocol_fee_percent: Uint128,
+        protocol_fee_recipient: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -80,6 +90,10 @@ pub struct InfoResponse {
     pub token2_denom: Denom,
     pub lp_token_supply: Uint128,
     pub lp_token_address: String,
+    pub owner: Option<String>,
+    pub lp_fee_percent: Uint128,
+    pub protocol_fee_percent: Uint128,
+    pub protocol_fee_recipient: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
