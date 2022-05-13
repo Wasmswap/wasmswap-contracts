@@ -173,13 +173,15 @@ pub fn execute(
             min_token,
             expiration,
         ),
-        ExecuteMsg::UpdateFees {
+        ExecuteMsg::UpdateConfig {
+            owner,
             protocol_fee_recipient,
             lp_fee_percent,
             protocol_fee_percent,
-        } => execute_update_fees(
+        } => execute_update_config(
             deps,
             info,
+            owner,
             lp_fee_percent,
             protocol_fee_percent,
             protocol_fee_recipient,
@@ -431,9 +433,10 @@ fn get_cw20_increase_allowance_msg(
     Ok(exec_allowance.into())
 }
 
-pub fn execute_update_fees(
+pub fn execute_update_config(
     deps: DepsMut,
     info: MessageInfo,
+    new_owner: Option<String>,
     lp_fee_percent: Uint128,
     protocol_fee_percent: Uint128,
     protocol_fee_recipient: String,
@@ -442,6 +445,12 @@ pub fn execute_update_fees(
     if owner.is_some() && info.sender != owner.unwrap() {
         return Err(ContractError::Unauthorized {});
     }
+
+    let new_owner_addr = match new_owner.clone() {
+        Some(o) => Some(deps.api.addr_validate(&o)?),
+        _ => None,
+    };
+    OWNER.save(deps.storage, &new_owner_addr)?;
 
     let fee_total = lp_fee_percent + protocol_fee_percent;
     if fee_total > MAX_FEE {
@@ -459,7 +468,9 @@ pub fn execute_update_fees(
     };
     FEES.save(deps.storage, &updated_fees)?;
 
+    let new_owner = new_owner.unwrap_or_else(|| "".to_string());
     Ok(Response::new().add_attributes(vec![
+        attr("new_owner", new_owner),
         attr("lp_fee_percent", lp_fee_percent),
         attr("protocol_fee_percent", protocol_fee_percent),
         attr("protocol_fee_recipient", protocol_fee_recipient.to_string()),

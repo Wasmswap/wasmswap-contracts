@@ -928,7 +928,7 @@ fn swap_with_fee_split() {
 }
 
 #[test]
-fn update_fees() {
+fn update_config() {
     let mut router = mock_app();
 
     const NATIVE_TOKEN_DENOM: &str = "juno";
@@ -959,13 +959,14 @@ fn update_fees() {
         owner.to_string(),
     );
 
-    let update_fee_msg = ExecuteMsg::UpdateFees {
+    let msg = ExecuteMsg::UpdateConfig {
+        owner: Some(owner.to_string()),
         protocol_fee_recipient: "new_fee_recpient".to_string(),
         lp_fee_percent: Uint128::new(15),
         protocol_fee_percent: Uint128::new(15),
     };
     let _res = router
-        .execute_contract(owner.clone(), amm_addr.clone(), &update_fee_msg, &[])
+        .execute_contract(owner.clone(), amm_addr.clone(), &msg, &[])
         .unwrap();
 
     let info = get_info(&router, &amm_addr);
@@ -974,14 +975,15 @@ fn update_fees() {
     assert_eq!(info.lp_fee_percent, Uint128::new(15));
     assert_eq!(info.owner.unwrap(), owner.to_string());
 
-    // Try updating fees with values that are too high
-    let update_fee_msg = ExecuteMsg::UpdateFees {
+    // Try updating config with fee values that are too high
+    let msg = ExecuteMsg::UpdateConfig {
+        owner: Some(owner.to_string()),
         protocol_fee_recipient: "new_fee_recpient".to_string(),
         lp_fee_percent: Uint128::new(101),
         protocol_fee_percent: Uint128::new(0),
     };
     let err = router
-        .execute_contract(owner.clone(), amm_addr.clone(), &update_fee_msg, &[])
+        .execute_contract(owner.clone(), amm_addr.clone(), &msg, &[])
         .unwrap_err()
         .downcast()
         .unwrap();
@@ -993,23 +995,41 @@ fn update_fees() {
         err
     );
 
-    // Try updating fees with invalid owner, show throw unauthoritzed error
-    let update_fee_msg = ExecuteMsg::UpdateFees {
-        protocol_fee_recipient: "owner".to_string(),
+    // Try updating config with invalid owner, show throw unauthoritzed error
+    let msg = ExecuteMsg::UpdateConfig {
+        owner: Some(owner.to_string()),
+        protocol_fee_recipient: owner.to_string(),
         lp_fee_percent: Uint128::new(21),
         protocol_fee_percent: Uint128::new(9),
     };
     let err = router
         .execute_contract(
             Addr::unchecked("invalid_owner"),
-            amm_addr,
-            &update_fee_msg,
+            amm_addr.clone(),
+            &msg,
             &[],
         )
         .unwrap_err()
         .downcast()
         .unwrap();
     assert_eq!(ContractError::Unauthorized {}, err);
+
+    // Try updating owner and fee params
+    let msg = ExecuteMsg::UpdateConfig {
+        owner: Some("new_owner".to_string()),
+        protocol_fee_recipient: owner.to_string(),
+        lp_fee_percent: Uint128::new(21),
+        protocol_fee_percent: Uint128::new(9),
+    };
+    let _res = router
+        .execute_contract(owner.clone(), amm_addr.clone(), &msg, &[])
+        .unwrap();
+
+    let info = get_info(&router, &amm_addr);
+    assert_eq!(info.protocol_fee_recipient, owner.to_string());
+    assert_eq!(info.protocol_fee_percent, Uint128::new(9));
+    assert_eq!(info.lp_fee_percent, Uint128::new(21));
+    assert_eq!(info.owner.unwrap(), "new_owner".to_string());
 }
 
 #[test]

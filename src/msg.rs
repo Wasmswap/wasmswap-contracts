@@ -58,7 +58,8 @@ pub enum ExecuteMsg {
         min_token: Uint128,
         expiration: Option<Expiration>,
     },
-    UpdateFees {
+    UpdateConfig {
+        owner: Option<String>,
         lp_fee_percent: Uint128,
         protocol_fee_percent: Uint128,
         protocol_fee_recipient: String,
