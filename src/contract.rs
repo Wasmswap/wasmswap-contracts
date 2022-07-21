@@ -112,7 +112,6 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     // Update TWAP price
-    update_twap(deps.storage, deps.querier, &env)?;
 
     match msg {
         ExecuteMsg::AddLiquidity {
@@ -629,6 +628,14 @@ pub fn execute_swap(
     // validate input_amount if native input token
     validate_input_amount(&info.funds, input_amount, &input_token.denom)?;
 
+    update_twap(
+        deps.storage,
+        deps.querier,
+        &_env,
+        input_token_enum,
+        input_amount,
+    )?;
+
     let token_bought = get_input_price(input_amount, input_token.reserve, output_token.reserve)?;
 
     if min_token > token_bought {
@@ -793,13 +800,31 @@ pub fn query_pool_prices(
     storage: &dyn Storage,
     querier: QuerierWrapper,
     env: &Env,
+    input_token: TokenSelect,
+    amount: Uint128,
 ) -> Result<PoolPricesResponse, ContractError> {
     let token_1 = TOKEN1.load(storage)?;
     let token_2 = TOKEN2.load(storage)?;
 
-    let token_1_amount = get_pool_denom_balance(querier, env, token_1.denom)?;
-    let token_2_amount = get_pool_denom_balance(querier, env, token_2.denom)?;
+    let mut token_1_amount = get_pool_denom_balance(querier, env, token_1.denom.clone())?;
+    let mut token_2_amount = get_pool_denom_balance(querier, env, token_2.denom.clone())?;
 
+    // if native token, balance is already updated, so we need to normalize,
+    // cw20s are not transfered until after called to swap
+    match input_token {
+        TokenSelect::Token1 => match token_1.denom {
+            Denom::Cw20(_addr) => {}
+            Denom::Native(_denom) => {
+                token_1_amount -= amount;
+            }
+        },
+        TokenSelect::Token2 => match token_2.denom {
+            Denom::Cw20(_addr) => {}
+            Denom::Native(_denom) => {
+                token_2_amount -= amount;
+            }
+        },
+    }
     // Avoid division by zero
     if token_1_amount == Uint128::zero() || token_2_amount == Uint128::zero() {
         let zeros = PoolPricesResponse {
@@ -842,6 +867,8 @@ pub fn update_twap(
     storage: &mut dyn Storage,
     querier: QuerierWrapper,
     env: &Env,
+    input_token: TokenSelect,
+    amount: Uint128,
 ) -> Result<Response, ContractError> {
     let price_history = PRICE_HISTORY.load(storage)?;
 
@@ -852,7 +879,7 @@ pub fn update_twap(
         return Ok(Response::new());
     }
 
-    let prices = query_pool_prices(storage, querier, &env)?;
+    let prices = query_pool_prices(storage, querier, &env, input_token, amount)?;
 
     PRICE_HISTORY
         .update(storage, |mut history| -> Result<_, ContractError> {

@@ -1099,17 +1099,14 @@ fn test_twap_prices_and_flash_loan_attack() {
         )
         .unwrap();
 
-    let twap_prices = get_twap(&mut router, &amm_addr);
     let spot_price = get_spot_price(
         &mut router,
         &amm_addr,
         NATIVE_TOKEN_DENOM.to_string(),
         NATIVE_CASH_DENOM.to_string(),
     );
-    let price = example_protocol_twap_usage(twap_prices);
-
-    assert!(absolute_diff(avg_price, price) < Uint128::new(1_000_000));
     assert!(absolute_diff(avg_price, spot_price) < Uint128::new(1_000_000));
+
     move_price(
         &mut router,
         &owner,
