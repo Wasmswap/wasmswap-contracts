@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Decimal256, Uint128};
 
 use cw20::{Denom, Expiration};
 
@@ -70,6 +70,7 @@ pub enum QueryMsg {
     Token2ForToken1Price {
         token2_amount: Uint128,
     },
+    TwapPrices {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -90,4 +91,10 @@ pub struct Token1ForToken2PriceResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Token2ForToken1PriceResponse {
     pub token1_amount: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TwapPriceResponse {
+    pub token1_twap_price: Decimal256,
+    pub token2_twap_price: Decimal256,
 }
