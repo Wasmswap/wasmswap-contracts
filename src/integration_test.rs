@@ -1153,6 +1153,7 @@ fn test_twap_prices_and_flash_loan_attack() {
     assert!(absolute_diff(avg_price, price) < Uint128::new(1_000_000));
     assert!(absolute_diff(avg_price, spot_price) < Uint128::new(1_000_000));
 
+    // FLASH LOAN ATTACK
     move_price(
         &mut router,
         &owner,
@@ -1175,8 +1176,9 @@ fn test_twap_prices_and_flash_loan_attack() {
 
     assert!(absolute_diff(avg_price, price) < Uint128::new(1_000_000));
     assert!(absolute_diff(avg_price, spot_price) > Uint128::new(3_000_000));
-    // spot price successfully moved way past the average price
+    // spot price successfully moved way past the average price, but twap remains around avg
 
+    // FLASH LOAN ATTACK revert
     move_price(
         &mut router,
         &owner,
