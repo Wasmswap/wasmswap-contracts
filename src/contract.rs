@@ -1,6 +1,7 @@
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    MessageInfo, QuerierWrapper, Reply, Response, StdError, StdResult, Storage, SubMsg, Uint128,
+    WasmMsg,
 };
 use cw0::parse_reply_instantiate_data;
 use cw2::set_contract_version;
@@ -13,7 +14,10 @@ use crate::msg::{
     ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, Token1ForToken2PriceResponse,
     Token2ForToken1PriceResponse, TokenSelect,
 };
-use crate::state::{Token, LP_TOKEN, TOKEN1, TOKEN2};
+use crate::state::{
+    PoolPricesResponse, PriceSnapShot, Token, LP_TOKEN, PRICE_HISTORY, TOKEN1, TOKEN2,
+    TWAP_PRECISION,
+};
 
 // Version info for migration info
 pub const CONTRACT_NAME: &str = "crates.io:wasmswap";
@@ -56,12 +60,42 @@ pub fn instantiate(
             decimals: 6,
             initial_balances: vec![],
             mint: Some(MinterResponse {
-                minter: env.contract.address.into(),
+                minter: env.contract.address.clone().into(),
                 cap: None,
             }),
             marketing: None,
         })?,
     };
+
+    let prices = [
+        PriceSnapShot {
+            token1_price: Uint128::zero(),
+            token2_price: Uint128::zero(),
+            timestamp: env.block.time.seconds(),
+        },
+        PriceSnapShot {
+            token1_price: Uint128::zero(),
+            token2_price: Uint128::zero(),
+            timestamp: env.block.time.seconds(),
+        },
+        PriceSnapShot {
+            token1_price: Uint128::zero(),
+            token2_price: Uint128::zero(),
+            timestamp: env.block.time.seconds(),
+        },
+        PriceSnapShot {
+            token1_price: Uint128::zero(),
+            token2_price: Uint128::zero(),
+            timestamp: env.block.time.seconds(),
+        },
+        PriceSnapShot {
+            token1_price: Uint128::zero(),
+            token2_price: Uint128::zero(),
+            timestamp: env.block.time.seconds(),
+        },
+    ]
+    .to_vec();
+    PRICE_HISTORY.save(deps.storage, &prices)?;
 
     let reply_msg =
         SubMsg::reply_on_success(instantiate_lp_token_msg, INSTANTIATE_LP_TOKEN_REPLY_ID);
@@ -77,6 +111,8 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    // Update TWAP price
+
     match msg {
         ExecuteMsg::AddLiquidity {
             token1_amount,
@@ -320,8 +356,8 @@ fn mint_lp_tokens(
     .into())
 }
 
-fn get_token_balance(deps: Deps, contract: &Addr, addr: &Addr) -> StdResult<Uint128> {
-    let resp: cw20::BalanceResponse = deps.querier.query_wasm_smart(
+fn get_token_balance(querier: QuerierWrapper, contract: &Addr, addr: &Addr) -> StdResult<Uint128> {
+    let resp: cw20::BalanceResponse = querier.query_wasm_smart(
         contract,
         &cw20_base::msg::QueryMsg::Balance {
             address: addr.to_string(),
@@ -406,7 +442,7 @@ pub fn execute_remove_liquidity(
     check_expiration(&expiration, &env.block)?;
 
     let lp_token_addr = LP_TOKEN.load(deps.storage)?;
-    let balance = get_token_balance(deps.as_ref(), &lp_token_addr, &info.sender)?;
+    let balance = get_token_balance(deps.querier, &lp_token_addr, &info.sender)?;
     let lp_token_supply = get_lp_token_supply(deps.as_ref(), &lp_token_addr)?;
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
@@ -592,6 +628,14 @@ pub fn execute_swap(
     // validate input_amount if native input token
     validate_input_amount(&info.funds, input_amount, &input_token.denom)?;
 
+    update_twap(
+        deps.storage,
+        deps.querier,
+        &_env,
+        input_token_enum,
+        input_amount,
+    )?;
+
     let token_bought = get_input_price(input_amount, input_token.reserve, output_token.reserve)?;
 
     if min_token > token_bought {
@@ -752,6 +796,105 @@ pub fn execute_pass_through_swap(
     ]))
 }
 
+pub fn query_pool_prices(
+    storage: &dyn Storage,
+    querier: QuerierWrapper,
+    env: &Env,
+    input_token: TokenSelect,
+    amount: Uint128,
+) -> Result<PoolPricesResponse, ContractError> {
+    let token_1 = TOKEN1.load(storage)?;
+    let token_2 = TOKEN2.load(storage)?;
+
+    let mut token_1_amount = get_pool_denom_balance(querier, env, token_1.denom.clone())?;
+    let mut token_2_amount = get_pool_denom_balance(querier, env, token_2.denom.clone())?;
+
+    // if native token, balance is already updated, so we need to normalize,
+    // cw20s are not transfered until after called to swap
+    match input_token {
+        TokenSelect::Token1 => match token_1.denom {
+            Denom::Cw20(_addr) => {}
+            Denom::Native(_denom) => {
+                token_1_amount -= amount;
+            }
+        },
+        TokenSelect::Token2 => match token_2.denom {
+            Denom::Cw20(_addr) => {}
+            Denom::Native(_denom) => {
+                token_2_amount -= amount;
+            }
+        },
+    }
+    // Avoid division by zero
+    if token_1_amount == Uint128::zero() || token_2_amount == Uint128::zero() {
+        let zeros = PoolPricesResponse {
+            price1_current: Uint128::zero(),
+            price2_current: Uint128::zero(),
+        };
+        return Ok(zeros);
+    }
+
+    let token_1_price = token_2_amount.multiply_ratio(TWAP_PRECISION, token_1_amount);
+    let token_2_price = token_1_amount.multiply_ratio(TWAP_PRECISION, token_2_amount);
+
+    let prices = PoolPricesResponse {
+        price1_current: token_1_price,
+        price2_current: token_2_price,
+    };
+    Ok(prices)
+}
+
+pub fn get_pool_denom_balance(
+    querier: QuerierWrapper,
+    env: &Env,
+    asset: Denom,
+) -> Result<Uint128, ContractError> {
+    let amount: Uint128;
+    match asset {
+        Denom::Cw20(addr) => {
+            amount = get_token_balance(querier, &addr, &env.contract.address.clone())?;
+        }
+        Denom::Native(denom) => {
+            amount = querier
+                .query_balance(&env.contract.address.to_string(), denom)?
+                .amount
+        }
+    };
+    Ok(amount)
+}
+
+pub fn update_twap(
+    storage: &mut dyn Storage,
+    querier: QuerierWrapper,
+    env: &Env,
+    input_token: TokenSelect,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    let price_history = PRICE_HISTORY.load(storage)?;
+
+    let time_elapsed = env.block.time.seconds() - price_history.last().unwrap().timestamp;
+
+    if time_elapsed == 0 {
+        // Max one snapshot per block
+        return Ok(Response::new());
+    }
+
+    let prices = query_pool_prices(storage, querier, &env, input_token, amount)?;
+
+    PRICE_HISTORY
+        .update(storage, |mut history| -> Result<_, ContractError> {
+            history.push(PriceSnapShot {
+                token1_price: prices.price1_current,
+                token2_price: prices.price2_current,
+                timestamp: env.block.time.seconds(),
+            });
+            history.remove(0);
+            Ok(history)
+        })
+        .expect("Error");
+    Ok(Response::default())
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -763,7 +906,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Token2ForToken1Price { token2_amount } => {
             to_binary(&query_token2_for_token1_price(deps, token2_amount)?)
         }
+        QueryMsg::TwapPrices {} => to_binary(&query_twap(deps)?),
     }
+}
+
+pub fn query_twap(deps: Deps) -> StdResult<Vec<PriceSnapShot>> {
+    let twap_prices = PRICE_HISTORY.load(deps.storage)?;
+    Ok(twap_prices)
 }
 
 pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {

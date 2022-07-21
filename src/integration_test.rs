@@ -1,11 +1,17 @@
 #![cfg(test)]
 
-use std::borrow::BorrowMut;
+use std::{
+    borrow::BorrowMut,
+    cmp::{max, min},
+};
 
-use cosmwasm_std::{coins, Addr, Coin, Empty, Uint128};
+use cosmwasm_std::{coins, Addr, BlockInfo, Coin, Empty, Timestamp, Uint128};
 use cw0::Expiration;
 
-use crate::error::ContractError;
+use crate::{
+    error::ContractError,
+    state::{PriceSnapShot, TWAP_PRECISION},
+};
 use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg, Denom};
 use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
@@ -48,6 +54,25 @@ fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom:
     let msg = InstantiateMsg {
         token1_denom: Denom::Native(native_denom),
         token2_denom: Denom::Cw20(cash.addr()),
+        lp_token_code_id: cw20_id,
+    };
+    router
+        .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)
+        .unwrap()
+}
+
+fn create_native_amm(
+    router: &mut App,
+    owner: &Addr,
+    cash_denom: String,
+    native_denom: String,
+) -> Addr {
+    // set up amm contract
+    let cw20_id = router.store_code(contract_cw20());
+    let amm_id = router.store_code(contract_amm());
+    let msg = InstantiateMsg {
+        token1_denom: Denom::Native(native_denom),
+        token2_denom: Denom::Native(cash_denom),
         lp_token_code_id: cw20_id,
     };
     router
@@ -115,14 +140,18 @@ fn test_instantiate() {
     assert_ne!(cw20_token.addr(), amm_addr);
 
     let info = get_info(&router, &amm_addr);
-    assert_eq!(info.lp_token_address, "Contract #2".to_string())
+    assert_eq!(info.lp_token_address, "Contract #2".to_string());
 }
 
 #[test]
 // receive cw20 tokens and release upon approval
 fn amm_add_and_remove_liquidity() {
     let mut router = mock_app();
-
+    router.set_block(BlockInfo {
+        height: 1,
+        time: Timestamp::from_seconds(1_000_000),
+        chain_id: "mock".into(),
+    });
     const NATIVE_TOKEN_DENOM: &str = "juno";
 
     let owner = Addr::unchecked("owner");
@@ -993,4 +1022,287 @@ fn token_to_token_swap() {
     let token2_balance = token2.balance(&router, amm2.clone()).unwrap();
     assert_eq!(info_amm2.token2_reserve, token2_balance);
     assert_eq!(info_amm2.token1_reserve, amm2_native_balance.amount);
+}
+
+#[test]
+// Assume you have a price oracle, and the price is around 20000000 (20.0),
+// and the price is stable for the many blocks / minutes.
+// Someone tries to attack the oracle by sending one short high value transaction
+// Such that the price spikes to 24.0,
+// The twap will move only slighly for a short time, but the price not be changed all that much.
+fn test_twap_prices_and_flash_loan_attack() {
+    let mut router = mock_app();
+    router.set_block(BlockInfo {
+        height: 1,
+        time: Timestamp::from_seconds(1_000_000),
+        chain_id: "mock".into(),
+    });
+    const NATIVE_TOKEN_DENOM: &str = "juno";
+    const NATIVE_CASH_DENOM: &str = "usdc";
+
+    let avg_price = Uint128::new(20_000_000);
+    let owner = Addr::unchecked("owner");
+
+    let funds: Vec<Coin> = [
+        Coin {
+            denom: NATIVE_CASH_DENOM.to_string(),
+            amount: Uint128::new(1000000000),
+        },
+        Coin {
+            denom: NATIVE_TOKEN_DENOM.to_string(),
+            amount: Uint128::new(2000000000),
+        },
+    ]
+    .to_vec();
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router
+            .bank
+            .init_balance(storage, &owner, funds.to_vec())
+            .unwrap()
+    });
+
+    let amm_addr = create_native_amm(
+        &mut router,
+        &owner,
+        NATIVE_CASH_DENOM.into(),
+        NATIVE_TOKEN_DENOM.into(),
+    );
+
+    router.set_block(BlockInfo {
+        height: 2,
+        time: Timestamp::from_seconds(2_000_000),
+        chain_id: "mock".into(),
+    });
+
+    let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128::new(500000),
+        min_liquidity: Uint128::new(0),
+        max_token2: Uint128::new(10000000),
+        expiration: None,
+    };
+
+    let _res = router
+        .execute_contract(
+            owner.clone(),
+            amm_addr.clone(),
+            &add_liquidity_msg,
+            &[
+                Coin {
+                    denom: NATIVE_TOKEN_DENOM.into(),
+                    amount: Uint128::new(500000),
+                },
+                Coin {
+                    denom: NATIVE_CASH_DENOM.into(),
+                    amount: Uint128::new(10000000),
+                },
+            ],
+        )
+        .unwrap();
+
+    let spot_price = get_spot_price(
+        &mut router,
+        &amm_addr,
+        NATIVE_TOKEN_DENOM.to_string(),
+        NATIVE_CASH_DENOM.to_string(),
+    );
+    assert!(absolute_diff(avg_price, spot_price) < Uint128::new(1_000_000));
+
+    move_price(
+        &mut router,
+        &owner,
+        &amm_addr,
+        NATIVE_CASH_DENOM.to_string(),
+        TokenSelect::Token2,
+        Uint128::new(5_000),
+        3,
+        Timestamp::from_seconds(3_000_000),
+    );
+
+    let twap_prices = get_twap(&mut router, &amm_addr);
+    let spot_price = get_spot_price(
+        &mut router,
+        &amm_addr,
+        NATIVE_TOKEN_DENOM.to_string(),
+        NATIVE_CASH_DENOM.to_string(),
+    );
+    let price = example_protocol_twap_usage(twap_prices);
+
+    assert!(absolute_diff(avg_price, price) < Uint128::new(1_000_000));
+    assert!(absolute_diff(avg_price, spot_price) < Uint128::new(1_000_000));
+
+    move_price(
+        &mut router,
+        &owner,
+        &amm_addr,
+        NATIVE_CASH_DENOM.into(),
+        TokenSelect::Token2,
+        Uint128::new(5_000),
+        4,
+        Timestamp::from_seconds(4_000_000),
+    );
+
+    let twap_prices = get_twap(&mut router, &amm_addr);
+    let spot_price = get_spot_price(
+        &mut router,
+        &amm_addr,
+        NATIVE_TOKEN_DENOM.to_string(),
+        NATIVE_CASH_DENOM.to_string(),
+    );
+    let price = example_protocol_twap_usage(twap_prices);
+
+    assert!(absolute_diff(avg_price, price) < Uint128::new(1_000_000));
+    assert!(absolute_diff(avg_price, spot_price) < Uint128::new(1_000_000));
+
+    // FLASH LOAN ATTACK
+    move_price(
+        &mut router,
+        &owner,
+        &amm_addr,
+        NATIVE_CASH_DENOM.into(),
+        TokenSelect::Token2,
+        Uint128::new(1_000_000),
+        5,
+        Timestamp::from_seconds(5_000_000),
+    );
+
+    let twap_prices = get_twap(&mut router, &amm_addr);
+    let spot_price = get_spot_price(
+        &mut router,
+        &amm_addr,
+        NATIVE_TOKEN_DENOM.to_string(),
+        NATIVE_CASH_DENOM.to_string(),
+    );
+    let price = example_protocol_twap_usage(twap_prices);
+
+    assert!(absolute_diff(avg_price, price) < Uint128::new(1_000_000));
+    assert!(absolute_diff(avg_price, spot_price) > Uint128::new(3_000_000));
+    // spot price successfully moved way past the average price, but twap remains around avg
+
+    // FLASH LOAN ATTACK revert
+    move_price(
+        &mut router,
+        &owner,
+        &amm_addr,
+        NATIVE_TOKEN_DENOM.to_string(),
+        TokenSelect::Token1,
+        Uint128::new(40_000),
+        6,
+        Timestamp::from_seconds(5_050_000),
+    );
+
+    let twap_prices = get_twap(&mut router, &amm_addr);
+    let spot_price = get_spot_price(
+        &mut router,
+        &amm_addr,
+        NATIVE_TOKEN_DENOM.to_string(),
+        NATIVE_CASH_DENOM.to_string(),
+    );
+    let price = example_protocol_twap_usage(twap_prices);
+
+    assert!(absolute_diff(avg_price, price) < Uint128::new(1_000_000));
+    assert!(absolute_diff(avg_price, spot_price) < Uint128::new(1_000_000));
+
+    move_price(
+        &mut router,
+        &owner,
+        &amm_addr,
+        NATIVE_TOKEN_DENOM.to_string(),
+        TokenSelect::Token1,
+        Uint128::new(1_000),
+        7,
+        Timestamp::from_seconds(6_000_000),
+    );
+
+    let twap_prices = get_twap(&mut router, &amm_addr);
+    let spot_price = get_spot_price(
+        &mut router,
+        &amm_addr,
+        NATIVE_TOKEN_DENOM.to_string(),
+        NATIVE_CASH_DENOM.to_string(),
+    );
+    let price = example_protocol_twap_usage(twap_prices);
+
+    assert!(absolute_diff(avg_price, price) < Uint128::new(1_000_000));
+    assert!(absolute_diff(avg_price, spot_price) < Uint128::new(1_000_000));
+}
+
+fn get_spot_price(
+    router: &mut App,
+    amm_addr: &Addr,
+    denom: String,
+    mock_usdc_denom: String,
+) -> Uint128 {
+    let juno_balance = bank_balance(router, &amm_addr, denom.to_string()).amount;
+    let usdc_balance = bank_balance(router, &amm_addr, mock_usdc_denom.to_string()).amount;
+
+    return usdc_balance.multiply_ratio(TWAP_PRECISION, juno_balance);
+}
+
+fn get_twap(router: &App, contract_addr: &Addr) -> Vec<PriceSnapShot> {
+    router
+        .wrap()
+        .query_wasm_smart(contract_addr, &QueryMsg::TwapPrices {})
+        .unwrap()
+}
+
+fn example_protocol_twap_usage(prices: Vec<PriceSnapShot>) -> Uint128 {
+    let mut rolling_avg = Uint128::zero();
+    let mut total_time_delta = Uint128::zero();
+    for index in 0..prices.len() - 1 {
+        let price = &prices[index + 1];
+        let prev_price = &prices[index];
+
+        let time_diff = Uint128::from(price.timestamp - prev_price.timestamp);
+        let cumulative_price = price.token1_price.saturating_mul(time_diff);
+
+        rolling_avg += cumulative_price;
+
+        total_time_delta += time_diff;
+    }
+
+    if total_time_delta.is_zero() {
+        return Uint128::zero();
+    }
+    return rolling_avg.checked_div(total_time_delta).unwrap();
+}
+
+fn move_price(
+    router: &mut App,
+    owner: &Addr,
+    amm_addr: &Addr,
+    denom: String,
+    token: TokenSelect,
+    amount: Uint128,
+    height: u64,
+    time: Timestamp,
+) {
+    router.set_block(BlockInfo {
+        height: height,
+        time: time,
+        chain_id: "mock".into(),
+    });
+
+    let swap_msg = ExecuteMsg::Swap {
+        input_token: token,
+        input_amount: amount,
+        min_output: Uint128::new(0),
+        expiration: None,
+    };
+
+    let _res = router
+        .execute_contract(
+            owner.clone(),
+            amm_addr.clone(),
+            &swap_msg,
+            &[Coin {
+                denom: denom.into(),
+                amount: amount,
+            }],
+        )
+        .unwrap();
+}
+
+fn absolute_diff(a: Uint128, b: Uint128) -> Uint128 {
+    let diff = max(a, b).checked_sub(min(a, b)).unwrap();
+    return diff;
 }
