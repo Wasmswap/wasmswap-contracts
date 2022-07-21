@@ -1,7 +1,7 @@
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Decimal256, Deps,
-    DepsMut, Env, MessageInfo, QuerierWrapper, Reply, Response, StdError, StdResult, Storage,
-    SubMsg, Uint128, Uint256, WasmMsg,
+    attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, QuerierWrapper, Reply, Response, StdError, StdResult, Storage, SubMsg, Uint128,
+    WasmMsg,
 };
 use cw0::parse_reply_instantiate_data;
 use cw2::set_contract_version;
@@ -12,10 +12,10 @@ use cw20_base::contract::query_balance;
 use crate::error::ContractError;
 use crate::msg::{
     ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, Token1ForToken2PriceResponse,
-    Token2ForToken1PriceResponse, TokenSelect, TwapPriceResponse,
+    Token2ForToken1PriceResponse, TokenSelect,
 };
 use crate::state::{
-    PoolPricesResponse, PriceCumulativeLast, Token, LP_TOKEN, PRICE_LAST, TOKEN1, TOKEN2,
+    PoolPricesResponse, PriceSnapShot, Token, LP_TOKEN, PRICE_HISTORY, TOKEN1, TOKEN2,
     TWAP_PRECISION,
 };
 
@@ -67,15 +67,35 @@ pub fn instantiate(
         })?,
     };
 
-    // No funds when initialized, prices are set to 0
-    let price = PriceCumulativeLast {
-        price0_cumulative_last: Uint128::zero(),
-        price1_cumulative_last: Uint128::zero(),
-        price_0_average: Decimal256::zero(),
-        price_1_average: Decimal256::zero(),
-        block_timestamp_last: env.block.time.seconds(),
-    };
-    PRICE_LAST.save(deps.storage, &price)?;
+    let prices = [
+        PriceSnapShot {
+            token1_price: Uint128::zero(),
+            token2_price: Uint128::zero(),
+            timestamp: env.block.time.seconds(),
+        },
+        PriceSnapShot {
+            token1_price: Uint128::zero(),
+            token2_price: Uint128::zero(),
+            timestamp: env.block.time.seconds(),
+        },
+        PriceSnapShot {
+            token1_price: Uint128::zero(),
+            token2_price: Uint128::zero(),
+            timestamp: env.block.time.seconds(),
+        },
+        PriceSnapShot {
+            token1_price: Uint128::zero(),
+            token2_price: Uint128::zero(),
+            timestamp: env.block.time.seconds(),
+        },
+        PriceSnapShot {
+            token1_price: Uint128::zero(),
+            token2_price: Uint128::zero(),
+            timestamp: env.block.time.seconds(),
+        },
+    ]
+    .to_vec();
+    PRICE_HISTORY.save(deps.storage, &prices)?;
 
     let reply_msg =
         SubMsg::reply_on_success(instantiate_lp_token_msg, INSTANTIATE_LP_TOKEN_REPLY_ID);
@@ -780,20 +800,21 @@ pub fn query_pool_prices(
     let token_1_amount = get_pool_denom_balance(querier, env, token_1.denom)?;
     let token_2_amount = get_pool_denom_balance(querier, env, token_2.denom)?;
 
+    // Avoid division by zero
     if token_1_amount == Uint128::zero() || token_2_amount == Uint128::zero() {
         let zeros = PoolPricesResponse {
-            price0_current: Uint128::zero(),
             price1_current: Uint128::zero(),
+            price2_current: Uint128::zero(),
         };
         return Ok(zeros);
     }
 
-    let token_1_price = token_1_amount.multiply_ratio(TWAP_PRECISION, token_2_amount);
-    let token_2_price = token_2_amount.multiply_ratio(TWAP_PRECISION, token_1_amount);
+    let token_1_price = token_2_amount.multiply_ratio(TWAP_PRECISION, token_1_amount);
+    let token_2_price = token_1_amount.multiply_ratio(TWAP_PRECISION, token_2_amount);
 
     let prices = PoolPricesResponse {
-        price0_current: token_1_price,
-        price1_current: token_2_price,
+        price1_current: token_1_price,
+        price2_current: token_2_price,
     };
     Ok(prices)
 }
@@ -817,67 +838,35 @@ pub fn get_pool_denom_balance(
     Ok(amount)
 }
 
-/// ## Description
-/// Updates the local TWAP values for the tokens in the target Astroport pool.
-/// Returns a default object of type [`Response`] if the operation was successful,
-/// otherwise returns a [`ContractError`].
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
 pub fn update_twap(
     storage: &mut dyn Storage,
     querier: QuerierWrapper,
     env: &Env,
 ) -> Result<Response, ContractError> {
-    let price_last = PRICE_LAST.load(storage)?;
+    let price_history = PRICE_HISTORY.load(storage)?;
 
-    let time_elapsed = env.block.time.seconds() - price_last.block_timestamp_last;
+    let time_elapsed = env.block.time.seconds() - price_history.last().unwrap().timestamp;
 
     if time_elapsed == 0 {
-        // Don't freak out if many swaps are on the same block (first swap updates the price)
+        // Max one snapshot per block
         return Ok(Response::new());
     }
 
     let prices = query_pool_prices(storage, querier, &env)?;
-    let price0_cumulative_last = prices
-        .price0_current
-        .saturating_mul(Uint128::from(time_elapsed));
 
-    let price1_cumulative_last = prices
-        .price1_current
-        .saturating_mul(Uint128::from(time_elapsed));
-
-    let price_0_average = Decimal256::from_ratio(
-        Uint256::from(price0_cumulative_last.wrapping_sub(price_last.price0_cumulative_last)),
-        time_elapsed,
-    );
-
-    let price_1_average = Decimal256::from_ratio(
-        Uint256::from(price1_cumulative_last.wrapping_sub(price_last.price1_cumulative_last)),
-        time_elapsed,
-    );
-
-    let prices = PriceCumulativeLast {
-        price0_cumulative_last: price0_cumulative_last,
-        price1_cumulative_last: price1_cumulative_last,
-        price_0_average,
-        price_1_average,
-        block_timestamp_last: env.block.time.seconds(),
-    };
-    PRICE_LAST.save(storage, &prices)?;
+    PRICE_HISTORY
+        .update(storage, |mut history| -> Result<_, ContractError> {
+            history.push(PriceSnapShot {
+                token1_price: prices.price1_current,
+                token2_price: prices.price2_current,
+                timestamp: env.block.time.seconds(),
+            });
+            history.remove(0);
+            Ok(history)
+        })
+        .expect("Error");
     Ok(Response::default())
 }
-
-/// ## Description
-/// Multiplies a token amount by its latest TWAP value and returns the result as a [`Uint256`] if the operation was successful
-/// or returns [`StdError`] on failure.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **token** is an object of type [`AssetInfo`]. This is the token for which we multiply its TWAP value by an amount.
-///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of tokens we multiply the TWAP by.
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -894,12 +883,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub fn query_twap(deps: Deps) -> StdResult<TwapPriceResponse> {
-    let twap_prices = PRICE_LAST.load(deps.storage)?;
-    Ok(TwapPriceResponse {
-        token1_twap_price: twap_prices.price_0_average,
-        token2_twap_price: twap_prices.price_1_average,
-    })
+pub fn query_twap(deps: Deps) -> StdResult<Vec<PriceSnapShot>> {
+    let twap_prices = PRICE_HISTORY.load(deps.storage)?;
+    Ok(twap_prices)
 }
 
 pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {

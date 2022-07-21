@@ -1,5 +1,4 @@
 import * as fs from "fs";
-import BN from "bn.js";
 
 import { SigningCosmWasmClient } from "@cosmjs/cosmwasm-stargate";
 
@@ -77,9 +76,7 @@ function sleep(milliseconds: number) {
   console.log("sleeping");
   const date = Date.now();
   let currentDate = null;
-  // do {
-  //   currentDate = Date.now();
-  // } while (currentDate - date < milliseconds);
+
   console.log("awake");
 }
 

@@ -1,11 +1,17 @@
 #![cfg(test)]
 
-use std::borrow::BorrowMut;
+use std::{
+    borrow::BorrowMut,
+    cmp::{max, min},
+};
 
-use cosmwasm_std::{coins, Addr, BlockInfo, Coin, Decimal256, Empty, Timestamp, Uint128};
+use cosmwasm_std::{coins, Addr, BlockInfo, Coin, Empty, Timestamp, Uint128};
 use cw0::Expiration;
 
-use crate::{error::ContractError, msg::TwapPriceResponse};
+use crate::{
+    error::ContractError,
+    state::{PriceSnapShot, TWAP_PRECISION},
+};
 use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg, Denom};
 use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
@@ -41,13 +47,6 @@ fn get_info(router: &App, contract_addr: &Addr) -> InfoResponse {
         .unwrap()
 }
 
-fn get_twap(router: &App, contract_addr: &Addr) -> TwapPriceResponse {
-    router
-        .wrap()
-        .query_wasm_smart(contract_addr, &QueryMsg::TwapPrices {})
-        .unwrap()
-}
-
 fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom: String) -> Addr {
     // set up amm contract
     let cw20_id = router.store_code(contract_cw20());
@@ -55,6 +54,25 @@ fn create_amm(router: &mut App, owner: &Addr, cash: &Cw20Contract, native_denom:
     let msg = InstantiateMsg {
         token1_denom: Denom::Native(native_denom),
         token2_denom: Denom::Cw20(cash.addr()),
+        lp_token_code_id: cw20_id,
+    };
+    router
+        .instantiate_contract(amm_id, owner.clone(), &msg, &[], "amm", None)
+        .unwrap()
+}
+
+fn create_native_amm(
+    router: &mut App,
+    owner: &Addr,
+    cash_denom: String,
+    native_denom: String,
+) -> Addr {
+    // set up amm contract
+    let cw20_id = router.store_code(contract_cw20());
+    let amm_id = router.store_code(contract_amm());
+    let msg = InstantiateMsg {
+        token1_denom: Denom::Native(native_denom),
+        token2_denom: Denom::Native(cash_denom),
         lp_token_code_id: cw20_id,
     };
     router
@@ -123,15 +141,6 @@ fn test_instantiate() {
 
     let info = get_info(&router, &amm_addr);
     assert_eq!(info.lp_token_address, "Contract #2".to_string());
-
-    let twap_price = get_twap(&router, &amm_addr);
-    assert_eq!(
-        twap_price,
-        TwapPriceResponse {
-            token1_twap_price: Decimal256::zero(),
-            token2_twap_price: Decimal256::zero(),
-        }
-    )
 }
 
 #[test]
@@ -1016,8 +1025,12 @@ fn token_to_token_swap() {
 }
 
 #[test]
-// receive cw20 tokens and release upon approval
-fn test_twap_prices() {
+// Assume you have a price oracle, and the price is around 20000000 (20.0),
+// and the price is stable for the many blocks / minutes.
+// Someone tries to attack the oracle by sending one short high value transaction
+// Such that the price spikes to 24.0,
+// The twap will move only slighly for a short time, but the price not be changed all that much.
+fn test_twap_prices_and_flash_loan_attack() {
     let mut router = mock_app();
     router.set_block(BlockInfo {
         height: 1,
@@ -1025,331 +1038,272 @@ fn test_twap_prices() {
         chain_id: "mock".into(),
     });
     const NATIVE_TOKEN_DENOM: &str = "juno";
+    const NATIVE_CASH_DENOM: &str = "usdc";
 
+    let avg_price = Uint128::new(20_000_000);
     let owner = Addr::unchecked("owner");
-    let funds = coins(2000, NATIVE_TOKEN_DENOM);
+
+    let funds: Vec<Coin> = [
+        Coin {
+            denom: NATIVE_CASH_DENOM.to_string(),
+            amount: Uint128::new(1000000000),
+        },
+        Coin {
+            denom: NATIVE_TOKEN_DENOM.to_string(),
+            amount: Uint128::new(2000000000),
+        },
+    ]
+    .to_vec();
     router.borrow_mut().init_modules(|router, _, storage| {
-        router.bank.init_balance(storage, &owner, funds).unwrap()
+        router
+            .bank
+            .init_balance(storage, &owner, funds.to_vec())
+            .unwrap()
     });
 
-    let cw20_token = create_cw20(
+    let amm_addr = create_native_amm(
         &mut router,
         &owner,
-        "token".to_string(),
-        "CWTOKEN".to_string(),
-        Uint128::new(5000),
+        NATIVE_CASH_DENOM.into(),
+        NATIVE_TOKEN_DENOM.into(),
     );
-
-    let amm_addr = create_amm(&mut router, &owner, &cw20_token, NATIVE_TOKEN_DENOM.into());
-
-    assert_ne!(cw20_token.addr(), amm_addr);
-
-    let info = get_info(&router, &amm_addr);
-    // set up cw20 helpers
-    let lp_token = Cw20Contract(Addr::unchecked(info.lp_token_address));
-
-    // check initial balances
-    let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(owner_balance, Uint128::new(5000));
-
-    // send tokens to contract address
-    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: amm_addr.to_string(),
-        amount: Uint128::new(100u128),
-        expires: None,
-    };
-    let _res = router
-        .execute_contract(owner.clone(), cw20_token.addr(), &allowance_msg, &[])
-        .unwrap();
-
-    let add_liquidity_msg = ExecuteMsg::AddLiquidity {
-        token1_amount: Uint128::new(100),
-        min_liquidity: Uint128::new(100),
-        max_token2: Uint128::new(100),
-        expiration: None,
-    };
-
-    let _res = router
-        .execute_contract(
-            owner.clone(),
-            amm_addr.clone(),
-            &add_liquidity_msg,
-            &[Coin {
-                denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128::new(100),
-            }],
-        )
-        .unwrap();
-
-    // ensure balances updated
-    let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(owner_balance, Uint128::new(4900));
-    let amm_balance = cw20_token.balance(&router, amm_addr.clone()).unwrap();
-    assert_eq!(amm_balance, Uint128::new(100));
-    let crust_balance = lp_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(crust_balance, Uint128::new(100));
-
-    println!("{:?}", get_twap(&router, &amm_addr));
 
     router.set_block(BlockInfo {
         height: 2,
         time: Timestamp::from_seconds(2_000_000),
         chain_id: "mock".into(),
     });
-    // send tokens to contract address
-    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: amm_addr.to_string(),
-        amount: Uint128::new(51u128),
-        expires: None,
-    };
-    let _res = router
-        .execute_contract(owner.clone(), cw20_token.addr(), &allowance_msg, &[])
-        .unwrap();
 
     let add_liquidity_msg = ExecuteMsg::AddLiquidity {
-        token1_amount: Uint128::new(50),
-        min_liquidity: Uint128::new(50),
-        max_token2: Uint128::new(51),
+        token1_amount: Uint128::new(500000),
+        min_liquidity: Uint128::new(0),
+        max_token2: Uint128::new(10000000),
         expiration: None,
     };
+
     let _res = router
         .execute_contract(
             owner.clone(),
             amm_addr.clone(),
             &add_liquidity_msg,
-            &[Coin {
-                denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128::new(50),
-            }],
+            &[
+                Coin {
+                    denom: NATIVE_TOKEN_DENOM.into(),
+                    amount: Uint128::new(500000),
+                },
+                Coin {
+                    denom: NATIVE_CASH_DENOM.into(),
+                    amount: Uint128::new(10000000),
+                },
+            ],
         )
         .unwrap();
 
-    // ensure balances updated
-    let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(owner_balance, Uint128::new(4849));
-    let amm_balance = cw20_token.balance(&router, amm_addr.clone()).unwrap();
-    assert_eq!(amm_balance, Uint128::new(151));
-    let crust_balance = lp_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(crust_balance, Uint128::new(150));
+    let twap_prices = get_twap(&mut router, &amm_addr);
+    let spot_price = get_spot_price(
+        &mut router,
+        &amm_addr,
+        NATIVE_TOKEN_DENOM.to_string(),
+        NATIVE_CASH_DENOM.to_string(),
+    );
+    let price = example_protocol_twap_usage(twap_prices);
 
-    println!("{:?}", get_twap(&router, &amm_addr));
+    assert!(absolute_diff(avg_price, price) < Uint128::new(1_000_000));
+    assert!(absolute_diff(avg_price, spot_price) < Uint128::new(1_000_000));
+    move_price(
+        &mut router,
+        &owner,
+        &amm_addr,
+        NATIVE_CASH_DENOM.to_string(),
+        TokenSelect::Token2,
+        Uint128::new(5_000),
+        3,
+        Timestamp::from_seconds(3_000_000),
+    );
 
+    let twap_prices = get_twap(&mut router, &amm_addr);
+    let spot_price = get_spot_price(
+        &mut router,
+        &amm_addr,
+        NATIVE_TOKEN_DENOM.to_string(),
+        NATIVE_CASH_DENOM.to_string(),
+    );
+    let price = example_protocol_twap_usage(twap_prices);
+
+    assert!(absolute_diff(avg_price, price) < Uint128::new(1_000_000));
+    assert!(absolute_diff(avg_price, spot_price) < Uint128::new(1_000_000));
+
+    move_price(
+        &mut router,
+        &owner,
+        &amm_addr,
+        NATIVE_CASH_DENOM.into(),
+        TokenSelect::Token2,
+        Uint128::new(5_000),
+        4,
+        Timestamp::from_seconds(4_000_000),
+    );
+
+    let twap_prices = get_twap(&mut router, &amm_addr);
+    let spot_price = get_spot_price(
+        &mut router,
+        &amm_addr,
+        NATIVE_TOKEN_DENOM.to_string(),
+        NATIVE_CASH_DENOM.to_string(),
+    );
+    let price = example_protocol_twap_usage(twap_prices);
+
+    assert!(absolute_diff(avg_price, price) < Uint128::new(1_000_000));
+    assert!(absolute_diff(avg_price, spot_price) < Uint128::new(1_000_000));
+
+    move_price(
+        &mut router,
+        &owner,
+        &amm_addr,
+        NATIVE_CASH_DENOM.into(),
+        TokenSelect::Token2,
+        Uint128::new(1_000_000),
+        5,
+        Timestamp::from_seconds(5_000_000),
+    );
+
+    let twap_prices = get_twap(&mut router, &amm_addr);
+    let spot_price = get_spot_price(
+        &mut router,
+        &amm_addr,
+        NATIVE_TOKEN_DENOM.to_string(),
+        NATIVE_CASH_DENOM.to_string(),
+    );
+    let price = example_protocol_twap_usage(twap_prices);
+
+    assert!(absolute_diff(avg_price, price) < Uint128::new(1_000_000));
+    assert!(absolute_diff(avg_price, spot_price) > Uint128::new(3_000_000));
+    // spot price successfully moved way past the average price
+
+    move_price(
+        &mut router,
+        &owner,
+        &amm_addr,
+        NATIVE_TOKEN_DENOM.to_string(),
+        TokenSelect::Token1,
+        Uint128::new(40_000),
+        6,
+        Timestamp::from_seconds(5_050_000),
+    );
+
+    let twap_prices = get_twap(&mut router, &amm_addr);
+    let spot_price = get_spot_price(
+        &mut router,
+        &amm_addr,
+        NATIVE_TOKEN_DENOM.to_string(),
+        NATIVE_CASH_DENOM.to_string(),
+    );
+    let price = example_protocol_twap_usage(twap_prices);
+
+    assert!(absolute_diff(avg_price, price) < Uint128::new(1_000_000));
+    assert!(absolute_diff(avg_price, spot_price) < Uint128::new(1_000_000));
+
+    move_price(
+        &mut router,
+        &owner,
+        &amm_addr,
+        NATIVE_TOKEN_DENOM.to_string(),
+        TokenSelect::Token1,
+        Uint128::new(1_000),
+        7,
+        Timestamp::from_seconds(6_000_000),
+    );
+
+    let twap_prices = get_twap(&mut router, &amm_addr);
+    let spot_price = get_spot_price(
+        &mut router,
+        &amm_addr,
+        NATIVE_TOKEN_DENOM.to_string(),
+        NATIVE_CASH_DENOM.to_string(),
+    );
+    let price = example_protocol_twap_usage(twap_prices);
+
+    assert!(absolute_diff(avg_price, price) < Uint128::new(1_000_000));
+    assert!(absolute_diff(avg_price, spot_price) < Uint128::new(1_000_000));
+}
+
+fn get_spot_price(
+    router: &mut App,
+    amm_addr: &Addr,
+    denom: String,
+    mock_usdc_denom: String,
+) -> Uint128 {
+    let juno_balance = bank_balance(router, &amm_addr, denom.to_string()).amount;
+    let usdc_balance = bank_balance(router, &amm_addr, mock_usdc_denom.to_string()).amount;
+
+    return usdc_balance.multiply_ratio(TWAP_PRECISION, juno_balance);
+}
+
+fn get_twap(router: &App, contract_addr: &Addr) -> Vec<PriceSnapShot> {
+    router
+        .wrap()
+        .query_wasm_smart(contract_addr, &QueryMsg::TwapPrices {})
+        .unwrap()
+}
+
+fn example_protocol_twap_usage(prices: Vec<PriceSnapShot>) -> Uint128 {
+    let mut rolling_avg = Uint128::zero();
+    let mut total_time_delta = Uint128::zero();
+    for index in 0..prices.len() - 1 {
+        let price = &prices[index + 1];
+        let prev_price = &prices[index];
+
+        let time_diff = Uint128::from(price.timestamp - prev_price.timestamp);
+        let cumulative_price = price.token1_price.saturating_mul(time_diff);
+
+        rolling_avg += cumulative_price;
+
+        total_time_delta += time_diff;
+    }
+
+    if total_time_delta.is_zero() {
+        return Uint128::zero();
+    }
+    return rolling_avg.checked_div(total_time_delta).unwrap();
+}
+
+fn move_price(
+    router: &mut App,
+    owner: &Addr,
+    amm_addr: &Addr,
+    denom: String,
+    token: TokenSelect,
+    amount: Uint128,
+    height: u64,
+    time: Timestamp,
+) {
     router.set_block(BlockInfo {
-        height: 2,
-        time: Timestamp::from_seconds(3_000_000),
+        height: height,
+        time: time,
         chain_id: "mock".into(),
     });
 
-    // too low max token error
-    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: amm_addr.to_string(),
-        amount: Uint128::new(51u128),
-        expires: None,
-    };
-    let _res = router
-        .execute_contract(owner.clone(), cw20_token.addr(), &allowance_msg, &[])
-        .unwrap();
-
-    let add_liquidity_msg = ExecuteMsg::AddLiquidity {
-        token1_amount: Uint128::new(50),
-        min_liquidity: Uint128::new(50),
-        max_token2: Uint128::new(45),
+    let swap_msg = ExecuteMsg::Swap {
+        input_token: token,
+        input_amount: amount,
+        min_output: Uint128::new(0),
         expiration: None,
     };
-    let err = router
-        .execute_contract(
-            owner.clone(),
-            amm_addr.clone(),
-            &add_liquidity_msg,
-            &[Coin {
-                denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128::new(50),
-            }],
-        )
-        .unwrap_err();
 
-    assert_eq!(
-        ContractError::MaxTokenError {
-            max_token: Uint128::new(45),
-            tokens_required: Uint128::new(51)
-        },
-        err.downcast().unwrap()
-    );
-
-    // too high min liquidity
-    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: amm_addr.to_string(),
-        amount: Uint128::new(51u128),
-        expires: None,
-    };
-    let _res = router
-        .execute_contract(owner.clone(), cw20_token.addr(), &allowance_msg, &[])
-        .unwrap();
-
-    let add_liquidity_msg = ExecuteMsg::AddLiquidity {
-        token1_amount: Uint128::new(50),
-        min_liquidity: Uint128::new(500),
-        max_token2: Uint128::new(50),
-        expiration: None,
-    };
-    let err = router
-        .execute_contract(
-            owner.clone(),
-            amm_addr.clone(),
-            &add_liquidity_msg,
-            &[Coin {
-                denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128::new(50),
-            }],
-        )
-        .unwrap_err();
-
-    assert_eq!(
-        ContractError::MinLiquidityError {
-            min_liquidity: Uint128::new(500),
-            liquidity_available: Uint128::new(50)
-        },
-        err.downcast().unwrap()
-    );
-
-    // Expired message
-    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: amm_addr.to_string(),
-        amount: Uint128::new(51u128),
-        expires: None,
-    };
-    let _res = router
-        .execute_contract(owner.clone(), cw20_token.addr(), &allowance_msg, &[])
-        .unwrap();
-
-    let add_liquidity_msg = ExecuteMsg::AddLiquidity {
-        token1_amount: Uint128::new(50),
-        min_liquidity: Uint128::new(50),
-        max_token2: Uint128::new(50),
-        expiration: Some(Expiration::AtHeight(0)),
-    };
-    let err = router
-        .execute_contract(
-            owner.clone(),
-            amm_addr.clone(),
-            &add_liquidity_msg,
-            &[Coin {
-                denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128::new(50),
-            }],
-        )
-        .unwrap_err();
-
-    assert_eq!(
-        ContractError::MsgExpirationError {},
-        err.downcast().unwrap()
-    );
-
-    // Remove more liquidity then owned
-    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: amm_addr.to_string(),
-        amount: Uint128::new(50u128),
-        expires: None,
-    };
-    let _res = router
-        .execute_contract(owner.clone(), lp_token.addr(), &allowance_msg, &[])
-        .unwrap();
-
-    let remove_liquidity_msg = ExecuteMsg::RemoveLiquidity {
-        amount: Uint128::new(151),
-        min_token1: Uint128::new(0),
-        min_token2: Uint128::new(0),
-        expiration: None,
-    };
-    let err = router
-        .execute_contract(
-            owner.clone(),
-            amm_addr.clone(),
-            &remove_liquidity_msg,
-            &[Coin {
-                denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128::new(50),
-            }],
-        )
-        .unwrap_err();
-
-    assert_eq!(
-        ContractError::InsufficientLiquidityError {
-            requested: Uint128::new(151),
-            available: Uint128::new(150)
-        },
-        err.downcast().unwrap()
-    );
-
-    // Remove some liquidity
-    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: amm_addr.to_string(),
-        amount: Uint128::new(50u128),
-        expires: None,
-    };
-    let _res = router
-        .execute_contract(owner.clone(), lp_token.addr(), &allowance_msg, &[])
-        .unwrap();
-
-    let remove_liquidity_msg = ExecuteMsg::RemoveLiquidity {
-        amount: Uint128::new(50),
-        min_token1: Uint128::new(50),
-        min_token2: Uint128::new(50),
-        expiration: None,
-    };
     let _res = router
         .execute_contract(
             owner.clone(),
             amm_addr.clone(),
-            &remove_liquidity_msg,
+            &swap_msg,
             &[Coin {
-                denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128::new(50),
+                denom: denom.into(),
+                amount: amount,
             }],
         )
         .unwrap();
+}
 
-    // ensure balances updated
-    let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(owner_balance, Uint128::new(4899));
-    let amm_balance = cw20_token.balance(&router, amm_addr.clone()).unwrap();
-    assert_eq!(amm_balance, Uint128::new(101));
-    let crust_balance = lp_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(crust_balance, Uint128::new(100));
-
-    // Remove rest of liquidity
-    let allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: amm_addr.to_string(),
-        amount: Uint128::new(100u128),
-        expires: None,
-    };
-    let _res = router
-        .execute_contract(owner.clone(), lp_token.addr(), &allowance_msg, &[])
-        .unwrap();
-
-    let remove_liquidity_msg = ExecuteMsg::RemoveLiquidity {
-        amount: Uint128::new(100),
-        min_token1: Uint128::new(100),
-        min_token2: Uint128::new(100),
-        expiration: None,
-    };
-    let _res = router
-        .execute_contract(
-            owner.clone(),
-            amm_addr.clone(),
-            &remove_liquidity_msg,
-            &[Coin {
-                denom: NATIVE_TOKEN_DENOM.into(),
-                amount: Uint128::new(50),
-            }],
-        )
-        .unwrap();
-
-    // ensure balances updated
-    let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(owner_balance, Uint128::new(5000));
-    let amm_balance = cw20_token.balance(&router, amm_addr).unwrap();
-    assert_eq!(amm_balance, Uint128::new(0));
-    let crust_balance = lp_token.balance(&router, owner.clone()).unwrap();
-    assert_eq!(crust_balance, Uint128::new(0));
+fn absolute_diff(a: Uint128, b: Uint128) -> Uint128 {
+    let diff = max(a, b).checked_sub(min(a, b)).unwrap();
+    return diff;
 }

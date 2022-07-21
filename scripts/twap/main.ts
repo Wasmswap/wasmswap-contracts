@@ -49,13 +49,6 @@ async function setupTest() {
     console.log(res);
   });
 
-  await client.sendTokens(
-    firstAccount.address,
-    "juno1dmm370vxaaykfla062tjn9d4ff9r95pky9tsvu",
-    [{ amount: "100000000", denom: mockUsdcDenom }],
-    "auto"
-  );
-
   const setPairParams = await setUpPairs(client, firstAccount.address);
   console.log(setPairParams);
 }
@@ -65,9 +58,7 @@ async function setupTest() {
 //----------------------------------------------------------------------------------------
 
 (async () => {
-  console.log(chalk.yellow("\nStep 1. Info"));
-
-  console.log(chalk.yellow("\nStep 2. Setup"));
+  console.log(chalk.yellow("\nStep 1. Setup"));
 
   await setupTest();
 })();
