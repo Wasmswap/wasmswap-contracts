@@ -50,10 +50,7 @@ pub fn instantiate(
 
     TOKEN2.save(deps.storage, &token2)?;
 
-    let owner = match msg.owner {
-        Some(o) => Some(deps.api.addr_validate(&o)?),
-        _ => None,
-    };
+    let owner = msg.owner.map(|h| deps.api.addr_validate(&h)).transpose()?;
     OWNER.save(deps.storage, &owner)?;
 
     let protocol_fee_recipient = deps.api.addr_validate(&msg.protocol_fee_recipient)?;
@@ -442,14 +439,11 @@ pub fn execute_update_config(
     protocol_fee_recipient: String,
 ) -> Result<Response, ContractError> {
     let owner = OWNER.load(deps.storage)?;
-    if owner.is_some() && info.sender != owner.unwrap() {
+    if Some(info.sender) != owner {
         return Err(ContractError::Unauthorized {});
     }
 
-    let new_owner_addr = match new_owner.clone() {
-        Some(o) => Some(deps.api.addr_validate(&o)?),
-        _ => None,
-    };
+    let new_owner_addr = new_owner.as_ref().map(|h| deps.api.addr_validate(h)).transpose()?;
     OWNER.save(deps.storage, &new_owner_addr)?;
 
     let fee_total = lp_fee_percent + protocol_fee_percent;
@@ -719,7 +713,7 @@ pub fn execute_swap(
     };
 
     // Send protocol fee to protocol fee recipient
-    if protocol_fee_amount > Uint128::zero() {
+    if !protocol_fee_amount.is_zero() {
         transfer_msgs.push(match input_token.denom {
             Denom::Cw20(addr) => get_cw20_transfer_from_msg(
                 &info.sender,
@@ -917,8 +911,7 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
     let lp_token_address = LP_TOKEN.load(deps.storage)?;
     let fees = FEES.load(deps.storage)?;
 
-    let owner = OWNER.load(deps.storage)?;
-    let owner = Some(owner).map(|o| o.unwrap().to_string());
+    let owner = OWNER.load(deps.storage)?.map(|o| o.into_string());
 
     // TODO get total supply
     Ok(InfoResponse {
@@ -927,11 +920,11 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
         token2_reserve: token2.reserve,
         token2_denom: token2.denom,
         lp_token_supply: get_lp_token_supply(deps, &lp_token_address)?,
-        lp_token_address: lp_token_address.to_string(),
+        lp_token_address: lp_token_address.into_string(),
         owner,
         lp_fee_percent: fees.lp_fee_percent,
         protocol_fee_percent: fees.protocol_fee_percent,
-        protocol_fee_recipient: fees.protocol_fee_recipient.to_string(),
+        protocol_fee_recipient: fees.protocol_fee_recipient.into_string(),
     })
 }
 
