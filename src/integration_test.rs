@@ -2,12 +2,13 @@
 
 use std::borrow::BorrowMut;
 
-use cosmwasm_std::{coins, Addr, Coin, Empty, Uint128};
+use cosmwasm_std::{coins, Addr, Coin, Empty, Uint128, Decimal};
 use cw0::Expiration;
 
 use crate::error::ContractError;
 use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg, Denom};
 use cw_multi_test::{App, Contract, ContractWrapper, Executor};
+use std::str::FromStr;
 
 use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, TokenSelect};
 
@@ -46,8 +47,8 @@ fn create_amm(
     owner: &Addr,
     cash: &Cw20Contract,
     native_denom: String,
-    lp_fee_percent: Uint128,
-    protocol_fee_percent: Uint128,
+    lp_fee_percent: Decimal,
+    protocol_fee_percent: Decimal,
     protocol_fee_recipient: String,
 ) -> Addr {
     // set up amm contract
@@ -122,8 +123,8 @@ fn test_instantiate() {
         Uint128::new(5000),
     );
 
-    let lp_fee_percent = Uint128::new(30);
-    let protocol_fee_percent = Uint128::new(0);
+    let lp_fee_percent = Decimal::from_str("0.3").unwrap();
+    let protocol_fee_percent = Decimal::zero();
     let amm_addr = create_amm(
         &mut router,
         &owner,
@@ -144,8 +145,8 @@ fn test_instantiate() {
     assert_eq!(info.owner.unwrap(), owner.to_string());
 
     // Test instantiation with invalid fee amount
-    let lp_fee_percent = Uint128::new(101);
-    let protocol_fee_percent = Uint128::new(0);
+    let lp_fee_percent = Decimal::from_str("1.01").unwrap();
+    let protocol_fee_percent = Decimal::zero();
     let cw20_id = router.store_code(contract_cw20());
     let amm_id = router.store_code(contract_amm());
     let msg = InstantiateMsg {
@@ -164,8 +165,8 @@ fn test_instantiate() {
         .unwrap();
     assert_eq!(
         ContractError::FeesTooHigh {
-            max_fee: Uint128::new(100),
-            fee_total: Uint128::new(101)
+            max_fee: Decimal::from_str("1").unwrap(),
+            fee_total: Decimal::from_str("1.01").unwrap()
         },
         err
     );
@@ -192,8 +193,8 @@ fn amm_add_and_remove_liquidity() {
         Uint128::new(5000),
     );
 
-    let lp_fee_percent = Uint128::new(30);
-    let protocol_fee_percent = Uint128::new(0);
+    let lp_fee_percent = Decimal::from_str("0.3").unwrap();
+    let protocol_fee_percent = Decimal::zero();
     let amm_addr = create_amm(
         &mut router,
         &owner,
@@ -516,8 +517,8 @@ fn swap_tokens_happy_path() {
         Uint128::new(5000),
     );
 
-    let lp_fee_percent = Uint128::new(30);
-    let protocol_fee_percent = Uint128::new(0);
+    let lp_fee_percent = Decimal::from_str("0.3").unwrap();
+    let protocol_fee_percent = Decimal::zero();
     let amm_addr = create_amm(
         &mut router,
         &owner,
@@ -723,8 +724,8 @@ fn swap_with_fee_split() {
         Uint128::new(5_000_000_000),
     );
 
-    let lp_fee_percent = Uint128::new(20);
-    let protocol_fee_percent = Uint128::new(10);
+    let lp_fee_percent = Decimal::from_str("0.2").unwrap();
+    let protocol_fee_percent =  Decimal::from_str("0.1").unwrap();
     let amm_addr = create_amm(
         &mut router,
         &owner,
@@ -947,8 +948,8 @@ fn update_config() {
         Uint128::new(5000),
     );
 
-    let lp_fee_percent = Uint128::new(30);
-    let protocol_fee_percent = Uint128::new(0);
+    let lp_fee_percent = Decimal::from_str("0.3").unwrap();
+    let protocol_fee_percent = Decimal::zero();
     let amm_addr = create_amm(
         &mut router,
         &owner,
@@ -959,11 +960,13 @@ fn update_config() {
         owner.to_string(),
     );
 
+    let lp_fee_percent = Decimal::from_str("0.15").unwrap();
+    let protocol_fee_percent = Decimal::from_str("0.15").unwrap();
     let msg = ExecuteMsg::UpdateConfig {
         owner: Some(owner.to_string()),
         protocol_fee_recipient: "new_fee_recpient".to_string(),
-        lp_fee_percent: Uint128::new(15),
-        protocol_fee_percent: Uint128::new(15),
+        lp_fee_percent,
+        protocol_fee_percent,
     };
     let _res = router
         .execute_contract(owner.clone(), amm_addr.clone(), &msg, &[])
@@ -971,16 +974,18 @@ fn update_config() {
 
     let info = get_info(&router, &amm_addr);
     assert_eq!(info.protocol_fee_recipient, "new_fee_recpient".to_string());
-    assert_eq!(info.protocol_fee_percent, Uint128::new(15));
-    assert_eq!(info.lp_fee_percent, Uint128::new(15));
+    assert_eq!(info.protocol_fee_percent, protocol_fee_percent);
+    assert_eq!(info.lp_fee_percent, lp_fee_percent);
     assert_eq!(info.owner.unwrap(), owner.to_string());
 
     // Try updating config with fee values that are too high
+    let lp_fee_percent = Decimal::from_str("1.01").unwrap();
+    let protocol_fee_percent = Decimal::zero();
     let msg = ExecuteMsg::UpdateConfig {
         owner: Some(owner.to_string()),
         protocol_fee_recipient: "new_fee_recpient".to_string(),
-        lp_fee_percent: Uint128::new(101),
-        protocol_fee_percent: Uint128::new(0),
+        lp_fee_percent,
+        protocol_fee_percent,
     };
     let err = router
         .execute_contract(owner.clone(), amm_addr.clone(), &msg, &[])
@@ -989,18 +994,20 @@ fn update_config() {
         .unwrap();
     assert_eq!(
         ContractError::FeesTooHigh {
-            max_fee: Uint128::new(100),
-            fee_total: Uint128::new(101)
+            max_fee: Decimal::from_str("1").unwrap(),
+            fee_total: Decimal::from_str("1.01").unwrap()
         },
         err
     );
 
     // Try updating config with invalid owner, show throw unauthoritzed error
+    let lp_fee_percent = Decimal::from_str("0.21").unwrap();
+    let protocol_fee_percent = Decimal::from_str("0.09").unwrap();
     let msg = ExecuteMsg::UpdateConfig {
         owner: Some(owner.to_string()),
         protocol_fee_recipient: owner.to_string(),
-        lp_fee_percent: Uint128::new(21),
-        protocol_fee_percent: Uint128::new(9),
+        lp_fee_percent,
+        protocol_fee_percent,
     };
     let err = router
         .execute_contract(
@@ -1018,8 +1025,8 @@ fn update_config() {
     let msg = ExecuteMsg::UpdateConfig {
         owner: Some("new_owner".to_string()),
         protocol_fee_recipient: owner.to_string(),
-        lp_fee_percent: Uint128::new(21),
-        protocol_fee_percent: Uint128::new(9),
+        lp_fee_percent,
+        protocol_fee_percent,
     };
     let _res = router
         .execute_contract(owner.clone(), amm_addr.clone(), &msg, &[])
@@ -1027,8 +1034,8 @@ fn update_config() {
 
     let info = get_info(&router, &amm_addr);
     assert_eq!(info.protocol_fee_recipient, owner.to_string());
-    assert_eq!(info.protocol_fee_percent, Uint128::new(9));
-    assert_eq!(info.lp_fee_percent, Uint128::new(21));
+    assert_eq!(info.protocol_fee_percent, protocol_fee_percent);
+    assert_eq!(info.lp_fee_percent, lp_fee_percent);
     assert_eq!(info.owner.unwrap(), "new_owner".to_string());
 }
 
@@ -1056,8 +1063,8 @@ fn swap_native_to_native_tokens_happy_path() {
 
     let amm_id = router.store_code(contract_amm());
     let lp_token_id = router.store_code(contract_cw20());
-    let lp_fee_percent = Uint128::new(30);
-    let protocol_fee_percent = Uint128::new(0);
+    let lp_fee_percent = Decimal::from_str("0.3").unwrap();
+    let protocol_fee_percent = Decimal::zero();
 
     let msg = InstantiateMsg {
         token1_denom: Denom::Native(NATIVE_TOKEN_DENOM.into()),
@@ -1260,8 +1267,8 @@ fn token_to_token_swap_with_fee_split() {
         Uint128::new(5_000_000_000),
     );
 
-    let lp_fee_percent = Uint128::new(20);
-    let protocol_fee_percent = Uint128::new(10);
+    let lp_fee_percent = Decimal::from_str("0.2").unwrap();
+    let protocol_fee_percent = Decimal::from_str("0.1").unwrap();
     let amm1 = create_amm(
         &mut router,
         &owner,
@@ -1467,8 +1474,8 @@ fn token_to_token_swap() {
         Uint128::new(5000),
     );
 
-    let lp_fee_percent = Uint128::new(30);
-    let protocol_fee_percent = Uint128::new(0);
+    let lp_fee_percent = Decimal::from_str("0.3").unwrap();
+    let protocol_fee_percent = Decimal::zero();
     let amm1 = create_amm(
         &mut router,
         &owner,

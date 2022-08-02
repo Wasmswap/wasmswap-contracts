@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Uint128, Decimal};
 use cw20::Denom;
 use cw_storage_plus::Item;
 
@@ -21,8 +21,8 @@ pub const OWNER: Item<Option<Addr>> = Item::new("owner");
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Fees {
     pub protocol_fee_recipient: Addr,
-    pub protocol_fee_percent: Uint128,
-    pub lp_fee_percent: Uint128,
+    pub protocol_fee_percent: Decimal,
+    pub lp_fee_percent: Decimal,
 }
 
 pub const FEES: Item<Fees> = Item::new("fees");

@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Uint128, Decimal};
 
 use cw20::{Denom, Expiration};
 
@@ -12,8 +12,8 @@ pub struct InstantiateMsg {
     pub lp_token_code_id: u64,
     pub owner: Option<String>,
     pub protocol_fee_recipient: String,
-    pub protocol_fee_percent: Uint128,
-    pub lp_fee_percent: Uint128,
+    pub protocol_fee_percent: Decimal,
+    pub lp_fee_percent: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -60,8 +60,8 @@ pub enum ExecuteMsg {
     },
     UpdateConfig {
         owner: Option<String>,
-        lp_fee_percent: Uint128,
-        protocol_fee_percent: Uint128,
+        lp_fee_percent: Decimal,
+        protocol_fee_percent: Decimal,
         protocol_fee_recipient: String,
     },
 }
@@ -91,8 +91,8 @@ pub struct InfoResponse {
     pub lp_token_supply: Uint128,
     pub lp_token_address: String,
     pub owner: Option<String>,
-    pub lp_fee_percent: Uint128,
-    pub protocol_fee_percent: Uint128,
+    pub lp_fee_percent: Decimal,
+    pub protocol_fee_percent: Decimal,
     pub protocol_fee_recipient: String,
 }
 

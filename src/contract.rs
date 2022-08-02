@@ -1,6 +1,7 @@
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, Uint256, Uint512, WasmMsg,
+    Decimal
 };
 use cw0::parse_reply_instantiate_data;
 use cw2::set_contract_version;
@@ -8,6 +9,7 @@ use cw20::Denom::Cw20;
 use cw20::{Cw20ExecuteMsg, Denom, Expiration, MinterResponse};
 use cw20_base::contract::query_balance;
 use std::convert::TryInto;
+use std::str::FromStr;
 
 use crate::error::ContractError;
 use crate::msg::{
@@ -23,7 +25,8 @@ pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const INSTANTIATE_LP_TOKEN_REPLY_ID: u64 = 0;
 
 const FEE_SCALE_FACTOR: Uint128 = Uint128::new(10_000);
-const MAX_FEE: Uint128 = Uint128::new(100);
+const MAX_FEE_PERCENT: &str = "1";
+const DECIMAL_PRECISION: Uint128 = Uint128::new(100_000_000_000_000_000_000);
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -55,9 +58,10 @@ pub fn instantiate(
 
     let protocol_fee_recipient = deps.api.addr_validate(&msg.protocol_fee_recipient)?;
     let fee_total = msg.lp_fee_percent + msg.protocol_fee_percent;
-    if fee_total > MAX_FEE {
+    let max_fee = Decimal::from_str(MAX_FEE_PERCENT)?;
+    if fee_total > max_fee {
         return Err(ContractError::FeesTooHigh {
-            max_fee: MAX_FEE,
+            max_fee,
             fee_total,
         });
     }
@@ -434,8 +438,8 @@ pub fn execute_update_config(
     deps: DepsMut,
     info: MessageInfo,
     new_owner: Option<String>,
-    lp_fee_percent: Uint128,
-    protocol_fee_percent: Uint128,
+    lp_fee_percent: Decimal,
+    protocol_fee_percent: Decimal,
     protocol_fee_recipient: String,
 ) -> Result<Response, ContractError> {
     let owner = OWNER.load(deps.storage)?;
@@ -447,9 +451,10 @@ pub fn execute_update_config(
     OWNER.save(deps.storage, &new_owner_addr)?;
 
     let fee_total = lp_fee_percent + protocol_fee_percent;
-    if fee_total > MAX_FEE {
+    let max_fee = Decimal::from_str(MAX_FEE_PERCENT)?;
+    if fee_total > max_fee {
         return Err(ContractError::FeesTooHigh {
-            max_fee: MAX_FEE,
+            max_fee,
             fee_total,
         });
     }
@@ -465,8 +470,8 @@ pub fn execute_update_config(
     let new_owner = new_owner.unwrap_or_else(|| "".to_string());
     Ok(Response::new().add_attributes(vec![
         attr("new_owner", new_owner),
-        attr("lp_fee_percent", lp_fee_percent),
-        attr("protocol_fee_percent", protocol_fee_percent),
+        attr("lp_fee_percent", lp_fee_percent.to_string()),
+        attr("protocol_fee_percent", protocol_fee_percent.to_string()),
         attr("protocol_fee_recipient", protocol_fee_recipient.to_string()),
     ]))
 }
@@ -604,16 +609,26 @@ fn get_bank_transfer_to_msg(recipient: &Addr, denom: &str, native_amount: Uint12
     transfer_bank_cosmos_msg
 }
 
+fn fee_decimal_to_uint128 (decimal: Decimal) -> StdResult<Uint128> {
+    let result: Uint128 = decimal
+        .atomics()
+        .checked_mul(FEE_SCALE_FACTOR)
+        .map_err(StdError::overflow)?;
+
+    Ok(result / DECIMAL_PRECISION)
+}
+
 fn get_input_price(
     input_amount: Uint128,
     input_reserve: Uint128,
     output_reserve: Uint128,
-    fee_percent: Uint128,
+    fee_percent: Decimal,
 ) -> StdResult<Uint128> {
     if input_reserve == Uint128::zero() || output_reserve == Uint128::zero() {
         return Err(StdError::generic_err("No liquidity"));
     };
-
+  
+    let fee_percent = fee_decimal_to_uint128(fee_percent)?;
     let fee_reduction_percent = FEE_SCALE_FACTOR - fee_percent;
     let input_amount_with_fee = Uint512::from(input_amount.full_mul(fee_reduction_percent));
     let numerator = input_amount_with_fee
@@ -631,11 +646,12 @@ fn get_input_price(
         .try_into()?)
 }
 
-fn get_protocol_fee_amount(input_amount: Uint128, fee_percent: Uint128) -> StdResult<Uint128> {
+fn get_protocol_fee_amount(input_amount: Uint128, fee_percent: Decimal) -> StdResult<Uint128> {
     if fee_percent.is_zero() {
         return Ok(Uint128::zero());
     }
 
+    let fee_percent = fee_decimal_to_uint128(fee_percent)?;
     Ok(input_amount
         .full_mul(fee_percent)
         .checked_div(Uint256::from(FEE_SCALE_FACTOR))
@@ -1026,13 +1042,14 @@ mod tests {
 
     #[test]
     fn test_get_input_price() {
+        let fee_percent = Decimal::from_str("0.3").unwrap();
         // Base case
         assert_eq!(
             get_input_price(
                 Uint128::new(10),
                 Uint128::new(100),
                 Uint128::new(100),
-                Uint128::new(30)
+                fee_percent
             )
             .unwrap(),
             Uint128::new(9)
@@ -1043,7 +1060,7 @@ mod tests {
             Uint128::new(10),
             Uint128::new(0),
             Uint128::new(100),
-            Uint128::new(30),
+            fee_percent,
         )
         .unwrap_err();
         assert_eq!(err, StdError::generic_err("No liquidity"));
@@ -1053,7 +1070,7 @@ mod tests {
             Uint128::new(10),
             Uint128::new(100),
             Uint128::new(0),
-            Uint128::new(30),
+            fee_percent,
         )
         .unwrap_err();
         assert_eq!(err, StdError::generic_err("No liquidity"));
@@ -1063,7 +1080,7 @@ mod tests {
             Uint128::new(10),
             Uint128::new(0),
             Uint128::new(0),
-            Uint128::new(30),
+            fee_percent,
         )
         .unwrap_err();
         assert_eq!(err, StdError::generic_err("No liquidity"));

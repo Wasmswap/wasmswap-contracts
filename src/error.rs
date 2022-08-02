@@ -1,4 +1,4 @@
-use cosmwasm_std::{StdError, Uint128};
+use cosmwasm_std::{StdError, Uint128, Decimal};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
@@ -57,8 +57,8 @@ pub enum ContractError {
 
     #[error("Total fee of {fee_total} percentage is higher than max fee ({max_fee})")]
     FeesTooHigh {
-        max_fee: Uint128,
-        fee_total: Uint128,
+        max_fee: Decimal,
+        fee_total: Decimal,
     },
 
     #[error("InsufficientFunds")]
