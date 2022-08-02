@@ -2,7 +2,7 @@
 
 use std::borrow::BorrowMut;
 
-use cosmwasm_std::{coins, Addr, Coin, Empty, Uint128, Decimal};
+use cosmwasm_std::{coins, Addr, Coin, Decimal, Empty, Uint128};
 use cw0::Expiration;
 
 use crate::error::ContractError;
@@ -725,7 +725,7 @@ fn swap_with_fee_split() {
     );
 
     let lp_fee_percent = Decimal::from_str("0.2").unwrap();
-    let protocol_fee_percent =  Decimal::from_str("0.1").unwrap();
+    let protocol_fee_percent = Decimal::from_str("0.1").unwrap();
     let amm_addr = create_amm(
         &mut router,
         &owner,

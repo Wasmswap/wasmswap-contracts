@@ -1,7 +1,7 @@
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, Uint256, Uint512, WasmMsg,
-    Decimal
+    attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Decimal, Deps, DepsMut,
+    Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, Uint256, Uint512,
+    WasmMsg,
 };
 use cw0::parse_reply_instantiate_data;
 use cw2::set_contract_version;
@@ -447,7 +447,10 @@ pub fn execute_update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    let new_owner_addr = new_owner.as_ref().map(|h| deps.api.addr_validate(h)).transpose()?;
+    let new_owner_addr = new_owner
+        .as_ref()
+        .map(|h| deps.api.addr_validate(h))
+        .transpose()?;
     OWNER.save(deps.storage, &new_owner_addr)?;
 
     let total_fee_percent = lp_fee_percent + protocol_fee_percent;
@@ -609,7 +612,7 @@ fn get_bank_transfer_to_msg(recipient: &Addr, denom: &str, native_amount: Uint12
     transfer_bank_cosmos_msg
 }
 
-fn fee_decimal_to_uint128 (decimal: Decimal) -> StdResult<Uint128> {
+fn fee_decimal_to_uint128(decimal: Decimal) -> StdResult<Uint128> {
     let result: Uint128 = decimal
         .atomics()
         .checked_mul(FEE_SCALE_FACTOR)
@@ -627,7 +630,7 @@ fn get_input_price(
     if input_reserve == Uint128::zero() || output_reserve == Uint128::zero() {
         return Err(StdError::generic_err("No liquidity"));
     };
-  
+
     let fee_percent = fee_decimal_to_uint128(fee_percent)?;
     let fee_reduction_percent = FEE_SCALE_FACTOR - fee_percent;
     let input_amount_with_fee = Uint512::from(input_amount.full_mul(fee_reduction_percent));
