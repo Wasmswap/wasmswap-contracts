@@ -55,10 +55,10 @@ pub enum ContractError {
     #[error("MsgExpirationError")]
     MsgExpirationError {},
 
-    #[error("Total fee of {fee_total} percentage is higher than max fee ({max_fee})")]
+    #[error("Total fee ({total_fee_percent}) percent is higher than max ({max_fee_percent})")]
     FeesTooHigh {
-        max_fee: Decimal,
-        fee_total: Decimal,
+        max_fee_percent: Decimal,
+        total_fee_percent: Decimal,
     },
 
     #[error("InsufficientFunds")]

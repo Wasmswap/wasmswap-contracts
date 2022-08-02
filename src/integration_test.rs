@@ -165,8 +165,8 @@ fn test_instantiate() {
         .unwrap();
     assert_eq!(
         ContractError::FeesTooHigh {
-            max_fee: Decimal::from_str("1").unwrap(),
-            fee_total: Decimal::from_str("1.01").unwrap()
+            max_fee_percent: Decimal::from_str("1").unwrap(),
+            total_fee_percent: Decimal::from_str("1.01").unwrap()
         },
         err
     );
@@ -994,8 +994,8 @@ fn update_config() {
         .unwrap();
     assert_eq!(
         ContractError::FeesTooHigh {
-            max_fee: Decimal::from_str("1").unwrap(),
-            fee_total: Decimal::from_str("1.01").unwrap()
+            max_fee_percent: Decimal::from_str("1").unwrap(),
+            total_fee_percent: Decimal::from_str("1.01").unwrap()
         },
         err
     );

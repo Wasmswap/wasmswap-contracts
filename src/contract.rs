@@ -26,7 +26,7 @@ const INSTANTIATE_LP_TOKEN_REPLY_ID: u64 = 0;
 
 const FEE_SCALE_FACTOR: Uint128 = Uint128::new(10_000);
 const MAX_FEE_PERCENT: &str = "1";
-const DECIMAL_PRECISION: Uint128 = Uint128::new(100_000_000_000_000_000_000);
+const FEE_DECIMAL_PRECISION: Uint128 = Uint128::new(100_000_000_000_000_000_000);
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -57,12 +57,12 @@ pub fn instantiate(
     OWNER.save(deps.storage, &owner)?;
 
     let protocol_fee_recipient = deps.api.addr_validate(&msg.protocol_fee_recipient)?;
-    let fee_total = msg.lp_fee_percent + msg.protocol_fee_percent;
-    let max_fee = Decimal::from_str(MAX_FEE_PERCENT)?;
-    if fee_total > max_fee {
+    let total_fee_percent = msg.lp_fee_percent + msg.protocol_fee_percent;
+    let max_fee_percent = Decimal::from_str(MAX_FEE_PERCENT)?;
+    if total_fee_percent > max_fee_percent {
         return Err(ContractError::FeesTooHigh {
-            max_fee,
-            fee_total,
+            max_fee_percent,
+            total_fee_percent,
         });
     }
 
@@ -450,12 +450,12 @@ pub fn execute_update_config(
     let new_owner_addr = new_owner.as_ref().map(|h| deps.api.addr_validate(h)).transpose()?;
     OWNER.save(deps.storage, &new_owner_addr)?;
 
-    let fee_total = lp_fee_percent + protocol_fee_percent;
-    let max_fee = Decimal::from_str(MAX_FEE_PERCENT)?;
-    if fee_total > max_fee {
+    let total_fee_percent = lp_fee_percent + protocol_fee_percent;
+    let max_fee_percent = Decimal::from_str(MAX_FEE_PERCENT)?;
+    if total_fee_percent > max_fee_percent {
         return Err(ContractError::FeesTooHigh {
-            max_fee,
-            fee_total,
+            max_fee_percent,
+            total_fee_percent,
         });
     }
 
@@ -615,7 +615,7 @@ fn fee_decimal_to_uint128 (decimal: Decimal) -> StdResult<Uint128> {
         .checked_mul(FEE_SCALE_FACTOR)
         .map_err(StdError::overflow)?;
 
-    Ok(result / DECIMAL_PRECISION)
+    Ok(result / FEE_DECIMAL_PRECISION)
 }
 
 fn get_input_price(
