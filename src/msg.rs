@@ -12,6 +12,7 @@ pub struct InstantiateMsg {
     pub lp_token_code_id: u64,
     pub owner: Option<String>,
     pub protocol_fee_recipient: String,
+    // NOTE: Fees percents are out of 100 e.g., 1 = 1%
     pub protocol_fee_percent: Decimal,
     pub lp_fee_percent: Decimal,
 }
