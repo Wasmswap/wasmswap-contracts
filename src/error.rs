@@ -1,4 +1,4 @@
-use cosmwasm_std::{StdError, Uint128};
+use cosmwasm_std::{Decimal, StdError, Uint128};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
@@ -54,6 +54,12 @@ pub enum ContractError {
 
     #[error("MsgExpirationError")]
     MsgExpirationError {},
+
+    #[error("Total fee ({total_fee_percent}) percent is higher than max ({max_fee_percent})")]
+    FeesTooHigh {
+        max_fee_percent: Decimal,
+        total_fee_percent: Decimal,
+    },
 
     #[error("InsufficientFunds")]
     InsufficientFunds {},
