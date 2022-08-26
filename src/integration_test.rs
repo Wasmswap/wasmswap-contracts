@@ -2,10 +2,10 @@
 
 use std::borrow::BorrowMut;
 
-use cosmwasm_std::{coins, Addr, Coin, Decimal, Empty, Uint128};
+use cosmwasm_std::{coins, to_binary, Addr, Coin, CosmosMsg, Decimal, Empty, Uint128, WasmMsg};
 use cw0::Expiration;
 
-use crate::error::ContractError;
+use crate::{error::ContractError, msg::MigrateMsg};
 use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg, Denom};
 use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 use std::str::FromStr;
@@ -22,7 +22,8 @@ pub fn contract_amm() -> Box<dyn Contract<Empty>> {
         crate::contract::instantiate,
         crate::contract::query,
     )
-    .with_reply(crate::contract::reply);
+    .with_reply(crate::contract::reply)
+    .with_migrate(crate::contract::migrate);
     Box::new(contract)
 }
 
@@ -495,6 +496,67 @@ fn amm_add_and_remove_liquidity() {
     // ensure balances updated
     let owner_balance = cw20_token.balance(&router, owner.clone()).unwrap();
     assert_eq!(owner_balance, Uint128::new(5000));
+}
+
+#[test]
+fn migrate() {
+    let mut router = mock_app();
+
+    const NATIVE_TOKEN_DENOM: &str = "juno";
+    const IBC_TOKEN_DENOM: &str = "atom";
+
+    let amm_id = router.store_code(contract_amm());
+    let lp_token_id = router.store_code(contract_cw20());
+    let lp_fee_percent = Decimal::from_str("0.3").unwrap();
+    let protocol_fee_percent = Decimal::zero();
+    let owner = Addr::unchecked("owner");
+
+    let msg = InstantiateMsg {
+        token1_denom: Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        token2_denom: Denom::Native(IBC_TOKEN_DENOM.into()),
+        lp_token_code_id: lp_token_id,
+        owner: Some(owner.to_string()),
+        lp_fee_percent,
+        protocol_fee_percent,
+        protocol_fee_recipient: owner.to_string(),
+    };
+    let amm_addr = router
+        .instantiate_contract(
+            amm_id,
+            owner.clone(),
+            &msg,
+            &[],
+            "amm",
+            Some(owner.to_string()),
+        )
+        .unwrap();
+
+    let info = get_info(&router, &amm_addr);
+    assert_eq!(info.protocol_fee_percent, protocol_fee_percent);
+    assert_eq!(info.lp_fee_percent, lp_fee_percent);
+    assert_eq!(info.protocol_fee_recipient, owner.to_string());
+
+    let migrate_msg = MigrateMsg {
+        lp_fee_percent,
+        protocol_fee_percent,
+        protocol_fee_recipient: owner.to_string(),
+    };
+
+    router
+        .execute(
+            owner.clone(),
+            CosmosMsg::Wasm(WasmMsg::Migrate {
+                contract_addr: amm_addr.to_string(),
+                new_code_id: amm_id,
+                msg: to_binary(&migrate_msg).unwrap(),
+            }),
+        )
+        .unwrap();
+
+    let info = get_info(&router, &amm_addr);
+    assert_eq!(info.protocol_fee_percent, protocol_fee_percent);
+    assert_eq!(info.lp_fee_percent, lp_fee_percent);
+    assert_eq!(info.protocol_fee_recipient, owner.to_string());
 }
 
 #[test]

@@ -13,7 +13,7 @@ use std::str::FromStr;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, Token1ForToken2PriceResponse,
+    ExecuteMsg, InfoResponse, InstantiateMsg, MigrateMsg, QueryMsg, Token1ForToken2PriceResponse,
     Token2ForToken1PriceResponse, TokenSelect,
 };
 use crate::state::{Fees, Token, FEES, LP_TOKEN, OWNER, TOKEN1, TOKEN2};
@@ -998,6 +998,27 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
         }
         Err(_) => Err(ContractError::InstantiateLpTokenError {}),
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let protocol_fee_recipient = deps.api.addr_validate(&msg.protocol_fee_recipient)?;
+    let total_fee_percent = msg.lp_fee_percent + msg.protocol_fee_percent;
+    let max_fee_percent = Decimal::from_str(MAX_FEE_PERCENT)?;
+    if total_fee_percent > max_fee_percent {
+        return Err(ContractError::FeesTooHigh {
+            max_fee_percent,
+            total_fee_percent,
+        });
+    }
+
+    let fees = Fees {
+        lp_fee_percent: msg.lp_fee_percent,
+        protocol_fee_percent: msg.protocol_fee_percent,
+        protocol_fee_recipient,
+    };
+    FEES.save(deps.storage, &fees)?;
+    Ok(Response::default())
 }
 
 #[cfg(test)]

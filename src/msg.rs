@@ -82,6 +82,13 @@ pub enum QueryMsg {
     },
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
+pub struct MigrateMsg {
+    pub protocol_fee_recipient: String,
+    pub protocol_fee_percent: Decimal,
+    pub lp_fee_percent: Decimal,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InfoResponse {
     pub token1_reserve: Uint128,
