@@ -26,7 +26,7 @@ const INSTANTIATE_LP_TOKEN_REPLY_ID: u64 = 0;
 
 const FEE_SCALE_FACTOR: Uint128 = Uint128::new(10_000);
 const MAX_FEE_PERCENT: &str = "1";
-const FEE_DECIMAL_PRECISION: Uint128 = Uint128::new(100_000_000_000_000_000_000);
+const FEE_DECIMAL_PRECISION: Uint128 = Uint128::new(10u128.pow(20));
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -718,15 +718,14 @@ pub fn execute_swap(
     }
     // Calculate fees
     let protocol_fee_amount = get_protocol_fee_amount(input_amount, fees.protocol_fee_percent)?;
-    let input_amount_with_protocol_fee = input_amount - protocol_fee_amount;
+    let input_amount_minus_protocol_fee = input_amount - protocol_fee_amount;
 
-    // Transfer input amount - protocol fee to contract
     let mut transfer_msgs = match input_token.denom.clone() {
         Denom::Cw20(addr) => vec![get_cw20_transfer_from_msg(
             &info.sender,
             &_env.contract.address,
             &addr,
-            input_amount_with_protocol_fee,
+            input_amount_minus_protocol_fee,
         )?],
         Denom::Native(_) => vec![],
     };
@@ -758,7 +757,7 @@ pub fn execute_swap(
         |mut input_token| -> Result<_, ContractError> {
             input_token.reserve = input_token
                 .reserve
-                .checked_add(input_amount_with_protocol_fee)
+                .checked_add(input_amount_minus_protocol_fee)
                 .map_err(StdError::overflow)?;
             Ok(input_token)
         },
@@ -821,7 +820,7 @@ pub fn execute_pass_through_swap(
     // Calculate fees
     let protocol_fee_amount =
         get_protocol_fee_amount(input_token_amount, fees.protocol_fee_percent)?;
-    let input_amount_with_protocol_fee = input_token_amount - protocol_fee_amount;
+    let input_amount_minus_protocol_fee = input_token_amount - protocol_fee_amount;
 
     // Transfer input amount - protocol fee to contract
     let mut msgs: Vec<CosmosMsg> = vec![];
@@ -830,7 +829,7 @@ pub fn execute_pass_through_swap(
             &info.sender,
             &_env.contract.address,
             addr,
-            input_amount_with_protocol_fee,
+            input_amount_minus_protocol_fee,
         )?)
     };
 
@@ -891,7 +890,7 @@ pub fn execute_pass_through_swap(
         // Add input amount - protocol fee to input token reserve
         token.reserve = token
             .reserve
-            .checked_add(input_amount_with_protocol_fee)
+            .checked_add(input_amount_minus_protocol_fee)
             .map_err(StdError::overflow)?;
         Ok(token)
     })?;
