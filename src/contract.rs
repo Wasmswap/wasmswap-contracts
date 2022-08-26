@@ -43,14 +43,12 @@ pub fn instantiate(
         reserve: Uint128::zero(),
         denom: msg.token1_denom.clone(),
     };
-
     TOKEN1.save(deps.storage, &token1)?;
 
     let token2 = Token {
         denom: msg.token2_denom.clone(),
         reserve: Uint128::zero(),
     };
-
     TOKEN2.save(deps.storage, &token2)?;
 
     let owner = msg.owner.map(|h| deps.api.addr_validate(&h)).transpose()?;
@@ -612,6 +610,18 @@ fn get_bank_transfer_to_msg(recipient: &Addr, denom: &str, native_amount: Uint12
     transfer_bank_cosmos_msg
 }
 
+fn get_fee_transfer_msg(
+    sender: &Addr,
+    recipient: &Addr,
+    fee_denom: &Denom,
+    amount: Uint128,
+) -> StdResult<CosmosMsg> {
+    match fee_denom {
+        Denom::Cw20(addr) => get_cw20_transfer_from_msg(sender, recipient, addr, amount),
+        Denom::Native(denom) => Ok(get_bank_transfer_to_msg(recipient, denom, amount)),
+    }
+}
+
 fn fee_decimal_to_uint128(decimal: Decimal) -> StdResult<Uint128> {
     let result: Uint128 = decimal
         .atomics()
@@ -720,7 +730,7 @@ pub fn execute_swap(
     let protocol_fee_amount = get_protocol_fee_amount(input_amount, fees.protocol_fee_percent)?;
     let input_amount_minus_protocol_fee = input_amount - protocol_fee_amount;
 
-    let mut transfer_msgs = match input_token.denom.clone() {
+    let mut msgs = match input_token.denom.clone() {
         Denom::Cw20(addr) => vec![get_cw20_transfer_from_msg(
             &info.sender,
             &_env.contract.address,
@@ -732,22 +742,17 @@ pub fn execute_swap(
 
     // Send protocol fee to protocol fee recipient
     if !protocol_fee_amount.is_zero() {
-        transfer_msgs.push(match input_token.denom {
-            Denom::Cw20(addr) => get_cw20_transfer_from_msg(
-                &info.sender,
-                &fees.protocol_fee_recipient,
-                &addr,
-                protocol_fee_amount,
-            )?,
-            Denom::Native(denom) => {
-                get_bank_transfer_to_msg(&fees.protocol_fee_recipient, &denom, protocol_fee_amount)
-            }
-        });
+        msgs.push(get_fee_transfer_msg(
+            &info.sender,
+            &fees.protocol_fee_recipient,
+            &input_token.denom,
+            protocol_fee_amount,
+        )?)
     }
 
     let recipient = deps.api.addr_validate(&recipient)?;
     // Create transfer to message
-    transfer_msgs.push(match output_token.denom {
+    msgs.push(match output_token.denom {
         Denom::Cw20(addr) => get_cw20_transfer_to_msg(&recipient, &addr, token_bought)?,
         Denom::Native(denom) => get_bank_transfer_to_msg(&recipient, &denom, token_bought),
     });
@@ -774,12 +779,10 @@ pub fn execute_swap(
         },
     )?;
 
-    Ok(Response::new()
-        .add_messages(transfer_msgs)
-        .add_attributes(vec![
-            attr("native_sold", input_amount),
-            attr("token_bought", token_bought),
-        ]))
+    Ok(Response::new().add_messages(msgs).add_attributes(vec![
+        attr("native_sold", input_amount),
+        attr("token_bought", token_bought),
+    ]))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -834,18 +837,13 @@ pub fn execute_pass_through_swap(
     };
 
     // Send protocol fee to protocol fee recipient
-    if protocol_fee_amount > Uint128::zero() {
-        msgs.push(match input_token.denom {
-            Denom::Cw20(addr) => get_cw20_transfer_from_msg(
-                &info.sender,
-                &fees.protocol_fee_recipient,
-                &addr,
-                protocol_fee_amount,
-            )?,
-            Denom::Native(denom) => {
-                get_bank_transfer_to_msg(&fees.protocol_fee_recipient, &denom, protocol_fee_amount)
-            }
-        });
+    if !protocol_fee_amount.is_zero() {
+        msgs.push(get_fee_transfer_msg(
+            &info.sender,
+            &fees.protocol_fee_recipient,
+            &input_token.denom,
+            protocol_fee_amount,
+        )?)
     }
 
     let output_amm_address = deps.api.addr_validate(&output_amm_address)?;
