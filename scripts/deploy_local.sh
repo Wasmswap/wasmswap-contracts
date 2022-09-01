@@ -111,7 +111,11 @@ echo $STAKING_REWARDS_CODE
 SWAP_1_INIT='{
     "token1_denom": {"native": "'$DENOM'"},
     "token2_denom": {"cw20": "'"$CW20_CONTRACT"'"},
-    "lp_token_code_id": '$CW20_CODE'
+    "lp_token_code_id": '$CW20_CODE',
+    "owner": "'$1'",
+    "protocol_fee_recipient": "'$1'",
+    "protocol_fee_percent": "0.2",
+    "lp_fee_percent": "0.3"
 }'
 
 echo "$SWAP_1_INIT"
@@ -140,6 +144,10 @@ SWAP_2_INIT='{
     "token1_denom": {"native": "'$DENOM'"},
     "token2_denom": {"cw20": "'"$CW20_CONTRACT_2"'"},
     "lp_token_code_id": '$CW20_CODE'
+    "owner": "'$1'",
+    "protocol_fee_recipient": "'$1'",
+    "protocol_fee_percent": "0.2",
+    "lp_fee_percent": "0.3"
 }'
 
 echo "$SWAP_2_INIT"
@@ -166,7 +174,11 @@ echo $CW20_CONTRACT_3
 SWAP_3_INIT='{
     "token1_denom": {"native": "'$DENOM'"},
     "token2_denom": {"cw20": "'"$CW20_CONTRACT_3"'"},
-    "lp_token_code_id": '$CW20_CODE'
+    "lp_token_code_id": '$CW20_CODE',
+    "owner": "'$1'",
+    "protocol_fee_recipient": "'$1'",
+    "protocol_fee_percent": "0.2",
+    "lp_fee_percent": "0.3"
 }'
 
 echo "$SWAP_3_INIT"
@@ -181,7 +193,11 @@ $BINARY tx wasm execute $SWAP_3_CONTRACT '{"add_liquidity":{"token1_amount":"100
 SWAP_4_INIT='{
     "token1_denom": {"native": "'$DENOM'"},
     "token2_denom": {"native": "ucosm"},
-    "lp_token_code_id": '$CW20_CODE'
+    "lp_token_code_id": '$CW20_CODE',
+    "owner": "'$1'",
+    "protocol_fee_recipient": "'$1'",
+    "protocol_fee_percent": "0.2",
+    "lp_fee_percent": "0.3"
 }'
 
 echo "$SWAP_4_INIT"
@@ -198,6 +214,10 @@ SWAP_5_INIT='{
     "token1_denom": {"cw20": "'$CW20_CONTRACT'"},
     "token2_denom": {"cw20": "'"$CW20_CONTRACT_2"'"},
     "lp_token_code_id": '$CW20_CODE'
+    "owner": "'$1'",
+    "protocol_fee_recipient": "'$1'",
+    "protocol_fee_percent": "0.2",
+    "lp_fee_percent": "0.3"
 }'
 
 echo "$SWAP_5_INIT"
