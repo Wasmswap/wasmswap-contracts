@@ -393,33 +393,26 @@ fn validate_input_amount(
     }
 }
 
-fn prevent_duplicate_denoms(
-    token1:&Denom,
-    token2:&Denom
-) -> Result<(), ContractError> {
+fn prevent_duplicate_denoms(token1: &Denom, token2: &Denom) -> Result<(), ContractError> {
     match token1 {
-        Denom::Cw20(token1_address) => {
-            match token2 {
-                Denom::Cw20(token2_address) => {
-                    if token1_address.to_string() == token2_address.to_string() {
-                        return Err(ContractError::DuplicateDenom {});
-                    }
-                    Ok(())
-                },
-                Denom::Native(_) => Ok(())
+        Denom::Cw20(token1_address) => match token2 {
+            Denom::Cw20(token2_address) => {
+                if token1_address.to_string() == token2_address.to_string() {
+                    return Err(ContractError::DuplicateDenom {});
+                }
+                Ok(())
+            }
+            Denom::Native(_) => Ok(()),
+        },
+        Denom::Native(token1_denom) => match token2 {
+            Denom::Cw20(_) => Ok(()),
+            Denom::Native(token2_denom) => {
+                if token1_denom == token2_denom {
+                    return Err(ContractError::DuplicateDenom {});
+                }
+                Ok(())
             }
         },
-        Denom::Native(token1_denom) => {
-            match token2 {
-                Denom::Cw20(_) => Ok(()),
-                Denom::Native(token2_denom) => {
-                    if token1_denom == token2_denom {
-                        return Err(ContractError::DuplicateDenom {});
-                    }
-                    Ok(())
-                }
-            }
-        }
     }
 }
 

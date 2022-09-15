@@ -46,8 +46,8 @@ fn get_info(router: &App, contract_addr: &Addr) -> InfoResponse {
 fn create_amm(
     router: &mut App,
     owner: &Addr,
-    token1_denom:&Denom,
-    token2_denom:&Denom,
+    token1_denom: &Denom,
+    token2_denom: &Denom,
     lp_fee_percent: Decimal,
     protocol_fee_percent: Decimal,
     protocol_fee_recipient: String,
@@ -1724,7 +1724,6 @@ fn cw20_token1_to_token1_swap() {
         protocol_fee_percent,
         owner.to_string(),
     );
-
 }
 
 #[test]
