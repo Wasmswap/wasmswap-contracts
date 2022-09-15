@@ -1727,6 +1727,47 @@ fn cw20_token1_to_token1_swap() {
 }
 
 #[test]
+fn cw20_token1_token2_swap() {
+    let mut router = mock_app();
+
+    const NATIVE_TOKEN_DENOM: &str = "juno";
+
+    let owner = Addr::unchecked("owner");
+    let funds = coins(2000, NATIVE_TOKEN_DENOM);
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &owner, funds).unwrap()
+    });
+
+    let token1 = create_cw20(
+        &mut router,
+        &owner,
+        "token1".to_string(),
+        "TOKENONE".to_string(),
+        Uint128::new(5000),
+    );
+
+    let token2 = create_cw20(
+        &mut router,
+        &owner,
+        "token2".to_string(),
+        "TOKENTWO".to_string(),
+        Uint128::new(5000),
+    );
+
+    let lp_fee_percent = Decimal::from_str("0.3").unwrap();
+    let protocol_fee_percent = Decimal::zero();
+    let _amm = create_amm(
+        &mut router,
+        &owner,
+        &Denom::Cw20(token1.addr().clone()),
+        &Denom::Cw20(token2.addr().clone()),
+        lp_fee_percent,
+        protocol_fee_percent,
+        owner.to_string(),
+    );
+}
+
+#[test]
 #[should_panic(expected = "Duplicate denom is not allowed")]
 fn native_token1_to_token1_swap() {
     let mut router = mock_app();
@@ -1746,6 +1787,32 @@ fn native_token1_to_token1_swap() {
         &owner,
         &Denom::Native(NATIVE_TOKEN_DENOM.into()),
         &Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        lp_fee_percent,
+        protocol_fee_percent,
+        owner.to_string(),
+    );
+}
+
+#[test]
+fn native_token1_to_token2_swap() {
+    let mut router = mock_app();
+
+    const NATIVE_TOKEN_DENOM: &str = "juno";
+    const NATIVE_TOKEN_DENOM2: &str = "stars";
+
+    let owner = Addr::unchecked("owner");
+    let funds = coins(2000, NATIVE_TOKEN_DENOM);
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &owner, funds).unwrap()
+    });
+
+    let lp_fee_percent = Decimal::from_str("0.3").unwrap();
+    let protocol_fee_percent = Decimal::zero();
+    let _amm = create_amm(
+        &mut router,
+        &owner,
+        &Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        &Denom::Native(NATIVE_TOKEN_DENOM2.into()),
         lp_fee_percent,
         protocol_fee_percent,
         owner.to_string(),

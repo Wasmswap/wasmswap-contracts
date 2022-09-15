@@ -51,7 +51,7 @@ pub fn instantiate(
     };
     TOKEN2.save(deps.storage, &token2)?;
 
-    prevent_duplicate_denoms(&msg.token1_denom.clone(), &msg.token2_denom.clone())?;
+    prevent_duplicate_denoms(&msg.token1_denom, &msg.token2_denom)?;
 
     let owner = msg.owner.map(|h| deps.api.addr_validate(&h)).transpose()?;
     OWNER.save(deps.storage, &owner)?;
@@ -397,7 +397,7 @@ fn prevent_duplicate_denoms(token1: &Denom, token2: &Denom) -> Result<(), Contra
     match token1 {
         Denom::Cw20(token1_address) => match token2 {
             Denom::Cw20(token2_address) => {
-                if token1_address.to_string() == token2_address.to_string() {
+                if *token1_address == *token2_address {
                     return Err(ContractError::DuplicateDenom {});
                 }
                 Ok(())
