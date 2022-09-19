@@ -3,6 +3,7 @@ use cosmwasm_std::{
     Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, Uint256, Uint512,
     WasmMsg,
 };
+
 use cw0::parse_reply_instantiate_data;
 use cw2::set_contract_version;
 use cw20::Denom::Cw20;
