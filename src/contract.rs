@@ -4,7 +4,7 @@ use cosmwasm_std::{
     WasmMsg,
 };
 
-use cw0::parse_reply_instantiate_data;
+use cw_utils::parse_reply_instantiate_data;
 use cw2::set_contract_version;
 use cw20::Denom::Cw20;
 use cw20::{Cw20ExecuteMsg, Denom, Expiration, MinterResponse};
