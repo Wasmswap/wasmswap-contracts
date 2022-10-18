@@ -5,8 +5,7 @@ use cosmwasm_std::{
 };
 use cw0::parse_reply_instantiate_data;
 use cw2::set_contract_version;
-use cw20::Denom::Cw20;
-use cw20::{Cw20ExecuteMsg, Denom, Expiration, MinterResponse};
+use cw20::{Cw20ExecuteMsg, Expiration, MinterResponse};
 use cw20_base::contract::query_balance;
 use std::convert::TryInto;
 use std::str::FromStr;
@@ -286,32 +285,30 @@ pub fn execute_add_liquidity(
 
     // Generate cw20 transfer messages if necessary
     let mut transfer_msgs: Vec<CosmosMsg> = vec![];
-    if let Cw20(addr) = token1.denom {
-        transfer_msgs.push(get_cw20_transfer_from_msg(
-            &info.sender,
-            &env.contract.address,
-            &addr,
-            token1_amount,
-        )?)
-    }
-    if let Cw20(addr) = token2.denom.clone() {
-        transfer_msgs.push(get_cw20_transfer_from_msg(
-            &info.sender,
-            &env.contract.address,
-            &addr,
-            token2_amount,
-        )?)
-    }
+    // if let Cw20(addr) = token1.denom {
+    //     transfer_msgs.push(get_cw20_transfer_from_msg(
+    //         &info.sender,
+    //         &env.contract.address,
+    //         &addr,
+    //         token1_amount,
+    //     )?)
+    // }
+    // if let Cw20(addr) = token2.denom.clone() {
+    //     transfer_msgs.push(get_cw20_transfer_from_msg(
+    //         &info.sender,
+    //         &env.contract.address,
+    //         &addr,
+    //         token2_amount,
+    //     )?)
+    // }
 
-    // Refund token 2 if is a native token and not all is spent
-    if let Denom::Native(denom) = token2.denom {
-        if token2_amount < max_token2 {
-            transfer_msgs.push(get_bank_transfer_to_msg(
-                &info.sender,
-                &denom,
-                max_token2 - token2_amount,
-            ))
-        }
+    // Refund token 2 if not all is spent
+    if token2_amount < max_token2 {
+        transfer_msgs.push(get_bank_transfer_to_msg(
+            &info.sender,
+            &token2.denom,
+            max_token2 - token2_amount,
+        ))
     }
 
     TOKEN1.update(deps.storage, |mut token1| -> Result<_, ContractError> {
@@ -371,24 +368,19 @@ fn get_token_balance(deps: Deps, contract: &Addr, addr: &Addr) -> StdResult<Uint
 fn validate_input_amount(
     actual_funds: &[Coin],
     given_amount: Uint128,
-    given_denom: &Denom,
+    given_denom: &str,
 ) -> Result<(), ContractError> {
-    match given_denom {
-        Denom::Cw20(_) => Ok(()),
-        Denom::Native(denom) => {
-            let actual = get_amount_for_denom(actual_funds, denom);
-            if actual.amount != given_amount {
-                return Err(ContractError::InsufficientFunds {});
-            }
-            if &actual.denom != denom {
-                return Err(ContractError::IncorrectNativeDenom {
-                    provided: actual.denom,
-                    required: denom.to_string(),
-                });
-            };
-            Ok(())
-        }
+    let actual = get_amount_for_denom(actual_funds, given_denom);
+    if actual.amount != given_amount {
+        return Err(ContractError::InsufficientFunds {});
     }
+    if actual.denom != given_denom {
+        return Err(ContractError::IncorrectNativeDenom {
+            provided: actual.denom,
+            required: given_denom.to_string(),
+        });
+    };
+    Ok(())
 }
 
 fn get_cw20_transfer_from_msg(
@@ -541,14 +533,8 @@ pub fn execute_remove_liquidity(
         Ok(token2)
     })?;
 
-    let token1_transfer_msg = match token1.denom {
-        Denom::Cw20(addr) => get_cw20_transfer_to_msg(&info.sender, &addr, token1_amount)?,
-        Denom::Native(denom) => get_bank_transfer_to_msg(&info.sender, &denom, token1_amount),
-    };
-    let token2_transfer_msg = match token2.denom {
-        Denom::Cw20(addr) => get_cw20_transfer_to_msg(&info.sender, &addr, token2_amount)?,
-        Denom::Native(denom) => get_bank_transfer_to_msg(&info.sender, &denom, token2_amount),
-    };
+    let token1_transfer_msg = get_bank_transfer_to_msg(&info.sender, &token1.denom, token1_amount);
+    let token2_transfer_msg = get_bank_transfer_to_msg(&info.sender, &token2.denom, token2_amount);
 
     let lp_token_burn_msg = get_burn_msg(&lp_token_addr, &info.sender, amount)?;
 
@@ -613,13 +599,10 @@ fn get_bank_transfer_to_msg(recipient: &Addr, denom: &str, native_amount: Uint12
 fn get_fee_transfer_msg(
     sender: &Addr,
     recipient: &Addr,
-    fee_denom: &Denom,
+    fee_denom: &str,
     amount: Uint128,
 ) -> StdResult<CosmosMsg> {
-    match fee_denom {
-        Denom::Cw20(addr) => get_cw20_transfer_from_msg(sender, recipient, addr, amount),
-        Denom::Native(denom) => Ok(get_bank_transfer_to_msg(recipient, denom, amount)),
-    }
+    Ok(get_bank_transfer_to_msg(recipient, fee_denom, amount))
 }
 
 fn fee_decimal_to_uint128(decimal: Decimal) -> StdResult<Uint128> {
@@ -730,15 +713,7 @@ pub fn execute_swap(
     let protocol_fee_amount = get_protocol_fee_amount(input_amount, fees.protocol_fee_percent)?;
     let input_amount_minus_protocol_fee = input_amount - protocol_fee_amount;
 
-    let mut msgs = match input_token.denom.clone() {
-        Denom::Cw20(addr) => vec![get_cw20_transfer_from_msg(
-            &info.sender,
-            &_env.contract.address,
-            &addr,
-            input_amount_minus_protocol_fee,
-        )?],
-        Denom::Native(_) => vec![],
-    };
+    let mut msgs = vec![];
 
     // Send protocol fee to protocol fee recipient
     if !protocol_fee_amount.is_zero() {
@@ -752,10 +727,11 @@ pub fn execute_swap(
 
     let recipient = deps.api.addr_validate(&recipient)?;
     // Create transfer to message
-    msgs.push(match output_token.denom {
-        Denom::Cw20(addr) => get_cw20_transfer_to_msg(&recipient, &addr, token_bought)?,
-        Denom::Native(denom) => get_bank_transfer_to_msg(&recipient, &denom, token_bought),
-    });
+    msgs.push(get_bank_transfer_to_msg(
+        &recipient,
+        &output_token.denom,
+        token_bought,
+    ));
 
     input_token_item.update(
         deps.storage,
@@ -827,14 +803,14 @@ pub fn execute_pass_through_swap(
 
     // Transfer input amount - protocol fee to contract
     let mut msgs: Vec<CosmosMsg> = vec![];
-    if let Denom::Cw20(addr) = &input_token.denom {
-        msgs.push(get_cw20_transfer_from_msg(
-            &info.sender,
-            &_env.contract.address,
-            addr,
-            input_amount_minus_protocol_fee,
-        )?)
-    };
+    // if let Denom::Cw20(addr) = &input_token.denom {
+    //     msgs.push(get_cw20_transfer_from_msg(
+    //         &info.sender,
+    //         &_env.contract.address,
+    //         addr,
+    //         input_amount_minus_protocol_fee,
+    //     )?)
+    // };
 
     // Send protocol fee to protocol fee recipient
     if !protocol_fee_amount.is_zero() {
@@ -849,14 +825,14 @@ pub fn execute_pass_through_swap(
     let output_amm_address = deps.api.addr_validate(&output_amm_address)?;
 
     // Increase allowance of output contract is transfer token is cw20
-    if let Denom::Cw20(addr) = &transfer_token.denom {
-        msgs.push(get_cw20_increase_allowance_msg(
-            addr,
-            &output_amm_address,
-            amount_to_transfer,
-            Some(Expiration::AtHeight(_env.block.height + 1)),
-        )?)
-    };
+    // if let Denom::Cw20(addr) = &transfer_token.denom {
+    //     msgs.push(get_cw20_increase_allowance_msg(
+    //         addr,
+    //         &output_amm_address,
+    //         amount_to_transfer,
+    //         Some(Expiration::AtHeight(_env.block.height + 1)),
+    //     )?)
+    // };
 
     let swap_msg = ExecuteMsg::SwapAndSendTo {
         input_token: match input_token_enum {
@@ -873,13 +849,10 @@ pub fn execute_pass_through_swap(
         WasmMsg::Execute {
             contract_addr: output_amm_address.into(),
             msg: to_binary(&swap_msg)?,
-            funds: match transfer_token.denom {
-                Denom::Cw20(_) => vec![],
-                Denom::Native(denom) => vec![Coin {
-                    denom,
-                    amount: amount_to_transfer,
-                }],
-            },
+            funds: vec![Coin {
+                denom: transfer_token.denom,
+                amount: amount_to_transfer,
+            }],
         }
         .into(),
     );

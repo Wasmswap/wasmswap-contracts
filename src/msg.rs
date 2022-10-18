@@ -3,12 +3,12 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Decimal, Uint128};
 
-use cw20::{Denom, Expiration};
+use cw20::Expiration;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub token1_denom: Denom,
-    pub token2_denom: Denom,
+    pub token1_denom: String,
+    pub token2_denom: String,
     pub lp_token_code_id: u64,
     pub owner: Option<String>,
     pub protocol_fee_recipient: String,
@@ -94,9 +94,9 @@ pub struct MigrateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InfoResponse {
     pub token1_reserve: Uint128,
-    pub token1_denom: Denom,
+    pub token1_denom: String,
     pub token2_reserve: Uint128,
-    pub token2_denom: Denom,
+    pub token2_denom: String,
     pub lp_token_supply: Uint128,
     pub lp_token_address: String,
     pub owner: Option<String>,
