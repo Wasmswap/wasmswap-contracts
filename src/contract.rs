@@ -1004,7 +1004,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let owner = match msg.owner {
         None => None,
-        Some(o) => Some(deps.api.addr_validate(&o)?)
+        Some(o) => Some(deps.api.addr_validate(&o)?),
     };
     OWNER.save(deps.storage, &owner)?;
 
