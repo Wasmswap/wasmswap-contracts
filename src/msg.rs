@@ -85,6 +85,7 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct MigrateMsg {
+    pub owner: Option<String>,
     pub protocol_fee_recipient: String,
     pub protocol_fee_percent: Decimal,
     pub lp_fee_percent: Decimal,

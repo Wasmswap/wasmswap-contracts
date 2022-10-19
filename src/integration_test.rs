@@ -537,6 +537,7 @@ fn migrate() {
     assert_eq!(info.protocol_fee_recipient, owner.to_string());
 
     let migrate_msg = MigrateMsg {
+        owner: Some(owner.to_string()),
         lp_fee_percent,
         protocol_fee_percent,
         protocol_fee_recipient: owner.to_string(),
@@ -557,6 +558,7 @@ fn migrate() {
     assert_eq!(info.protocol_fee_percent, protocol_fee_percent);
     assert_eq!(info.lp_fee_percent, lp_fee_percent);
     assert_eq!(info.protocol_fee_recipient, owner.to_string());
+    assert_eq!(info.owner, Some(owner.to_string()));
 }
 
 #[test]
