@@ -1,15 +1,12 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Decimal, Uint128};
+use cw_utils::Expiration;
 
-use cw20::Expiration;
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct InstantiateMsg {
     pub token1_denom: String,
     pub token2_denom: String,
-    pub lp_token_code_id: u64,
+    pub token_factory: String,
     pub owner: Option<String>,
     pub protocol_fee_recipient: String,
     // NOTE: Fees percents are out of 100 e.g., 1 = 1%
@@ -17,14 +14,13 @@ pub struct InstantiateMsg {
     pub lp_fee_percent: Decimal,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
+#[cw_serde]
 pub enum TokenSelect {
     Token1,
     Token2,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum ExecuteMsg {
     AddLiquidity {
         token1_amount: Uint128,
@@ -67,23 +63,14 @@ pub enum ExecuteMsg {
     },
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum QueryMsg {
-    /// Implements CW20. Returns the current balance of the given address, 0 if unset.
-    Balance {
-        address: String,
-    },
     Info {},
-    Token1ForToken2Price {
-        token1_amount: Uint128,
-    },
-    Token2ForToken1Price {
-        token2_amount: Uint128,
-    },
+    Token1ForToken2Price { token1_amount: Uint128 },
+    Token2ForToken1Price { token2_amount: Uint128 },
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
+#[cw_serde]
 pub struct MigrateMsg {
     pub owner: Option<String>,
     pub protocol_fee_recipient: String,
@@ -91,26 +78,26 @@ pub struct MigrateMsg {
     pub lp_fee_percent: Decimal,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct InfoResponse {
     pub token1_reserve: Uint128,
     pub token1_denom: String,
     pub token2_reserve: Uint128,
     pub token2_denom: String,
     pub lp_token_supply: Uint128,
-    pub lp_token_address: String,
+    pub lp_token_denom: String,
     pub owner: Option<String>,
     pub lp_fee_percent: Decimal,
     pub protocol_fee_percent: Decimal,
     pub protocol_fee_recipient: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
+#[cw_serde]
 pub struct Token1ForToken2PriceResponse {
     pub token2_amount: Uint128,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
+#[cw_serde]
 pub struct Token2ForToken1PriceResponse {
     pub token1_amount: Uint128,
 }

@@ -1,27 +1,23 @@
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Binary, BlockInfo, Coin, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, Uint256, Uint512,
-    WasmMsg,
+    Env, MessageInfo, Response, StdError, StdResult, Storage, Uint128, Uint256, Uint512, WasmMsg,
 };
 use cw2::set_contract_version;
-use cw20::{Cw20ExecuteMsg, Expiration, MinterResponse};
-use cw20_base::contract::query_balance;
-use cw_utils::parse_reply_instantiate_data;
+use cw_utils::Expiration;
 use std::convert::TryInto;
 use std::str::FromStr;
+use tokenfactory::msg::ExecuteMsg as TokenFactoryExecuteMsg;
 
 use crate::error::ContractError;
 use crate::msg::{
     ExecuteMsg, InfoResponse, InstantiateMsg, MigrateMsg, QueryMsg, Token1ForToken2PriceResponse,
     Token2ForToken1PriceResponse, TokenSelect,
 };
-use crate::state::{Fees, Token, FEES, LP_TOKEN, OWNER, TOKEN1, TOKEN2};
+use crate::state::{Fees, Token, FEES, LP_DENOM, OWNER, TOKEN1, TOKEN2, TOKEN_FACTORY};
 
 // Version info for migration info
-pub const CONTRACT_NAME: &str = "crates.io:wasmswap";
+pub const CONTRACT_NAME: &str = "crates.io:sg-swap";
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-const INSTANTIATE_LP_TOKEN_REPLY_ID: u64 = 0;
 
 const FEE_SCALE_FACTOR: Uint128 = Uint128::new(10_000);
 const MAX_FEE_PERCENT: &str = "1";
@@ -32,7 +28,7 @@ const FEE_DECIMAL_PRECISION: Uint128 = Uint128::new(10u128.pow(20));
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
@@ -70,28 +66,19 @@ pub fn instantiate(
     };
     FEES.save(deps.storage, &fees)?;
 
-    let instantiate_lp_token_msg = WasmMsg::Instantiate {
-        code_id: msg.lp_token_code_id,
+    let lp_denom = format!("SGLP-{}-{}", msg.token1_denom, msg.token2_denom);
+    LP_DENOM.save(deps.storage, &lp_denom)?;
+
+    let token_factory = deps.api.addr_validate(&msg.token_factory)?;
+    TOKEN_FACTORY.save(deps.storage, &token_factory)?;
+
+    let create_denom_msg = WasmMsg::Execute {
+        contract_addr: token_factory.to_string(),
         funds: vec![],
-        admin: None,
-        label: "lp_token".to_string(),
-        msg: to_binary(&cw20_base::msg::InstantiateMsg {
-            name: "WasmSwap_Liquidity_Token".into(),
-            symbol: "wslpt".into(),
-            decimals: 6,
-            initial_balances: vec![],
-            mint: Some(MinterResponse {
-                minter: env.contract.address.into(),
-                cap: None,
-            }),
-            marketing: None,
-        })?,
+        msg: to_binary(&TokenFactoryExecuteMsg::CreateDenom { subdenom: lp_denom })?,
     };
 
-    let reply_msg =
-        SubMsg::reply_on_success(instantiate_lp_token_msg, INSTANTIATE_LP_TOKEN_REPLY_ID);
-
-    Ok(Response::new().add_submessage(reply_msg))
+    Ok(Response::new().add_message(create_denom_msg))
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
@@ -251,13 +238,13 @@ pub fn execute_add_liquidity(
 
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
-    let lp_token_addr = LP_TOKEN.load(deps.storage)?;
+    let lp_denom = LP_DENOM.load(deps.storage)?;
 
     // validate funds
     validate_input_amount(&info.funds, token1_amount, &token1.denom)?;
     validate_input_amount(&info.funds, max_token2, &token2.denom)?;
 
-    let lp_token_supply = get_lp_token_supply(deps.as_ref(), &lp_token_addr)?;
+    let lp_token_supply = get_lp_token_supply(deps.as_ref(), &lp_denom)?;
     let liquidity_amount =
         get_lp_token_amount_to_mint(token1_amount, lp_token_supply, token1.reserve)?;
 
@@ -320,7 +307,7 @@ pub fn execute_add_liquidity(
         Ok(token2)
     })?;
 
-    let mint_msg = mint_lp_tokens(&info.sender, liquidity_amount, &lp_token_addr)?;
+    let mint_msg = mint_lp_tokens(deps.storage, &info.sender, liquidity_amount, lp_denom)?;
     Ok(Response::new()
         .add_messages(transfer_msgs)
         .add_message(mint_msg)
@@ -331,38 +318,34 @@ pub fn execute_add_liquidity(
         ]))
 }
 
-fn get_lp_token_supply(deps: Deps, lp_token_addr: &Addr) -> StdResult<Uint128> {
-    let resp: cw20::TokenInfoResponse = deps
-        .querier
-        .query_wasm_smart(lp_token_addr, &cw20_base::msg::QueryMsg::TokenInfo {})?;
-    Ok(resp.total_supply)
+fn get_lp_token_supply(deps: Deps, denom: impl Into<String>) -> StdResult<Uint128> {
+    let res = deps.querier.query_supply(denom)?;
+    Ok(res.amount)
 }
 
 fn mint_lp_tokens(
+    store: &dyn Storage,
     recipient: &Addr,
-    liquidity_amount: Uint128,
-    lp_token_address: &Addr,
+    amount: Uint128,
+    denom: String,
 ) -> StdResult<CosmosMsg> {
-    let mint_msg = cw20_base::msg::ExecuteMsg::Mint {
-        recipient: recipient.into(),
-        amount: liquidity_amount,
+    let mint_msg = TokenFactoryExecuteMsg::MintTokens {
+        denom,
+        amount,
+        mint_to_address: recipient.to_string(),
     };
+
     Ok(WasmMsg::Execute {
-        contract_addr: lp_token_address.to_string(),
+        contract_addr: TOKEN_FACTORY.load(store)?.to_string(),
         msg: to_binary(&mint_msg)?,
         funds: vec![],
     }
     .into())
 }
 
-fn get_token_balance(deps: Deps, contract: &Addr, addr: &Addr) -> StdResult<Uint128> {
-    let resp: cw20::BalanceResponse = deps.querier.query_wasm_smart(
-        contract,
-        &cw20_base::msg::QueryMsg::Balance {
-            address: addr.to_string(),
-        },
-    )?;
-    Ok(resp.balance)
+fn get_token_balance(deps: Deps, denom: impl Into<String>, addr: &Addr) -> StdResult<Uint128> {
+    let res = deps.querier.query_balance(addr, denom)?;
+    Ok(res.amount)
 }
 
 fn validate_input_amount(
@@ -381,47 +364,6 @@ fn validate_input_amount(
         });
     };
     Ok(())
-}
-
-fn get_cw20_transfer_from_msg(
-    owner: &Addr,
-    recipient: &Addr,
-    token_addr: &Addr,
-    token_amount: Uint128,
-) -> StdResult<CosmosMsg> {
-    // create transfer cw20 msg
-    let transfer_cw20_msg = Cw20ExecuteMsg::TransferFrom {
-        owner: owner.into(),
-        recipient: recipient.into(),
-        amount: token_amount,
-    };
-    let exec_cw20_transfer = WasmMsg::Execute {
-        contract_addr: token_addr.into(),
-        msg: to_binary(&transfer_cw20_msg)?,
-        funds: vec![],
-    };
-    let cw20_transfer_cosmos_msg: CosmosMsg = exec_cw20_transfer.into();
-    Ok(cw20_transfer_cosmos_msg)
-}
-
-fn get_cw20_increase_allowance_msg(
-    token_addr: &Addr,
-    spender: &Addr,
-    amount: Uint128,
-    expires: Option<Expiration>,
-) -> StdResult<CosmosMsg> {
-    // create transfer cw20 msg
-    let increase_allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: spender.to_string(),
-        amount,
-        expires,
-    };
-    let exec_allowance = WasmMsg::Execute {
-        contract_addr: token_addr.into(),
-        msg: to_binary(&increase_allowance_msg)?,
-        funds: vec![],
-    };
-    Ok(exec_allowance.into())
 }
 
 pub fn execute_update_config(
@@ -480,9 +422,9 @@ pub fn execute_remove_liquidity(
 ) -> Result<Response, ContractError> {
     check_expiration(&expiration, &env.block)?;
 
-    let lp_token_addr = LP_TOKEN.load(deps.storage)?;
-    let balance = get_token_balance(deps.as_ref(), &lp_token_addr, &info.sender)?;
-    let lp_token_supply = get_lp_token_supply(deps.as_ref(), &lp_token_addr)?;
+    let lp_denom = LP_DENOM.load(deps.storage)?;
+    let balance = get_token_balance(deps.as_ref(), &lp_denom, &info.sender)?;
+    let lp_token_supply = get_lp_token_supply(deps.as_ref(), &lp_denom)?;
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
 
@@ -536,7 +478,7 @@ pub fn execute_remove_liquidity(
     let token1_transfer_msg = get_bank_transfer_to_msg(&info.sender, &token1.denom, token1_amount);
     let token2_transfer_msg = get_bank_transfer_to_msg(&info.sender, &token2.denom, token2_amount);
 
-    let lp_token_burn_msg = get_burn_msg(&lp_token_addr, &info.sender, amount)?;
+    let lp_token_burn_msg = get_burn_msg(deps.storage, lp_denom, &info.sender, amount)?;
 
     Ok(Response::new()
         .add_messages(vec![
@@ -551,36 +493,23 @@ pub fn execute_remove_liquidity(
         ]))
 }
 
-fn get_burn_msg(contract: &Addr, owner: &Addr, amount: Uint128) -> StdResult<CosmosMsg> {
-    let msg = cw20_base::msg::ExecuteMsg::BurnFrom {
-        owner: owner.to_string(),
+fn get_burn_msg(
+    store: &dyn Storage,
+    denom: String,
+    owner: &Addr,
+    amount: Uint128,
+) -> StdResult<CosmosMsg> {
+    let msg = TokenFactoryExecuteMsg::BurnTokens {
+        denom,
         amount,
+        burn_from_address: owner.to_string(),
     };
     Ok(WasmMsg::Execute {
-        contract_addr: contract.to_string(),
+        contract_addr: TOKEN_FACTORY.load(store)?.into(),
         msg: to_binary(&msg)?,
         funds: vec![],
     }
     .into())
-}
-
-fn get_cw20_transfer_to_msg(
-    recipient: &Addr,
-    token_addr: &Addr,
-    token_amount: Uint128,
-) -> StdResult<CosmosMsg> {
-    // create transfer cw20 msg
-    let transfer_cw20_msg = Cw20ExecuteMsg::Transfer {
-        recipient: recipient.into(),
-        amount: token_amount,
-    };
-    let exec_cw20_transfer = WasmMsg::Execute {
-        contract_addr: token_addr.into(),
-        msg: to_binary(&transfer_cw20_msg)?,
-        funds: vec![],
-    };
-    let cw20_transfer_cosmos_msg: CosmosMsg = exec_cw20_transfer.into();
-    Ok(cw20_transfer_cosmos_msg)
 }
 
 fn get_bank_transfer_to_msg(recipient: &Addr, denom: &str, native_amount: Uint128) -> CosmosMsg {
@@ -597,7 +526,7 @@ fn get_bank_transfer_to_msg(recipient: &Addr, denom: &str, native_amount: Uint12
 }
 
 fn get_fee_transfer_msg(
-    sender: &Addr,
+    _sender: &Addr,
     recipient: &Addr,
     fee_denom: &str,
     amount: Uint128,
@@ -824,16 +753,6 @@ pub fn execute_pass_through_swap(
 
     let output_amm_address = deps.api.addr_validate(&output_amm_address)?;
 
-    // Increase allowance of output contract is transfer token is cw20
-    // if let Denom::Cw20(addr) = &transfer_token.denom {
-    //     msgs.push(get_cw20_increase_allowance_msg(
-    //         addr,
-    //         &output_amm_address,
-    //         amount_to_transfer,
-    //         Some(Expiration::AtHeight(_env.block.height + 1)),
-    //     )?)
-    // };
-
     let swap_msg = ExecuteMsg::SwapAndSendTo {
         input_token: match input_token_enum {
             TokenSelect::Token1 => TokenSelect::Token2,
@@ -883,7 +802,6 @@ pub fn execute_pass_through_swap(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Balance { address } => to_binary(&query_balance(deps, address)?),
         QueryMsg::Info {} => to_binary(&query_info(deps)?),
         QueryMsg::Token1ForToken2Price { token1_amount } => {
             to_binary(&query_token1_for_token2_price(deps, token1_amount)?)
@@ -895,21 +813,20 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
+    let lp_denom = LP_DENOM.load(deps.storage)?;
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
-    let lp_token_address = LP_TOKEN.load(deps.storage)?;
     let fees = FEES.load(deps.storage)?;
 
     let owner = OWNER.load(deps.storage)?.map(|o| o.into_string());
 
-    // TODO get total supply
     Ok(InfoResponse {
         token1_reserve: token1.reserve,
         token1_denom: token1.denom,
         token2_reserve: token2.reserve,
         token2_denom: token2.denom,
-        lp_token_supply: get_lp_token_supply(deps, &lp_token_address)?,
-        lp_token_address: lp_token_address.into_string(),
+        lp_token_supply: get_lp_token_supply(deps, &lp_denom)?,
+        lp_token_denom: lp_denom,
         owner,
         lp_fee_percent: fees.lp_fee_percent,
         protocol_fee_percent: fees.protocol_fee_percent,
@@ -951,26 +868,6 @@ pub fn query_token2_for_token1_price(
         total_fee_percent,
     )?;
     Ok(Token2ForToken1PriceResponse { token1_amount })
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    if msg.id != INSTANTIATE_LP_TOKEN_REPLY_ID {
-        return Err(ContractError::UnknownReplyId { id: msg.id });
-    };
-    let res = parse_reply_instantiate_data(msg);
-    match res {
-        Ok(res) => {
-            // Validate contract address
-            let cw20_addr = deps.api.addr_validate(&res.contract_address)?;
-
-            // Save gov token
-            LP_TOKEN.save(deps.storage, &cw20_addr)?;
-
-            Ok(Response::new())
-        }
-        Err(_) => Err(ContractError::InstantiateLpTokenError {}),
-    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
