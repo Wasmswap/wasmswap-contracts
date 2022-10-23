@@ -6,9 +6,8 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("{0}")]
-    Cw20Error(#[from] cw20_base::ContractError),
-
+    // #[error("{0}")]
+    // Cw20Error(#[from] cw20_base::ContractError),
     #[error("None Error")]
     NoneError {},
 

@@ -2,12 +2,15 @@
 
 use std::borrow::BorrowMut;
 
-use cosmwasm_std::{coins, to_binary, Addr, Coin, CosmosMsg, Decimal, Empty, Uint128, WasmMsg};
+use cosmwasm_std::{
+    coins, to_binary, Addr, Coin, CosmosMsg, Decimal, Empty, Response, Uint128, WasmMsg,
+};
 
 use crate::{error::ContractError, msg::MigrateMsg};
-use cw20::{Cw20Coin, Cw20Contract};
+// use cw20::{Cw20Coin, Cw20Contract};
 use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 use std::str::FromStr;
+use token_bindings::TokenFactoryMsg;
 
 use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, TokenSelect};
 
@@ -25,11 +28,20 @@ pub fn contract_amm() -> Box<dyn Contract<Empty>> {
     Box::new(contract)
 }
 
-pub fn contract_cw20() -> Box<dyn Contract<Empty>> {
+// pub fn contract_cw20() -> Box<dyn Contract<Empty>> {
+//     let contract = ContractWrapper::new(
+//         cw20_base::contract::execute,
+//         cw20_base::contract::instantiate,
+//         cw20_base::contract::query,
+//     );
+//     Box::new(contract)
+// }
+
+pub fn contract_token_factory() -> Box<dyn Contract<Response<TokenFactoryMsg>>> {
     let contract = ContractWrapper::new(
-        cw20_base::contract::execute,
-        cw20_base::contract::instantiate,
-        cw20_base::contract::query,
+        tokenfactory::contract::execute,
+        tokenfactory::contract::instantiate,
+        tokenfactory::contract::query,
     );
     Box::new(contract)
 }
@@ -46,6 +58,7 @@ fn create_amm(
     owner: &Addr,
     token1_denom: String,
     token2_denom: String,
+    token_factory: String,
     lp_fee_percent: Decimal,
     protocol_fee_percent: Decimal,
     protocol_fee_recipient: String,
@@ -56,7 +69,7 @@ fn create_amm(
     let msg = InstantiateMsg {
         token1_denom,
         token2_denom,
-        lp_token_code_id: cw20_id,
+        token_factory,
         owner: Some(owner.to_string()),
         lp_fee_percent,
         protocol_fee_percent,
@@ -67,32 +80,32 @@ fn create_amm(
         .unwrap()
 }
 
-// CreateCW20 create new cw20 with given initial balance belonging to owner
-fn create_cw20(
-    router: &mut App,
-    owner: &Addr,
-    name: String,
-    symbol: String,
-    balance: Uint128,
-) -> Cw20Contract {
-    // set up cw20 contract with some tokens
-    let cw20_id = router.store_code(contract_cw20());
-    let msg = cw20_base::msg::InstantiateMsg {
-        name,
-        symbol,
-        decimals: 6,
-        initial_balances: vec![Cw20Coin {
-            address: owner.to_string(),
-            amount: balance,
-        }],
-        mint: None,
-        marketing: None,
-    };
-    let addr = router
-        .instantiate_contract(cw20_id, owner.clone(), &msg, &[], "CASH", None)
-        .unwrap();
-    Cw20Contract(addr)
-}
+// // CreateCW20 create new cw20 with given initial balance belonging to owner
+// fn create_cw20(
+//     router: &mut App,
+//     owner: &Addr,
+//     name: String,
+//     symbol: String,
+//     balance: Uint128,
+// ) -> Cw20Contract {
+//     // set up cw20 contract with some tokens
+//     let cw20_id = router.store_code(contract_cw20());
+//     let msg = cw20_base::msg::InstantiateMsg {
+//         name,
+//         symbol,
+//         decimals: 6,
+//         initial_balances: vec![Cw20Coin {
+//             address: owner.to_string(),
+//             amount: balance,
+//         }],
+//         mint: None,
+//         marketing: None,
+//     };
+//     let addr = router
+//         .instantiate_contract(cw20_id, owner.clone(), &msg, &[], "CASH", None)
+//         .unwrap();
+//     Cw20Contract(addr)
+// }
 
 fn bank_balance(router: &mut App, addr: &Addr, denom: String) -> Coin {
     router
@@ -115,13 +128,13 @@ fn test_instantiate() {
         router.bank.init_balance(storage, &owner, funds).unwrap()
     });
 
-    let cw20_token = create_cw20(
-        &mut router,
-        &owner,
-        "token".to_string(),
-        "CWTOKEN".to_string(),
-        Uint128::new(5000),
-    );
+    // let cw20_token = create_cw20(
+    //     &mut router,
+    //     &owner,
+    //     "token".to_string(),
+    //     "CWTOKEN".to_string(),
+    //     Uint128::new(5000),
+    // );
 
     let lp_fee_percent = Decimal::from_str("0.3").unwrap();
     let protocol_fee_percent = Decimal::zero();

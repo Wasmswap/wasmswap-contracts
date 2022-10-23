@@ -42,8 +42,8 @@ cosmwasm-storage = { version = "1.1.5" }
 cw-storage-plus = "0.16.0"
 cw-utils        = "0.16.0"
 cw2 = { version = "0.16.0" }
-cw20 = { version = "0.16.0" }
-cw20-base = { version = "0.16.0", features = ["library"] }
+# cw20 = { version = "0.16.0" }
+# cw20-base = { version = "0.16.0", features = ["library"] }
 schemars = "0.8.3"
 serde = { version = "1.0.127", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.26" }
@@ -52,3 +52,4 @@ tokenfactory = { git = "https://github.com/CosmWasm/token-bindings" }
 [dev-dependencies]
 cosmwasm-schema = { version = "1.1.5" }
 cw-multi-test = {  version = "0.16.0" }
+token-bindings = { git = "https://github.com/CosmWasm/token-bindings" }
