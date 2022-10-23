@@ -3,10 +3,10 @@ use cosmwasm_std::{
     Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, Uint256, Uint512,
     WasmMsg,
 };
-use cw0::parse_reply_instantiate_data;
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Expiration, MinterResponse};
 use cw20_base::contract::query_balance;
+use cw_utils::parse_reply_instantiate_data;
 use std::convert::TryInto;
 use std::str::FromStr;
 
