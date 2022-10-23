@@ -1002,6 +1002,12 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let owner = match msg.owner {
+        None => None,
+        Some(o) => Some(deps.api.addr_validate(&o)?),
+    };
+    OWNER.save(deps.storage, &owner)?;
+
     let protocol_fee_recipient = deps.api.addr_validate(&msg.protocol_fee_recipient)?;
     let total_fee_percent = msg.lp_fee_percent + msg.protocol_fee_percent;
     let max_fee_percent = Decimal::from_str(MAX_FEE_PERCENT)?;
@@ -1018,6 +1024,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         protocol_fee_recipient,
     };
     FEES.save(deps.storage, &fees)?;
+
     Ok(Response::default())
 }
 
