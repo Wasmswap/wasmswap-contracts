@@ -46,8 +46,8 @@ fn get_info(router: &App, contract_addr: &Addr) -> InfoResponse {
 fn create_amm(
     router: &mut App,
     owner: &Addr,
-    cash: &Cw20Contract,
-    native_denom: String,
+    token1_denom: &Denom,
+    token2_denom: &Denom,
     lp_fee_percent: Decimal,
     protocol_fee_percent: Decimal,
     protocol_fee_recipient: String,
@@ -56,8 +56,8 @@ fn create_amm(
     let cw20_id = router.store_code(contract_cw20());
     let amm_id = router.store_code(contract_amm());
     let msg = InstantiateMsg {
-        token1_denom: Denom::Native(native_denom),
-        token2_denom: Denom::Cw20(cash.addr()),
+        token1_denom: token1_denom.clone(),
+        token2_denom: token2_denom.clone(),
         lp_token_code_id: cw20_id,
         owner: Some(owner.to_string()),
         lp_fee_percent,
@@ -129,8 +129,8 @@ fn test_instantiate() {
     let amm_addr = create_amm(
         &mut router,
         &owner,
-        &cw20_token,
-        NATIVE_TOKEN_DENOM.into(),
+        &Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        &Denom::Cw20(cw20_token.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         owner.to_string(),
@@ -199,8 +199,8 @@ fn amm_add_and_remove_liquidity() {
     let amm_addr = create_amm(
         &mut router,
         &owner,
-        &cw20_token,
-        NATIVE_TOKEN_DENOM.into(),
+        &Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        &Denom::Cw20(cw20_token.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         owner.to_string(),
@@ -586,8 +586,8 @@ fn swap_tokens_happy_path() {
     let amm_addr = create_amm(
         &mut router,
         &owner,
-        &cw20_token,
-        NATIVE_TOKEN_DENOM.to_string(),
+        &Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        &Denom::Cw20(cw20_token.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         owner.to_string(),
@@ -793,8 +793,8 @@ fn swap_with_fee_split() {
     let amm_addr = create_amm(
         &mut router,
         &owner,
-        &cw20_token,
-        NATIVE_TOKEN_DENOM.to_string(),
+        &Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        &Denom::Cw20(cw20_token.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         protocol_fee_recipient.to_string(),
@@ -1017,8 +1017,8 @@ fn update_config() {
     let amm_addr = create_amm(
         &mut router,
         &owner,
-        &cw20_token,
-        NATIVE_TOKEN_DENOM.to_string(),
+        &Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        &Denom::Cw20(cw20_token.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         owner.to_string(),
@@ -1336,8 +1336,8 @@ fn token_to_token_swap_with_fee_split() {
     let amm1 = create_amm(
         &mut router,
         &owner,
-        &token1,
-        NATIVE_TOKEN_DENOM.to_string(),
+        &Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        &Denom::Cw20(token1.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         protocol_fee_recipient.to_string(),
@@ -1345,8 +1345,8 @@ fn token_to_token_swap_with_fee_split() {
     let amm2 = create_amm(
         &mut router,
         &owner,
-        &token2,
-        NATIVE_TOKEN_DENOM.to_string(),
+        &Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        &Denom::Cw20(token2.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         protocol_fee_recipient.to_string(),
@@ -1543,8 +1543,8 @@ fn token_to_token_swap() {
     let amm1 = create_amm(
         &mut router,
         &owner,
-        &token1,
-        NATIVE_TOKEN_DENOM.to_string(),
+        &Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        &Denom::Cw20(token1.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         owner.to_string(),
@@ -1552,8 +1552,8 @@ fn token_to_token_swap() {
     let amm2 = create_amm(
         &mut router,
         &owner,
-        &token2,
-        NATIVE_TOKEN_DENOM.to_string(),
+        &Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        &Denom::Cw20(token2.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         owner.to_string(),
@@ -1692,4 +1692,131 @@ fn token_to_token_swap() {
     let token2_balance = token2.balance(&router, amm2.clone()).unwrap();
     assert_eq!(info_amm2.token2_reserve, token2_balance);
     assert_eq!(info_amm2.token1_reserve, amm2_native_balance.amount);
+}
+
+#[test]
+#[should_panic(expected = "Duplicate denom is not allowed")]
+fn cw20_token1_to_token1_swap() {
+    let mut router = mock_app();
+
+    const NATIVE_TOKEN_DENOM: &str = "juno";
+
+    let owner = Addr::unchecked("owner");
+    let funds = coins(2000, NATIVE_TOKEN_DENOM);
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &owner, funds).unwrap()
+    });
+
+    let cw20_token = create_cw20(
+        &mut router,
+        &owner,
+        "token1".to_string(),
+        "TOKENONE".to_string(),
+        Uint128::new(5000),
+    );
+
+    let lp_fee_percent = Decimal::from_str("0.3").unwrap();
+    let protocol_fee_percent = Decimal::zero();
+    let _amm = create_amm(
+        &mut router,
+        &owner,
+        &Denom::Cw20(cw20_token.addr().clone()),
+        &Denom::Cw20(cw20_token.addr().clone()),
+        lp_fee_percent,
+        protocol_fee_percent,
+        owner.to_string(),
+    );
+}
+
+#[test]
+fn cw20_token1_token2_swap() {
+    let mut router = mock_app();
+
+    const NATIVE_TOKEN_DENOM: &str = "juno";
+
+    let owner = Addr::unchecked("owner");
+    let funds = coins(2000, NATIVE_TOKEN_DENOM);
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &owner, funds).unwrap()
+    });
+
+    let token1 = create_cw20(
+        &mut router,
+        &owner,
+        "token1".to_string(),
+        "TOKENONE".to_string(),
+        Uint128::new(5000),
+    );
+
+    let token2 = create_cw20(
+        &mut router,
+        &owner,
+        "token2".to_string(),
+        "TOKENTWO".to_string(),
+        Uint128::new(5000),
+    );
+
+    let lp_fee_percent = Decimal::from_str("0.3").unwrap();
+    let protocol_fee_percent = Decimal::zero();
+    let _amm = create_amm(
+        &mut router,
+        &owner,
+        &Denom::Cw20(token1.addr().clone()),
+        &Denom::Cw20(token2.addr().clone()),
+        lp_fee_percent,
+        protocol_fee_percent,
+        owner.to_string(),
+    );
+}
+
+#[test]
+#[should_panic(expected = "Duplicate denom is not allowed")]
+fn native_token1_to_token1_swap() {
+    let mut router = mock_app();
+
+    const NATIVE_TOKEN_DENOM: &str = "juno";
+
+    let owner = Addr::unchecked("owner");
+    let funds = coins(2000, NATIVE_TOKEN_DENOM);
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &owner, funds).unwrap()
+    });
+
+    let lp_fee_percent = Decimal::from_str("0.3").unwrap();
+    let protocol_fee_percent = Decimal::zero();
+    let _amm = create_amm(
+        &mut router,
+        &owner,
+        &Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        &Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        lp_fee_percent,
+        protocol_fee_percent,
+        owner.to_string(),
+    );
+}
+
+#[test]
+fn native_token1_to_token2_swap() {
+    let mut router = mock_app();
+
+    const NATIVE_TOKEN_DENOM: &str = "juno";
+    const NATIVE_TOKEN_DENOM2: &str = "stars";
+
+    let owner = Addr::unchecked("owner");
+    let funds = coins(2000, NATIVE_TOKEN_DENOM);
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &owner, funds).unwrap()
+    });
+
+    let lp_fee_percent = Decimal::from_str("0.3").unwrap();
+    let protocol_fee_percent = Decimal::zero();
+    let _amm = create_amm(
+        &mut router,
+        &owner,
+        &Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        &Denom::Native(NATIVE_TOKEN_DENOM2.into()),
+        lp_fee_percent,
+        protocol_fee_percent,
+        owner.to_string(),
+    );
 }

@@ -69,4 +69,7 @@ pub enum ContractError {
 
     #[error("Failed to instantiate lp token")]
     InstantiateLpTokenError {},
+
+    #[error("Duplicate denom is not allowed")]
+    DuplicateDenom {},
 }

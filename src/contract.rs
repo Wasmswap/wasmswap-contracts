@@ -51,6 +51,8 @@ pub fn instantiate(
     };
     TOKEN2.save(deps.storage, &token2)?;
 
+    prevent_duplicate_denoms(&msg.token1_denom, &msg.token2_denom)?;
+
     let owner = msg.owner.map(|h| deps.api.addr_validate(&h)).transpose()?;
     OWNER.save(deps.storage, &owner)?;
 
@@ -388,6 +390,29 @@ fn validate_input_amount(
             };
             Ok(())
         }
+    }
+}
+
+fn prevent_duplicate_denoms(token1: &Denom, token2: &Denom) -> Result<(), ContractError> {
+    match token1 {
+        Denom::Cw20(token1_address) => match token2 {
+            Denom::Cw20(token2_address) => {
+                if *token1_address == *token2_address {
+                    return Err(ContractError::DuplicateDenom {});
+                }
+                Ok(())
+            }
+            Denom::Native(_) => Ok(()),
+        },
+        Denom::Native(token1_denom) => match token2 {
+            Denom::Cw20(_) => Ok(()),
+            Denom::Native(token2_denom) => {
+                if token1_denom == token2_denom {
+                    return Err(ContractError::DuplicateDenom {});
+                }
+                Ok(())
+            }
+        },
     }
 }
 
