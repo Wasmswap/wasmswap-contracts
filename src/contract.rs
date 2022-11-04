@@ -858,9 +858,11 @@ pub fn execute_pass_through_swap(
         )?)
     };
 
-    let resp: InfoResponse = deps.querier.query_wasm_smart(&output_amm_address,&QueryMsg::Info {})?;
+    let resp: InfoResponse = deps
+        .querier
+        .query_wasm_smart(&output_amm_address, &QueryMsg::Info {})?;
     let transfer_input_token_enum = if transfer_token.denom == resp.token1_denom {
-       TokenSelect::Token1
+        TokenSelect::Token1
     } else {
         TokenSelect::Token2
     };
