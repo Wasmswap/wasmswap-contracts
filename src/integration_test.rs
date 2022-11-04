@@ -46,8 +46,8 @@ fn get_info(router: &App, contract_addr: &Addr) -> InfoResponse {
 fn create_amm(
     router: &mut App,
     owner: &Addr,
-    cash: &Cw20Contract,
-    native_denom: String,
+    token1_denom: Denom,
+    token2_denom: Denom,
     lp_fee_percent: Decimal,
     protocol_fee_percent: Decimal,
     protocol_fee_recipient: String,
@@ -56,8 +56,8 @@ fn create_amm(
     let cw20_id = router.store_code(contract_cw20());
     let amm_id = router.store_code(contract_amm());
     let msg = InstantiateMsg {
-        token1_denom: Denom::Native(native_denom),
-        token2_denom: Denom::Cw20(cash.addr()),
+        token1_denom,
+        token2_denom,
         lp_token_code_id: cw20_id,
         owner: Some(owner.to_string()),
         lp_fee_percent,
@@ -129,8 +129,8 @@ fn test_instantiate() {
     let amm_addr = create_amm(
         &mut router,
         &owner,
-        &cw20_token,
-        NATIVE_TOKEN_DENOM.into(),
+        Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        Denom::Cw20(cw20_token.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         owner.to_string(),
@@ -199,8 +199,8 @@ fn amm_add_and_remove_liquidity() {
     let amm_addr = create_amm(
         &mut router,
         &owner,
-        &cw20_token,
-        NATIVE_TOKEN_DENOM.into(),
+        Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        Denom::Cw20(cw20_token.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         owner.to_string(),
@@ -586,8 +586,8 @@ fn swap_tokens_happy_path() {
     let amm_addr = create_amm(
         &mut router,
         &owner,
-        &cw20_token,
-        NATIVE_TOKEN_DENOM.to_string(),
+        Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        Denom::Cw20(cw20_token.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         owner.to_string(),
@@ -793,8 +793,8 @@ fn swap_with_fee_split() {
     let amm_addr = create_amm(
         &mut router,
         &owner,
-        &cw20_token,
-        NATIVE_TOKEN_DENOM.to_string(),
+        Denom::Native(NATIVE_TOKEN_DENOM.to_string()),
+        Denom::Cw20(cw20_token.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         protocol_fee_recipient.to_string(),
@@ -1017,8 +1017,8 @@ fn update_config() {
     let amm_addr = create_amm(
         &mut router,
         &owner,
-        &cw20_token,
-        NATIVE_TOKEN_DENOM.to_string(),
+        Denom::Native(NATIVE_TOKEN_DENOM.to_string()),
+        Denom::Cw20(cw20_token.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         owner.to_string(),
@@ -1336,8 +1336,8 @@ fn token_to_token_swap_with_fee_split() {
     let amm1 = create_amm(
         &mut router,
         &owner,
-        &token1,
-        NATIVE_TOKEN_DENOM.to_string(),
+        Denom::Native(NATIVE_TOKEN_DENOM.to_string()),
+        Denom::Cw20(token1.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         protocol_fee_recipient.to_string(),
@@ -1345,8 +1345,8 @@ fn token_to_token_swap_with_fee_split() {
     let amm2 = create_amm(
         &mut router,
         &owner,
-        &token2,
-        NATIVE_TOKEN_DENOM.to_string(),
+        Denom::Native(NATIVE_TOKEN_DENOM.to_string()),
+        Denom::Cw20(token2.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         protocol_fee_recipient.to_string(),
@@ -1543,8 +1543,8 @@ fn token_to_token_swap() {
     let amm1 = create_amm(
         &mut router,
         &owner,
-        &token1,
-        NATIVE_TOKEN_DENOM.to_string(),
+        Denom::Native(NATIVE_TOKEN_DENOM.to_string()),
+        Denom::Cw20(token1.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         owner.to_string(),
@@ -1552,8 +1552,8 @@ fn token_to_token_swap() {
     let amm2 = create_amm(
         &mut router,
         &owner,
-        &token2,
-        NATIVE_TOKEN_DENOM.to_string(),
+        Denom::Native(NATIVE_TOKEN_DENOM.to_string()),
+        Denom::Cw20(token2.addr()),
         lp_fee_percent,
         protocol_fee_percent,
         owner.to_string(),
