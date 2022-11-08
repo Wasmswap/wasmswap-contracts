@@ -1700,9 +1700,20 @@ fn test_pass_through_swap_alternative_positions() {
     let mut router = mock_app();
 
     const NATIVE_TOKEN_DENOM: &str = "juno";
+    // For edge case testing invalid inputs
+    const WRONG_DENOM: &str = "WRONG_DENOM";
 
     let owner = Addr::unchecked("owner");
-    let funds = coins(2000, NATIVE_TOKEN_DENOM);
+    let funds = vec![
+        Coin {
+            denom: NATIVE_TOKEN_DENOM.into(),
+            amount: Uint128::new(2000),
+        },
+        Coin {
+            denom: WRONG_DENOM.into(),
+            amount: Uint128::new(2000),
+        },
+    ];
     router.borrow_mut().init_modules(|router, _, storage| {
         router.bank.init_balance(storage, &owner, funds).unwrap()
     });
@@ -1876,4 +1887,57 @@ fn test_pass_through_swap_alternative_positions() {
     let token2_balance = token2.balance(&router, amm2.clone()).unwrap();
     assert_eq!(info_amm2.token1_reserve, token2_balance);
     assert_eq!(info_amm2.token2_reserve, amm2_native_balance.amount);
+
+    // Test proper error handling if invalid output amm is supplied
+    let invalid_output_amm = create_amm(
+        &mut router,
+        &owner,
+        Denom::Native(NATIVE_TOKEN_DENOM.to_string()),
+        Denom::Native(WRONG_DENOM.to_string()),
+        lp_fee_percent,
+        protocol_fee_percent,
+        owner.to_string(),
+    );
+    let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128::new(100),
+        min_liquidity: Uint128::new(100),
+        max_token2: Uint128::new(100),
+        expiration: None,
+    };
+    router
+        .execute_contract(
+            owner.clone(),
+            invalid_output_amm.clone(),
+            &add_liquidity_msg,
+            &[
+                Coin {
+                    denom: NATIVE_TOKEN_DENOM.into(),
+                    amount: Uint128::new(100),
+                },
+                Coin {
+                    denom: WRONG_DENOM.into(),
+                    amount: Uint128::new(100),
+                },
+            ],
+        )
+        .unwrap();
+
+    let swap_msg = ExecuteMsg::PassThroughSwap {
+        output_amm_address: invalid_output_amm.to_string(),
+        input_token: TokenSelect::Token1,
+        input_token_amount: Uint128::new(10),
+        output_min_token: Uint128::new(1),
+        expiration: None,
+    };
+    let err = router
+        .execute_contract(
+            owner.clone(),
+            amm1.clone(),
+            &swap_msg,
+            &coins(10, NATIVE_TOKEN_DENOM),
+        )
+        .unwrap_err()
+        .downcast()
+        .unwrap();
+    assert_eq!(ContractError::InvalidOutputPool {}, err)
 }

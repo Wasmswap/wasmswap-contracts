@@ -861,11 +861,14 @@ pub fn execute_pass_through_swap(
     let resp: InfoResponse = deps
         .querier
         .query_wasm_smart(&output_amm_address, &QueryMsg::Info {})?;
+
     let transfer_input_token_enum = if transfer_token.denom == resp.token1_denom {
-        TokenSelect::Token1
+        Ok(TokenSelect::Token1)
+    } else if transfer_token.denom == resp.token2_denom {
+        Ok(TokenSelect::Token2)
     } else {
-        TokenSelect::Token2
-    };
+        Err(ContractError::InvalidOutputPool {})
+    }?;
 
     let swap_msg = ExecuteMsg::SwapAndSendTo {
         input_token: transfer_input_token_enum,
