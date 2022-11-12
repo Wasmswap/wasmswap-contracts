@@ -1,1 +1,1 @@
-c550d80c9b5cc31cb0ccd0b28b1025cda0eac9629739279cd38c4e7d60454bbc  wasmswap.wasm
+2467a701b46f712c996acf68eb6afd2ae554878d987e8a4319e35af8eab3a36c  wasmswap.wasm
