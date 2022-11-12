@@ -858,11 +858,20 @@ pub fn execute_pass_through_swap(
         )?)
     };
 
+    let resp: InfoResponse = deps
+        .querier
+        .query_wasm_smart(&output_amm_address, &QueryMsg::Info {})?;
+
+    let transfer_input_token_enum = if transfer_token.denom == resp.token1_denom {
+        Ok(TokenSelect::Token1)
+    } else if transfer_token.denom == resp.token2_denom {
+        Ok(TokenSelect::Token2)
+    } else {
+        Err(ContractError::InvalidOutputPool {})
+    }?;
+
     let swap_msg = ExecuteMsg::SwapAndSendTo {
-        input_token: match input_token_enum {
-            TokenSelect::Token1 => TokenSelect::Token2,
-            TokenSelect::Token2 => TokenSelect::Token1,
-        },
+        input_token: transfer_input_token_enum,
         input_amount: amount_to_transfer,
         recipient: info.sender.to_string(),
         min_token: output_min_token,
