@@ -81,8 +81,8 @@ pub enum QueryMsg {
     Token2ForToken1Price {
         token2_amount: Uint128,
     },
+    Fee {},
 }
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct MigrateMsg {
     pub owner: Option<String>,
@@ -99,6 +99,10 @@ pub struct InfoResponse {
     pub token2_denom: Denom,
     pub lp_token_supply: Uint128,
     pub lp_token_address: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct FeeResponse {
     pub owner: Option<String>,
     pub lp_fee_percent: Decimal,
     pub protocol_fee_percent: Decimal,
