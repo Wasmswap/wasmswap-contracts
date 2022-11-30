@@ -10,7 +10,7 @@ use cw20::{Cw20Coin, Cw20Contract, Cw20ExecuteMsg, Denom};
 use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 use std::str::FromStr;
 
-use crate::msg::{ExecuteMsg, InfoResponse, InstantiateMsg, QueryMsg, TokenSelect};
+use crate::msg::{ExecuteMsg, FeeResponse, InfoResponse, InstantiateMsg, QueryMsg, TokenSelect};
 
 fn mock_app() -> App {
     App::default()
@@ -40,6 +40,13 @@ fn get_info(router: &App, contract_addr: &Addr) -> InfoResponse {
     router
         .wrap()
         .query_wasm_smart(contract_addr, &QueryMsg::Info {})
+        .unwrap()
+}
+
+fn get_fee(router: &App, contract_addr: &Addr) -> FeeResponse {
+    router
+        .wrap()
+        .query_wasm_smart(contract_addr, &QueryMsg::Fee {})
         .unwrap()
 }
 
@@ -140,10 +147,12 @@ fn test_instantiate() {
 
     let info = get_info(&router, &amm_addr);
     assert_eq!(info.lp_token_address, "Contract #2".to_string());
-    assert_eq!(info.lp_fee_percent, lp_fee_percent);
-    assert_eq!(info.protocol_fee_percent, protocol_fee_percent);
-    assert_eq!(info.protocol_fee_recipient, owner.to_string());
-    assert_eq!(info.owner.unwrap(), owner.to_string());
+
+    let fee = get_fee(&router, &amm_addr);
+    assert_eq!(fee.lp_fee_percent, lp_fee_percent);
+    assert_eq!(fee.protocol_fee_percent, protocol_fee_percent);
+    assert_eq!(fee.protocol_fee_recipient, owner.to_string());
+    assert_eq!(fee.owner.unwrap(), owner.to_string());
 
     // Test instantiation with invalid fee amount
     let lp_fee_percent = Decimal::from_str("1.01").unwrap();
@@ -531,10 +540,10 @@ fn migrate() {
         )
         .unwrap();
 
-    let info = get_info(&router, &amm_addr);
-    assert_eq!(info.protocol_fee_percent, protocol_fee_percent);
-    assert_eq!(info.lp_fee_percent, lp_fee_percent);
-    assert_eq!(info.protocol_fee_recipient, owner.to_string());
+    let fee = get_fee(&router, &amm_addr);
+    assert_eq!(fee.protocol_fee_percent, protocol_fee_percent);
+    assert_eq!(fee.lp_fee_percent, lp_fee_percent);
+    assert_eq!(fee.protocol_fee_recipient, owner.to_string());
 
     let migrate_msg = MigrateMsg {
         owner: Some(owner.to_string()),
@@ -554,11 +563,11 @@ fn migrate() {
         )
         .unwrap();
 
-    let info = get_info(&router, &amm_addr);
-    assert_eq!(info.protocol_fee_percent, protocol_fee_percent);
-    assert_eq!(info.lp_fee_percent, lp_fee_percent);
-    assert_eq!(info.protocol_fee_recipient, owner.to_string());
-    assert_eq!(info.owner, Some(owner.to_string()));
+    let fee = get_fee(&router, &amm_addr);
+    assert_eq!(fee.protocol_fee_percent, protocol_fee_percent);
+    assert_eq!(fee.lp_fee_percent, lp_fee_percent);
+    assert_eq!(fee.protocol_fee_recipient, owner.to_string());
+    assert_eq!(fee.owner, Some(owner.to_string()));
 }
 
 #[test]
@@ -1036,11 +1045,11 @@ fn update_config() {
         .execute_contract(owner.clone(), amm_addr.clone(), &msg, &[])
         .unwrap();
 
-    let info = get_info(&router, &amm_addr);
-    assert_eq!(info.protocol_fee_recipient, "new_fee_recpient".to_string());
-    assert_eq!(info.protocol_fee_percent, protocol_fee_percent);
-    assert_eq!(info.lp_fee_percent, lp_fee_percent);
-    assert_eq!(info.owner.unwrap(), owner.to_string());
+    let fee = get_fee(&router, &amm_addr);
+    assert_eq!(fee.protocol_fee_recipient, "new_fee_recpient".to_string());
+    assert_eq!(fee.protocol_fee_percent, protocol_fee_percent);
+    assert_eq!(fee.lp_fee_percent, lp_fee_percent);
+    assert_eq!(fee.owner.unwrap(), owner.to_string());
 
     // Try updating config with fee values that are too high
     let lp_fee_percent = Decimal::from_str("1.01").unwrap();
@@ -1096,11 +1105,11 @@ fn update_config() {
         .execute_contract(owner.clone(), amm_addr.clone(), &msg, &[])
         .unwrap();
 
-    let info = get_info(&router, &amm_addr);
-    assert_eq!(info.protocol_fee_recipient, owner.to_string());
-    assert_eq!(info.protocol_fee_percent, protocol_fee_percent);
-    assert_eq!(info.lp_fee_percent, lp_fee_percent);
-    assert_eq!(info.owner.unwrap(), "new_owner".to_string());
+    let fee = get_fee(&router, &amm_addr);
+    assert_eq!(fee.protocol_fee_recipient, owner.to_string());
+    assert_eq!(fee.protocol_fee_percent, protocol_fee_percent);
+    assert_eq!(fee.lp_fee_percent, lp_fee_percent);
+    assert_eq!(fee.owner.unwrap(), "new_owner".to_string());
 }
 
 #[test]

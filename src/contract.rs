@@ -13,8 +13,8 @@ use std::str::FromStr;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, InfoResponse, InstantiateMsg, MigrateMsg, QueryMsg, Token1ForToken2PriceResponse,
-    Token2ForToken1PriceResponse, TokenSelect,
+    ExecuteMsg, FeeResponse, InfoResponse, InstantiateMsg, MigrateMsg, QueryMsg,
+    Token1ForToken2PriceResponse, Token2ForToken1PriceResponse, TokenSelect,
 };
 use crate::state::{Fees, Token, FEES, LP_TOKEN, OWNER, TOKEN1, TOKEN2};
 
@@ -927,6 +927,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Token2ForToken1Price { token2_amount } => {
             to_binary(&query_token2_for_token1_price(deps, token2_amount)?)
         }
+        QueryMsg::Fee {} => to_binary(&query_fee(deps)?),
     }
 }
 
@@ -934,9 +935,6 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
     let token1 = TOKEN1.load(deps.storage)?;
     let token2 = TOKEN2.load(deps.storage)?;
     let lp_token_address = LP_TOKEN.load(deps.storage)?;
-    let fees = FEES.load(deps.storage)?;
-
-    let owner = OWNER.load(deps.storage)?.map(|o| o.into_string());
 
     // TODO get total supply
     Ok(InfoResponse {
@@ -946,10 +944,6 @@ pub fn query_info(deps: Deps) -> StdResult<InfoResponse> {
         token2_denom: token2.denom,
         lp_token_supply: get_lp_token_supply(deps, &lp_token_address)?,
         lp_token_address: lp_token_address.into_string(),
-        owner,
-        lp_fee_percent: fees.lp_fee_percent,
-        protocol_fee_percent: fees.protocol_fee_percent,
-        protocol_fee_recipient: fees.protocol_fee_recipient.into_string(),
     })
 }
 
@@ -987,6 +981,18 @@ pub fn query_token2_for_token1_price(
         total_fee_percent,
     )?;
     Ok(Token2ForToken1PriceResponse { token1_amount })
+}
+
+pub fn query_fee(deps: Deps) -> StdResult<FeeResponse> {
+    let fees = FEES.load(deps.storage)?;
+    let owner = OWNER.load(deps.storage)?.map(|o| o.into_string());
+
+    Ok(FeeResponse {
+        owner,
+        lp_fee_percent: fees.lp_fee_percent,
+        protocol_fee_percent: fees.protocol_fee_percent,
+        protocol_fee_recipient: fees.protocol_fee_recipient.into_string(),
+    })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
