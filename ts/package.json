@@ -1,0 +1,25 @@
+{
+  "name": "@stargazezone/ts-swap",
+  "version": "0.1.0",
+  "description": "Stargaze Swap CosmWasm Typescript Types",
+  "main": "src/main.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "codegen": "ts-node codegen.ts"
+  },
+  "author": "John Y",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@cosmjs/amino": "0.29.4",
+    "@cosmjs/cosmwasm-stargate": "^0.29.4",
+    "@cosmjs/encoding": "0.29.4",
+    "@cosmjs/proto-signing": "0.29.4",
+    "@cosmjs/stargate": "0.29.4",
+    "@cosmjs/tendermint-rpc": "^0.29.4",
+    "@cosmwasm/ts-codegen": "^0.24.0",
+    "cosmjs-types": "^0.5.2",
+    "cosmwasm": "1.1.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.9.3"
+  }
+}
