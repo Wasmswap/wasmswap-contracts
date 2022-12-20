@@ -16,7 +16,7 @@ use crate::msg::{
     ExecuteMsg, FeeResponse, InfoResponse, InstantiateMsg, MigrateMsg, QueryMsg,
     Token1ForToken2PriceResponse, Token2ForToken1PriceResponse, TokenSelect,
 };
-use crate::state::{Fees, Token, FEES, LP_TOKEN, OWNER, TOKEN1, TOKEN2};
+use crate::state::{Fees, Token, FEES, FROZEN, LP_TOKEN, OWNER, TOKEN1, TOKEN2};
 
 // Version info for migration info
 pub const CONTRACT_NAME: &str = "crates.io:wasmswap";
@@ -71,6 +71,9 @@ pub fn instantiate(
     };
     FEES.save(deps.storage, &fees)?;
 
+    // Depositing is not frozen by default
+    FROZEN.save(deps.storage, &false)?;
+
     let instantiate_lp_token_msg = WasmMsg::Instantiate {
         code_id: msg.lp_token_code_id,
         funds: vec![],
@@ -109,15 +112,20 @@ pub fn execute(
             min_liquidity,
             max_token2,
             expiration,
-        } => execute_add_liquidity(
-            deps,
-            &info,
-            env,
-            min_liquidity,
-            token1_amount,
-            max_token2,
-            expiration,
-        ),
+        } => {
+            if FROZEN.load(deps.storage)? {
+                return Err(ContractError::FrozenPool {});
+            }
+            execute_add_liquidity(
+                deps,
+                &info,
+                env,
+                min_liquidity,
+                token1_amount,
+                max_token2,
+                expiration,
+            )
+        }
         ExecuteMsg::RemoveLiquidity {
             amount,
             min_token1,
@@ -130,48 +138,63 @@ pub fn execute(
             min_output,
             expiration,
             ..
-        } => execute_swap(
-            deps,
-            &info,
-            input_amount,
-            env,
-            input_token,
-            info.sender.to_string(),
-            min_output,
-            expiration,
-        ),
+        } => {
+            if FROZEN.load(deps.storage)? {
+                return Err(ContractError::FrozenPool {});
+            }
+            execute_swap(
+                deps,
+                &info,
+                input_amount,
+                env,
+                input_token,
+                info.sender.to_string(),
+                min_output,
+                expiration,
+            )
+        }
         ExecuteMsg::PassThroughSwap {
             output_amm_address,
             input_token,
             input_token_amount,
             output_min_token,
             expiration,
-        } => execute_pass_through_swap(
-            deps,
-            info,
-            env,
-            output_amm_address,
-            input_token,
-            input_token_amount,
-            output_min_token,
-            expiration,
-        ),
+        } => {
+            if FROZEN.load(deps.storage)? {
+                return Err(ContractError::FrozenPool {});
+            }
+            execute_pass_through_swap(
+                deps,
+                info,
+                env,
+                output_amm_address,
+                input_token,
+                input_token_amount,
+                output_min_token,
+                expiration,
+            )
+        }
         ExecuteMsg::SwapAndSendTo {
             input_token,
             input_amount,
             recipient,
             min_token,
             expiration,
-        } => execute_swap(
-            deps,
-            &info,
-            input_amount,
-            env,
-            input_token,
-            recipient,
-            min_token,
-            expiration,
-        ),
+        } => {
+            if FROZEN.load(deps.storage)? {
+                return Err(ContractError::FrozenPool {});
+            }
+            execute_swap(
+                deps,
+                &info,
+                input_amount,
+                env,
+                input_token,
+                recipient,
+                min_token,
+                expiration,
+            )
+        }
         ExecuteMsg::UpdateConfig {
             owner,
             protocol_fee_recipient,
@@ -185,7 +208,17 @@ pub fn execute(
             protocol_fee_percent,
             protocol_fee_recipient,
         ),
+        ExecuteMsg::FreezeDeposits {} => execute_freeze_deposits(deps, info.sender),
     }
+}
+
+fn execute_freeze_deposits(deps: DepsMut, sender: Addr) -> Result<Response, ContractError> {
+    if sender != OWNER.load(deps.storage)? {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    FROZEN.save(deps.storage, &true)?;
+    Ok(Response::new().add_attribute("action", "freezing-contracts"))
 }
 
 fn check_expiration(
@@ -1039,6 +1072,9 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         protocol_fee_recipient,
     };
     FEES.save(deps.storage, &fees)?;
+
+    // By default deposits are not frozen
+    FROZEN.save(deps.storage, &false)?;
 
     Ok(Response::default())
 }

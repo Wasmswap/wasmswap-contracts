@@ -72,4 +72,7 @@ pub enum ContractError {
 
     #[error("The output amm provided is invalid")]
     InvalidOutputPool {},
+
+    #[error("This pools is frozen - you can not deposit or swap tokens")]
+    FrozenPool {},
 }

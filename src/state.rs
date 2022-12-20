@@ -26,3 +26,5 @@ pub struct Fees {
 }
 
 pub const FEES: Item<Fees> = Item::new("fees");
+
+pub const FROZEN: Item<bool> = Item::new("frozen");
