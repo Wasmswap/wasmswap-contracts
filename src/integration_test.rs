@@ -550,6 +550,7 @@ fn migrate() {
         lp_fee_percent,
         protocol_fee_percent,
         protocol_fee_recipient: owner.to_string(),
+        freeze_pool: false,
     };
 
     router
@@ -568,6 +569,91 @@ fn migrate() {
     assert_eq!(fee.lp_fee_percent, lp_fee_percent);
     assert_eq!(fee.protocol_fee_recipient, owner.to_string());
     assert_eq!(fee.owner, Some(owner.to_string()));
+}
+
+#[test]
+fn migrate_and_freeze_pool() {
+    let mut router = mock_app();
+
+    let owner = Addr::unchecked("owner");
+    let funds = coins(100, NATIVE_TOKEN_DENOM);
+    router.borrow_mut().init_modules(|router, _, storage| {
+        router.bank.init_balance(storage, &owner, funds).unwrap()
+    });
+
+    const NATIVE_TOKEN_DENOM: &str = "juno";
+    const IBC_TOKEN_DENOM: &str = "atom";
+
+    let amm_id = router.store_code(contract_amm());
+    let lp_token_id = router.store_code(contract_cw20());
+    let lp_fee_percent = Decimal::from_str("0.3").unwrap();
+    let protocol_fee_percent = Decimal::zero();
+
+    let msg = InstantiateMsg {
+        token1_denom: Denom::Native(NATIVE_TOKEN_DENOM.into()),
+        token2_denom: Denom::Native(IBC_TOKEN_DENOM.into()),
+        lp_token_code_id: lp_token_id,
+        owner: Some(owner.to_string()),
+        lp_fee_percent,
+        protocol_fee_percent,
+        protocol_fee_recipient: owner.to_string(),
+    };
+    let amm_addr = router
+        .instantiate_contract(
+            amm_id,
+            owner.clone(),
+            &msg,
+            &[],
+            "amm",
+            Some(owner.to_string()),
+        )
+        .unwrap();
+
+    let fee = get_fee(&router, &amm_addr);
+    assert_eq!(fee.protocol_fee_percent, protocol_fee_percent);
+    assert_eq!(fee.lp_fee_percent, lp_fee_percent);
+    assert_eq!(fee.protocol_fee_recipient, owner.to_string());
+
+    let migrate_msg = MigrateMsg {
+        owner: Some(owner.to_string()),
+        lp_fee_percent,
+        protocol_fee_percent,
+        protocol_fee_recipient: owner.to_string(),
+        freeze_pool: true,
+    };
+
+    router
+        .execute(
+            owner.clone(),
+            CosmosMsg::Wasm(WasmMsg::Migrate {
+                contract_addr: amm_addr.to_string(),
+                new_code_id: amm_id,
+                msg: to_binary(&migrate_msg).unwrap(),
+            }),
+        )
+        .unwrap();
+
+    let _ = get_fee(&router, &amm_addr);
+
+    // now adding liquidity will fail
+    let add_liquidity_msg = ExecuteMsg::AddLiquidity {
+        token1_amount: Uint128::new(100),
+        min_liquidity: Uint128::new(100),
+        max_token2: Uint128::new(100),
+        expiration: None,
+    };
+    let err = router
+        .execute_contract(
+            owner,
+            amm_addr,
+            &add_liquidity_msg,
+            &[Coin {
+                denom: NATIVE_TOKEN_DENOM.into(),
+                amount: Uint128::new(100),
+            }],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::FrozenPool {}, err.downcast().unwrap());
 }
 
 #[test]

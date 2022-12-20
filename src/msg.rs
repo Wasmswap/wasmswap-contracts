@@ -91,6 +91,7 @@ pub struct MigrateMsg {
     pub protocol_fee_recipient: String,
     pub protocol_fee_percent: Decimal,
     pub lp_fee_percent: Decimal,
+    pub freeze_pool: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

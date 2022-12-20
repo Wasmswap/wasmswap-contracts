@@ -1078,7 +1078,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
     FEES.save(deps.storage, &fees)?;
 
     // By default deposits are not frozen
-    FROZEN.save(deps.storage, &false)?;
+    FROZEN.save(deps.storage, &msg.freeze_pool)?;
 
     Ok(Response::default())
 }
