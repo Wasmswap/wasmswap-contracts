@@ -215,10 +215,10 @@ pub fn execute(
 fn execute_freeze_deposits(deps: DepsMut, sender: Addr) -> Result<Response, ContractError> {
     if let Some(owner) = OWNER.load(deps.storage)? {
         if sender != owner {
-            return Err(ContractError::Unauthorized {});
+            return Err(ContractError::UnauthorizedPoolFreeze {});
         }
     } else {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::UnauthorizedPoolFreeze {});
     }
 
     FROZEN.save(deps.storage, &true)?;

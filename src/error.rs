@@ -74,7 +74,7 @@ pub enum ContractError {
     InvalidOutputPool {},
 
     #[error("Unauthorized pool freeze - sender is not an owner or owner has not been set")]
-    UnathorizedPoolFreeze {},
+    UnauthorizedPoolFreeze {},
 
     #[error("This pools is frozen - you can not deposit or swap tokens")]
     FrozenPool {},
