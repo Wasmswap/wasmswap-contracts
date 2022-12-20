@@ -72,4 +72,10 @@ pub enum ContractError {
 
     #[error("The output amm provided is invalid")]
     InvalidOutputPool {},
+
+    #[error("Unauthorized pool freeze - sender is not an owner or owner has not been set")]
+    UnauthorizedPoolFreeze {},
+
+    #[error("This pools is frozen - you can not deposit or swap tokens")]
+    FrozenPool {},
 }

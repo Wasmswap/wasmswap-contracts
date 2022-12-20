@@ -65,6 +65,10 @@ pub enum ExecuteMsg {
         protocol_fee_percent: Decimal,
         protocol_fee_recipient: String,
     },
+    // Freeze adding new deposits
+    FreezeDeposits {
+        freeze: bool,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
@@ -89,6 +93,7 @@ pub struct MigrateMsg {
     pub protocol_fee_recipient: String,
     pub protocol_fee_percent: Decimal,
     pub lp_fee_percent: Decimal,
+    pub freeze_pool: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -101,7 +106,7 @@ pub struct InfoResponse {
     pub lp_token_address: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 pub struct FeeResponse {
     pub owner: Option<String>,
     pub lp_fee_percent: Decimal,
