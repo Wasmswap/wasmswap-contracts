@@ -66,7 +66,9 @@ pub enum ExecuteMsg {
         protocol_fee_recipient: String,
     },
     // Freeze adding new deposits
-    FreezeDeposits {},
+    FreezeDeposits {
+        freeze: bool,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]

@@ -208,11 +208,15 @@ pub fn execute(
             protocol_fee_percent,
             protocol_fee_recipient,
         ),
-        ExecuteMsg::FreezeDeposits {} => execute_freeze_deposits(deps, info.sender),
+        ExecuteMsg::FreezeDeposits { freeze } => execute_freeze_deposits(deps, info.sender, freeze),
     }
 }
 
-fn execute_freeze_deposits(deps: DepsMut, sender: Addr) -> Result<Response, ContractError> {
+fn execute_freeze_deposits(
+    deps: DepsMut,
+    sender: Addr,
+    freeze: bool,
+) -> Result<Response, ContractError> {
     if let Some(owner) = OWNER.load(deps.storage)? {
         if sender != owner {
             return Err(ContractError::UnauthorizedPoolFreeze {});
@@ -221,7 +225,7 @@ fn execute_freeze_deposits(deps: DepsMut, sender: Addr) -> Result<Response, Cont
         return Err(ContractError::UnauthorizedPoolFreeze {});
     }
 
-    FROZEN.save(deps.storage, &true)?;
+    FROZEN.save(deps.storage, &freeze)?;
     Ok(Response::new().add_attribute("action", "freezing-contracts"))
 }
 
