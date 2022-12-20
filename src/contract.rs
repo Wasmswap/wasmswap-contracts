@@ -213,7 +213,11 @@ pub fn execute(
 }
 
 fn execute_freeze_deposits(deps: DepsMut, sender: Addr) -> Result<Response, ContractError> {
-    if sender != OWNER.load(deps.storage)? {
+    if let Some(owner) = OWNER.load(deps.storage)? {
+        if sender != owner {
+            return Err(ContractError::Unauthorized {});
+        }
+    } else {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -501,7 +505,7 @@ pub fn execute_update_config(
     };
     FEES.save(deps.storage, &updated_fees)?;
 
-    let new_owner = new_owner.unwrap_or_else(|| "".to_string());
+    let new_owner = new_owner.unwrap_or_default();
     Ok(Response::new().add_attributes(vec![
         attr("new_owner", new_owner),
         attr("lp_fee_percent", lp_fee_percent.to_string()),

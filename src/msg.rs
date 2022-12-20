@@ -103,7 +103,7 @@ pub struct InfoResponse {
     pub lp_token_address: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 pub struct FeeResponse {
     pub owner: Option<String>,
     pub lp_fee_percent: Decimal,
