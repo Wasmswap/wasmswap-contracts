@@ -1,6 +1,6 @@
 [package]
 name = "wasmswap"
-version = "1.1.2-beta"
+version = "1.2.0"
 authors = ["ben2x4 <ben2x4@protonmail.com>"]
 edition = "2018"
 description = "Cosmwasm AMM"
