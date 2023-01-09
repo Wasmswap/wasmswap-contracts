@@ -40,8 +40,6 @@ $BINARY keys delete faucet -y >/dev/null
 # Add faucet wallet
 echo $FAUCET_MNEMONIC | $BINARY keys add faucet --account 1 --recover
 
-$BINARY keys list
-exit
 # LP Data, like pool address, staking address, the cw20 addresses.
 POOL_ADDR=$1
 STAKING_ADDR=$2
