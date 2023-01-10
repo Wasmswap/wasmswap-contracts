@@ -72,6 +72,9 @@ do
     # CW20 token, use transfer to fund wallet from faucet
     $BINARY tx wasm execute $TOKEN_1_ADDR '{"transfer":{"recipient":"'"$TESTER_ADDR"'","amount":"150"}}' --from faucet $TXFLAG >/dev/null || exit
     TOKEN_ADDR=$TOKEN_1_ADDR
+  else
+    # Its native token, we need to add funds (--amount)
+    FUNDS="--amount 100ujunox"
   fi
 
   if [ -n "$TOKEN_2_ADDR" ]
@@ -79,13 +82,16 @@ do
     # CW20 token, use transfer to fund wallet from faucet
     $BINARY tx wasm execute $TOKEN_2_ADDR '{"transfer":{"recipient":"'"$TESTER_ADDR"'","amount":"150"}}' --from faucet $TXFLAG >/dev/null || exit
     TOKEN_ADDR=$TOKEN_2_ADDR
+  else
+    # Its native token, we need to add funds (--amount)
+    FUNDS="--amount 150ujunox"
   fi
 
   # increase allowance
   $BINARY tx wasm execute $TOKEN_ADDR '{"increase_allowance":{"amount":"20000","spender":"'"$POOL_ADDR"'"}}' --from $TESTER_NAME $TXFLAG || exit
 
   # Add liquidity
-  $BINARY tx wasm execute $POOL_ADDR '{"add_liquidity":{"token1_amount":"100","min_liquidity":"1","max_token2":"131"}}' --from $TESTER_NAME --amount 131ujunox $TXFLAG || exit
+  $BINARY tx wasm execute $POOL_ADDR '{"add_liquidity":{"token1_amount":"100","min_liquidity":"1","max_token2":"150"}}' --from $TESTER_NAME $FUNDS $TXFLAG || exit
 
   # Stake
   staking_msg=`echo '{"stake":{}}' | base64`
