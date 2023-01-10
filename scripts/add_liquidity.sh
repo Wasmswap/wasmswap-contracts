@@ -35,7 +35,7 @@ docker run --rm -d -t --name cosmwasm \
     ghcr.io/cosmoscontracts/juno:v11.0.0 sh
 
 # Try to delete faucet if already exists
-$BINARY keys delete faucet -y >/dev/null &>/dev/null
+$BINARY keys delete faucet -y &>/dev/null
 
 # Add faucet wallet
 echo $TESTER_MNEMONIC | $BINARY keys add faucet --account 1 --recover >/dev/null
