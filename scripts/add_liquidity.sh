@@ -13,7 +13,7 @@ RPC='https://rpc.uni.junonetwork.io:443'
 TXFLAG="--gas-prices 0.1$DENOM --gas auto --gas-adjustment 1.3 -y -b block --chain-id $CHAIN_ID --node $RPC"
 QFLAG="--chain-id $CHAIN_ID --node $RPC"
 TESTER_MNEMONIC='siren window salt bullet cream letter huge satoshi fade shiver permit offer happy immense wage fitness goose usual aim hammer clap about super trend'
-FAUCET_MNEMONIC='siren window salt bullet cream letter huge satoshi fade shiver permit offer happy immense wage fitness goose usual aim hammer clap about super trend'
+FAUCET_ADDR='juno12gqyglvj4rdg4kcc292s8z7u25d3s4tuph98y8'
 KILL_DOCKER='docker kill cosmwasm'
 
 if [ "$1" = "" ]
@@ -27,18 +27,18 @@ then
 fi
 
 # Start docker with junod installed
-$KILL_DOCKER
+$KILL_DOCKER &>/dev/null
 
 docker run --rm -d -t --name cosmwasm \
     --mount type=volume,source=junod_data,target=/root \
     --platform linux/amd64 \
-    ghcr.io/cosmoscontracts/juno:v2.1.0 sh
+    ghcr.io/cosmoscontracts/juno:v11.0.0 sh
 
 # Try to delete faucet if already exists
-$BINARY keys delete faucet -y >/dev/null
+$BINARY keys delete faucet -y >/dev/null &>/dev/null
 
 # Add faucet wallet
-echo $FAUCET_MNEMONIC | $BINARY keys add faucet --account 1 --recover
+echo $TESTER_MNEMONIC | $BINARY keys add faucet --account 1 --recover >/dev/null
 
 # LP Data, like pool address, staking address, the cw20 addresses.
 POOL_ADDR=$1
@@ -60,35 +60,36 @@ do
   TESTER_NAME=$BASE_NAME"-"$INDEX
 
   # Add tester address to junod
-  $BINARY keys delete $TESTER_NAME -y >/dev/null
-  printf "y\n$TESTER_MNEMONIC" | $BINARY keys add $TESTER_NAME --account $INDEX --recover
+  $BINARY keys delete $TESTER_NAME -y &>/dev/null
+  echo "$TESTER_MNEMONIC" | $BINARY keys add $TESTER_NAME --account $INDEX --recover >/dev/null
+  TESTER_ADDR=$($BINARY keys show $TESTER_NAME --address)
 
-  # TODO: Fund wallet from faucet wallet
-  if [ "$TOKEN_1_ADDR" = "" ]
+  # Use bank to fund wallet from faucet (for gas and pool)
+  $BINARY tx bank send faucet $TESTER_ADDR 100000ujunox $TXFLAG >/dev/null || exit
+
+  if [ -n "$TOKEN_1_ADDR" ]
   then
-    # Native token, use bank to fund wallet from faucet
-
-  else
     # CW20 token, use transfer to fund wallet from faucet
+    $BINARY tx wasm execute $TOKEN_1_ADDR '{"transfer":{"recipient":"'"$TESTER_ADDR"'","amount":"150"}}' --from faucet $TXFLAG >/dev/null || exit
+    TOKEN_ADDR=$TOKEN_1_ADDR
   fi
 
-  if [ "$TOKEN_2_ADDR" = "" ]
+  if [ -n "$TOKEN_2_ADDR" ]
   then
-    # Native token, use bank to fund wallet from faucet
-
-  else
     # CW20 token, use transfer to fund wallet from faucet
+    $BINARY tx wasm execute $TOKEN_2_ADDR '{"transfer":{"recipient":"'"$TESTER_ADDR"'","amount":"150"}}' --from faucet $TXFLAG >/dev/null || exit
+    TOKEN_ADDR=$TOKEN_2_ADDR
   fi
 
   # increase allowance
-  $BINARY tx wasm execute $TOKEN_ADDR '{"increase_allowance":{"amount":"2000000","spender":"'"$POOL_ADDR"'"}}' --from $TESTER_NAME $TXFLAG
+  $BINARY tx wasm execute $TOKEN_ADDR '{"increase_allowance":{"amount":"20000","spender":"'"$POOL_ADDR"'"}}' --from $TESTER_NAME $TXFLAG || exit
 
   # Add liquidity
-  $BINARY tx wasm execute $POOL_ADDR '{"add_liquidity":{"token1_amount":"100","min_liquidity":"1","max_token2":"131"}}' --from $TESTER_NAME --amount 131ujunox $TXFLAG
+  $BINARY tx wasm execute $POOL_ADDR '{"add_liquidity":{"token1_amount":"100","min_liquidity":"1","max_token2":"131"}}' --from $TESTER_NAME --amount 131ujunox $TXFLAG || exit
 
   # Stake
   staking_msg=`echo '{"stake":{}}' | base64`
-  $BINARY tx wasm execute $LP_TOKEN_ADDR '{"send":{"contract":"'"$STAKING_ADDR"'","amount":"100","msg":"'"$staking_msg"'"}}' --from $TESTER_NAME $TXFLAG
+  $BINARY tx wasm execute $LP_TOKEN_ADDR '{"send":{"contract":"'"$STAKING_ADDR"'","amount":"90","msg":"'"$staking_msg"'"}}' --from $TESTER_NAME $TXFLAG
 
   # Increase index
   let INDEX=INDEX+1
@@ -97,3 +98,7 @@ do
 done
 
 $KILL_DOCKER
+
+
+# Swap msg for native denom
+# $BINARY tx wasm execute $POOL_ADDR '{"swap":{"input_token": "Token2","input_amount":"2000000","min_output":"1"}}' --from faucet --amount 2000000ujunox $TXFLAG
